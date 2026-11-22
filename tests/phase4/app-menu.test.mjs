@@ -36,13 +36,17 @@ test("playback keys stay with the renderer so text fields keep Space and ⌘←/
 
 test("menu items forward commands to the renderer and player", () => {
   const { template, sent } = buildMenu({ hasSong: true });
-  assert.equal(find(template, "Albums"), undefined);
-  assert.equal(find(template, "Import Album Folder…"), undefined);
+  assert.ok(find(template, "Albums"));
+  assert.ok(find(template, "Import Album Folder…"));
   find(template, "Library").click();
+  find(template, "Albums").click();
+  find(template, "Import Album Folder…").click();
   find(template, "Find").click();
   find(template, "Play").click();
   assert.deepEqual(sent, [
     ["app", { type: "navigate", view: "library" }],
+    ["app", { type: "navigate", view: "albums" }],
+    ["app", { type: "import-album-folder" }],
     ["app", { type: "find" }],
     ["player", { type: "toggle", source: "menu" }]
   ]);

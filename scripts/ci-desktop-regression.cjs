@@ -159,7 +159,8 @@ server.listen(5173,async()=>{
         const inside=(el,box)=>!!el&&rect(el).top>=rect(box).top-1&&rect(el).bottom<=rect(box).bottom+1;
         return {
           theme:app.dataset.theme,
-          retired:!!sidebar.querySelector('[data-nav-id="liked"],[data-nav-id="albums"]'),
+          retired:!!sidebar.querySelector('[data-nav-id="liked"]'),
+          albumsVisible:!!sidebar.querySelector('[data-nav-id="albums"]'),
           pinned:inside(pinned,sidebar),
           importVisible:inside(sidebar.querySelector('.importMainAction'),sidebar),
           sidebarClearOfPlayer:rect(sidebar).bottom<=rect(app.querySelector('.playerBar')).top+1,
@@ -186,6 +187,7 @@ server.listen(5173,async()=>{
       })()`);
       assert.equal(chrome.mode,"slim");
       assert.equal(chrome.retired,false,"retired sidebar destinations");
+       assert.equal(chrome.albumsVisible,true,"Albums must be available by default");
       assert.ok(chrome.pinned&&chrome.homeVisible&&chrome.importVisible,"Settings, Home and Import must remain visible: "+JSON.stringify(chrome));
       assert.ok(chrome.sidebarClearOfPlayer,"sidebar must end above the full-width playback bar: "+JSON.stringify(chrome));
       if(chrome.theme==="light"){

@@ -5481,6 +5481,7 @@ function MainModeApp() {
     changeView, nav,
     openSettings: () => openSettingsPanel(),
     importSongs,
+    importAlbumFolder: () => albumsController.scanAlbumFolderImport("library"),
     openFeedback: openFeedbackPrompt,
     checkForUpdates: () => { openSettingsPanel("updates"); return manualUpdateCheck(); }
   });

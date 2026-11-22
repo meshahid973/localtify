@@ -294,11 +294,15 @@ test("lyrics and portal menus use theme-aware foreground and surfaces", () => {
 });
 
 
-test("retired local album feature is absent; album metadata and liked songs stay accessible", () => {
-  assert.equal(fs.existsSync(path.join(root, "src/features/albums/AlbumsView.tsx")), false);
-  assert.equal(fs.existsSync(path.join(root, "src/features/albums/useAlbumsController.ts")), false);
+test("albums have a default navigation destination and a working detail view", () => {
+  assert.ok(fs.existsSync(path.join(root, "src/features/albums/AlbumsView.tsx")));
+  assert.ok(fs.existsSync(path.join(root, "src/features/albums/useAlbumsController.ts")));
   const nav = read("src/features/shell/navigation.constants.ts");
-  assert.doesNotMatch(nav, /id:"(?:albums|liked)"/);
-  assert.match(read("src/features/shell/AppShell.tsx"), /\["liked", "Liked"\]/);
-  assert.doesNotMatch(read("src/features/home/homeLayout.ts"), /newAlbums/);
+  assert.match(nav, /id:"albums"/);
+  assert.doesNotMatch(nav, /id:"liked"/);
+  const shell = read("src/features/shell/AppShell.tsx");
+  assert.match(shell, /\["albums", "Albums"\]/);
+  assert.match(shell, /<AlbumPage/);
+  assert.match(read("src/features/shell/appActions.ts"), /function albumTarget/);
+  assert.match(shell, /\["liked", "Liked"\]/);
 });
