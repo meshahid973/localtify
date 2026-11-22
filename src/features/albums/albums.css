@@ -102,7 +102,6 @@
   .albumBuilderFieldsV318 { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
 @media (max-width: 740px) {
-  .albumBuilderPanelV318,.albumFolderImportPanelV309 { padding: 15px; }
   .albumBuilderFieldsV318 { grid-template-columns: 1fr; }
   .albumFolderImportSummaryV309 { grid-template-columns: 1fr; }
 }
@@ -113,7 +112,6 @@
 .albumsActionBarV318 button { max-width: 100%; }
 .albumCardV318 { min-width: 0; content-visibility: auto; contain-intrinsic-size: auto 275px; }
 .albumCardV318 :is(strong,em,b) { min-width: 0; }
-.albumCardCoverV318 { aspect-ratio: 1 / 1; }
 .albumBuilderPanelV318, .albumFolderImportPanelV309 { scroll-margin-block-start: 14px; }
 .albumBuilderSongGridV318 { max-height: min(52vh, 480px); overflow: auto; overscroll-behavior: contain; align-content: start; }
 .albumBuilderSongGridV318 button { min-height: 56px; }
