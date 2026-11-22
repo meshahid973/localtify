@@ -206,7 +206,6 @@ export function useAlbumsController({
 
 
   function cancelAlbumFolderImportPreview() {
-    setAlbumDeleteConfirmArmed(false);
     setAlbumFolderImportPreview(null);
     setAlbumFolderImportProgress(null);
     setAlbumFolderImportMessage("");
