@@ -395,6 +395,17 @@ server.listen(5173,async()=>{
       await win.webContents.executeJavaScript("document.querySelector('.librarySectionNav [data-library-section=liked]').click()");
       await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.libraryPageLiked')").catch(()=>false),"liked songs "+mode);
       await screenshot(win,"liked-"+mode);
+      const unlikeForEmpty = await win.webContents.executeJavaScript("(()=>{const button=document.querySelector('.libraryPageLiked .songRow .likeAction');if(!button)return false;button.click();return true})()");
+      assert.ok(unlikeForEmpty,"Liked must allow removing the last saved song");
+      await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.libraryPageLiked .libraryLikedEmpty')"),"Liked empty state "+mode,5000);
+      await screenshot(win,"liked-empty-"+mode);
+      const browseFromEmpty = await win.webContents.executeJavaScript("(()=>{const button=document.querySelector('.libraryLikedBrowse');if(!button)return false;button.click();return true})()");
+      assert.ok(browseFromEmpty,"Liked empty state must offer library navigation");
+      await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.libraryPage:not(.libraryPageLiked) .songRow[data-library-song-id=qa-0]')"),"back to songs from Liked "+mode,5000);
+      await win.webContents.executeJavaScript("document.querySelector('.libraryPage .songRow[data-library-song-id=qa-0] .likeAction').click()");
+      await until(()=>win.webContents.executeJavaScript("document.querySelector('.libraryPage .songRow[data-library-song-id=qa-0] .likeAction')?.getAttribute('aria-pressed')==='true'"),"restore liked song "+mode,5000);
+      await win.webContents.executeJavaScript("document.querySelector('.librarySectionNav [data-library-section=liked]').click()");
+      await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.libraryPageLiked .songRow')"),"Liked restores track "+mode,5000);
       await win.webContents.executeJavaScript(`(()=>{const e=document.querySelector('.librarySearch');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(e,"no matching fixture");e.dispatchEvent(new Event("input",{bubbles:true}));})()`);
       await until(()=>win.webContents.executeJavaScript("document.querySelector('.libraryPageLiked')?.textContent.includes('No songs found')"),"liked search empty "+mode);
       await win.webContents.executeJavaScript("[...document.querySelectorAll('.libraryPageLiked button')].find(b=>b.textContent==='clear search').click()");

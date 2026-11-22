@@ -300,3 +300,10 @@
   .immersivePlayer .immersiveTools { flex-wrap: wrap; }
   .immersivePlayer .immersiveActions { justify-content: end; }
 }
+
+.immersivePlayer[data-lyrics-open="true"] .immersiveStage[data-lyrics-only="true"] {
+  grid-template-columns: minmax(0,1fr);
+}
+.immersivePlayer[data-lyrics-open="true"] .immersiveStage[data-lyrics-only="true"] > .immersiveArtwork {
+  display: none;
+}
