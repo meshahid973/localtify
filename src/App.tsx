@@ -4837,6 +4837,7 @@ function MainModeApp() {
     setPlayQueue((queue) => remapSongIds(queue, keptFor));
     setQueueHistory((history) => history.map((item) => keptFor.has(item.songId) ? { ...item, songId: keptFor.get(item.songId)! } : item));
     setPlaylists((items) => items.map((item) => ({ ...item, songIds: remapSongIds(item.songIds, keptFor) })));
+    albumsController.remapAlbumSongs(keptFor);
     setSongs(applyLibraryOrder(sanitizeSongList(nextSongs)));
   }
 
