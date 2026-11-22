@@ -72,6 +72,9 @@ export type ShellCollectionsContract = {
   queueSongs: (songIds: string[], label: string) => unknown;
   playPlaylist: (playlist: Playlist, shuffle: boolean) => unknown;
   openSimilar: (request: SimilarSeedRequest) => unknown;
+  playlists: Playlist[];
+  addAlbumToPlaylist: (playlistId: string, songIds: string[]) => unknown;
+  createPlaylistFromAlbum: (name: string, songIds: string[]) => unknown;
 };
 
 export type ShellModalContract = {
