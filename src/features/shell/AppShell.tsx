@@ -46,6 +46,8 @@ const SimilarSongsDialog = lazy(() => import("../analysis/SimilarSongsDialog"));
 const PhoneTabBar = lazy(() => import("./PhoneTabBar"));
 const LibraryView = lazy(() => import("../library/LibraryView"));
 const ArtistsView = lazy(() => import("../artists/ArtistsView"));
+const AlbumsView = lazy(() => import("../albums/AlbumsView"));
+const AlbumPage = lazy(() => import("../pages/AlbumPage"));
 const GenresView = lazy(() => import("../genres/GenresView"));
 const ArtistPage = lazy(() => import("../pages/SongGroupPage").then((module) => ({ default: module.ArtistPage })));
 const GenrePage = lazy(() => import("../pages/SongGroupPage").then((module) => ({ default: module.GenrePage })));
@@ -66,7 +68,7 @@ export type { AppShellProps } from "./appShell.contract";
 export default function AppShell(props: AppShellProps) {
   const {
     frame, updates, screensaver, effects, navigation,
-    home, library, artists, genres, playlists, analytics, discover, settingsView, downloads,
+    home, library, albums, artists, genres, playlists, analytics, discover, settingsView, downloads,
     playerBar, modals, playbackAudio, collections
   } = props;
 
@@ -240,7 +242,7 @@ export default function AppShell(props: AppShellProps) {
               data-view={view}
             >
               {libraryViews.includes(view) ? <nav className="librarySectionNav" aria-label="Library sections">
-                {([["library", "Songs"], ["artists", "Artists"], ["genres", "Genres"], ["playlists", "Playlists"], ["liked", "Liked"]] as const).map(([id, label]) =>
+                {([["library", "Songs"], ["albums", "Albums"], ["artists", "Artists"], ["genres", "Genres"], ["playlists", "Playlists"], ["liked", "Liked"]] as const).map(([id, label]) =>
                   <button key={id} type="button" data-library-section={id} aria-current={view === id ? "page" : undefined} onClick={() => nav.go(id)}>{label}</button>
                 )}
               </nav> : null}
@@ -249,6 +251,12 @@ export default function AppShell(props: AppShellProps) {
 
               <Suspense fallback={<CollectionLoading label="Loading page…" />}>
                 {(view === "library" || view === "liked") ? <LibraryView {...library} /> : null}
+                {view === "albums" ? (detail?.kind === "album"
+                  ? <AlbumPage key={detail.id} albumId={detail.id} albums={albums.localAlbums} currentId={home.currentId} isPlaying={isPlaying}
+                      toggleLike={modals.songContextMenu.toggleLike} openPlaylistPicker={modals.songContextMenu.openPlaylistPicker}
+                      setSelectedAlbumId={albums.setSelectedAlbumId} deleteSelectedAlbum={albums.deleteSelectedAlbum}
+                      openEditAlbumBuilder={albums.openEditAlbumBuilder} />
+                  : <AlbumsView {...albums} />) : null}
                 {view === "artists" ? (detail?.kind === "artist"
                   ? <ArtistPage key={detail.id} id={detail.id} {...pageProps} openSimilar={openSimilarSongs} />
                   : <ArtistsView {...artists} />) : null}
