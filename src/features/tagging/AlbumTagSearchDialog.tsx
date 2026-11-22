@@ -62,7 +62,8 @@ export default function AlbumTagSearchDialog({ album, onClose }: AlbumTagSearchD
     const ids = [...selected];
     setBusy(`Saving tags for ${plural(ids.length, "song")}…`); setMessage("");
     try {
-      const result = await window.localitfy.applyMusicBrainzTags(ids);
+      const previews = Object.fromEntries(chosen?.proposals.filter(proposal => selected.has(proposal.songId)).map(proposal => [proposal.songId, proposal.previewId]) || []);
+       const result = await window.localitfy.applyMusicBrainzTags(ids, previews);
       const parts = [`Updated ${plural(result.applied, "song")}${result.written ? `, wrote tags into ${plural(result.written, "file")} (originals are in the Trash)` : ""}.`];
       if (result.failed.length) parts.push(`Could not update: ${result.failed.map((failure) => `${failure.title} (${failure.error})`).join(", ")}.`);
       setSaved(!result.failed.length);
