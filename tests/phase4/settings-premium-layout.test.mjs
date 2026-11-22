@@ -59,11 +59,15 @@ test("Home, Library/Liked and shell use active theme tokens", () => {
   const home = read("src/features/home/home.css");
   const library = read("src/features/library/library.css");
   const shell = read("src/styles/view-shell.css");
-  for (const source of [home, library, shell]) {
+  for (const source of [home, shell]) {
     assert.match(source, /var\(--lt-bg\)/);
     assert.match(source, /var\(--lt-accent\)/);
     assert.doesNotMatch(source, /#06131a|#79a7c4/);
   }
+  assert.match(library, /background: transparent/);
+  assert.match(library, /var\(--lt-text\)/);
+  assert.match(library, /var\(--lt-accent\)/);
+  assert.doesNotMatch(library, /#06131a|#79a7c4/);
 });
 
 test("User feedback remains available manually without automatic nag prompts", () => {
