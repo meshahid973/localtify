@@ -1840,7 +1840,9 @@ body.localitfyThemePainting .app .volumeWrap input[type="range"],
   outline: 0 !important;
   box-shadow: none !important;
 }
-.playerBar .volumeWrap input[type="range"]:focus-visible::-webkit-slider-thumb,
+.playerBar .volumeWrap input[type="range"]:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px var(--lt-bg), 0 0 0 5px var(--lt-accent) !important;
+}
 .playerBar .volumeWrap input[type="range"]:focus-visible::-moz-range-thumb {
   box-shadow: 0 0 0 3px var(--lt-bg), 0 0 0 5px var(--lt-accent) !important;
 }

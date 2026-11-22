@@ -219,6 +219,17 @@ server.listen(5173,async()=>{
     await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.sidebar [data-nav-id=library].active') && !!document.querySelector('.songButton')").catch(()=>false),"library tracks",35000,16);
     const libraryNavigationMs=performance.now()-libraryNavigationStart;
     await screenshot(win,"desktop-library");
+    // Albums is a first-class destination, not merely a sidebar link.
+    const albumNavigation=await win.webContents.executeJavaScript("(()=>{const button=document.querySelector('.sidebar [data-nav-id=albums]');if(!button)return false;button.click();return true})()");
+    assert.ok(albumNavigation,"Albums sidebar destination must be clickable");
+    await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('.albumsPageV318 .albumCardV318').length>=3 && !document.querySelector('.appCrashBoundary')").catch(()=>false),"tagged album shelf",35000,16);
+    await screenshot(win,"desktop-albums");
+    const openAlbum=await win.webContents.executeJavaScript("(()=>{const button=document.querySelector('.albumCardV318 .mediaCardOpen');if(!button)return false;button.click();return true})()");
+    assert.ok(openAlbum,"Album artwork must open its detail page");
+    await until(()=>win.webContents.executeJavaScript("!!document.querySelector('section[data-page-section=album] .collectionHero') && !!document.querySelector('section[data-page-section=album] .songButton') && !document.querySelector('.appCrashBoundary')").catch(()=>false),"album detail with tracks",35000,16);
+    await screenshot(win,"desktop-album-detail");
+    await win.webContents.executeJavaScript("document.querySelector('.sidebar [data-nav-id=library]').click()");
+    await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.songButton') && !document.querySelector('.appCrashBoundary')").catch(()=>false),"return from album to library",35000,16);
     const playbackStart=performance.now();
     await win.webContents.executeJavaScript("document.querySelector('.songButton').click()");
     await until(()=>win.webContents.executeJavaScript("[...document.querySelectorAll('audio')].some(a=>!a.paused&&a.currentTime>0)").catch(()=>false),"audio playing",35000,16);

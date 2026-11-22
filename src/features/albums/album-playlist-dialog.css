@@ -6,7 +6,7 @@
   color: var(--lt-text);
   background: var(--lt-surface);
   border: 1px solid var(--lt-border);
-  border-radius: var(--lt-radius-lg, 18px);
+  border-radius: 18px;
   box-shadow: 0 24px 72px rgba(0,0,0,.32);
 }
 .albumPlaylistDialog::backdrop { background: rgba(0,0,0,.64); backdrop-filter: blur(6px); }
