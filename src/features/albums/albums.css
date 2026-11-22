@@ -102,7 +102,7 @@
   .albumFolderImportSummaryV309 { grid-template-columns: 1fr; }
 }
 
-.albumsPageV318 .pageHeaderSearch { width: min(320px, 100%); max-width: 100%; }
+.albumsPageV318 .pageHeaderSearch { max-width: 100%; }
 .albumsPageV318 .pageHeader { min-width: 0; }
 .albumsActionBarV318 { min-width: 0; }
 .albumsActionBarV318 button { max-width: 100%; }

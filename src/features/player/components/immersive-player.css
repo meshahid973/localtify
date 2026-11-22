@@ -235,7 +235,7 @@
 .immersiveStage[data-lyrics-only="true"] { grid-template-columns: minmax(0,1fr); }
 .immersiveStage[data-lyrics-only="true"] > .immersiveArtwork { display: none; }
 .immersiveLyrics .lyricsView { background: transparent; border: 0; }
-.immersivePlayer .artworkBackdropCover { inset: -48px; width: calc(100% + 96px); height: calc(100% + 96px); filter: blur(48px) saturate(.85); opacity: .32; }
+.immersivePlayer .artworkBackdropCover { inset: -48px; width: calc(100% + 96px); height: calc(100% + 96px); filter: blur(36px) saturate(.75); opacity: .2; }
 .app[data-theme="light"] .immersivePlayer .artworkBackdropCover { opacity: .22; }
 .app.reducedMotion .immersivePlayer .artworkBackdropCover { animation: none; }
 @media (prefers-reduced-motion: reduce) { .immersivePlayer .artworkBackdropCover { animation: none; } }
@@ -259,7 +259,6 @@
 .immersivePlayer .immersiveTools { justify-content: space-between; gap: 12px; }
 .immersivePlayer .immersiveVolume { width: min(40%,160px); }
 .immersivePlayer .immersiveActions { gap: 2px; }
-.immersivePlayer .artworkBackdropCover { filter: blur(36px) saturate(.75); opacity: .2; }
 .immersivePlayer[data-lyrics-open="true"] .immersiveStage[data-lyrics="true"] {
   width: min(100%,1160px);
   display: grid; grid-template-columns: minmax(0, min(32vw,370px)) minmax(0,1fr);
