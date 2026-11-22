@@ -55,22 +55,11 @@ export function useAlbumsController({
   const [albumFolderImportBusy, setAlbumFolderImportBusy] = useState(false);
   const [albumFolderImportMessage, setAlbumFolderImportMessage] = useState("");
   const [albumFolderImportProgress, setAlbumFolderImportProgress] = useState<any | null>(null);
-  const [albumDeleteConfirmArmed, setAlbumDeleteConfirmArmed] = useState(false);
-  const albumDeleteConfirmTimerRef = useRef<number | null>(null);
   const albumCoverInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     writeLocalJson(MANUAL_LOCAL_ALBUMS_STORAGE_KEY, manualAlbums);
   }, [manualAlbums]);
-
-  useEffect(() => {
-    return () => {
-      if (albumDeleteConfirmTimerRef.current !== null) {
-        window.clearTimeout(albumDeleteConfirmTimerRef.current);
-        albumDeleteConfirmTimerRef.current = null;
-      }
-    };
-  }, []);
 
   useEffect(() => {
     if (!window.localitfy?.onAlbumFolderImportProgress) return;
@@ -471,62 +460,12 @@ export function useAlbumsController({
     setSelectedAlbumId("");
   }
 
-  function armDeleteAllAlbums() {
-    const albumCount = localAlbums.length;
-
-    if (!albumCount) {
-      setStatusText?.("no albums to clear");
-      return;
-    }
-
-    setAlbumDeleteConfirmArmed(true);
-    setStatusText?.(`sure? click again to clear ${albumCount} album${albumCount === 1 ? "" : "s"}`);
-
-    if (albumDeleteConfirmTimerRef.current !== null) {
-      window.clearTimeout(albumDeleteConfirmTimerRef.current);
-    }
-
-    albumDeleteConfirmTimerRef.current = window.setTimeout(() => {
-      setAlbumDeleteConfirmArmed(false);
-      albumDeleteConfirmTimerRef.current = null;
-    }, 4200);
-  }
-
   /** After duplicates merge, album entries point at the copies that were kept. */
   function remapAlbumSongs(keptFor: ReadonlyMap<string, string>) {
     if (!keptFor.size) return;
     setManualAlbums((albums) => albums.map((album) => album.songIds.some((id) => keptFor.has(id))
       ? { ...album, songIds: [...new Set(album.songIds.map((id) => keptFor.get(id) || id))], updatedAt: Date.now() }
       : album));
-  }
-
-  async function deleteAllAlbums() {
-    const manualCount = manualAlbums.length;
-    const metadataCount = metadataAlbums.length;
-    const albumCount = manualCount + metadataCount;
-    const taggedSongs = songs.filter((song) => String(song.album || "").trim());
-
-    if (!albumDeleteConfirmArmed) {
-      armDeleteAllAlbums();
-      return;
-    }
-
-    if (albumDeleteConfirmTimerRef.current !== null) {
-      window.clearTimeout(albumDeleteConfirmTimerRef.current);
-      albumDeleteConfirmTimerRef.current = null;
-    }
-
-    setAlbumDeleteConfirmArmed(false);
-    setManualAlbums([]);
-    setSelectedAlbumId("");
-    closeAlbumBuilder();
-
-    if (taggedSongs.length) {
-      await clearAlbumTagFromSongs(taggedSongs, "all albums");
-    }
-
-    setStatusText?.(`cleared ${albumCount} album${albumCount === 1 ? "" : "s"}`);
-    setLibraryScanMessage?.(`cleared ${albumCount} album${albumCount === 1 ? "" : "s"}`);
   }
 
   return {
@@ -542,7 +481,7 @@ export function useAlbumsController({
     albumDraftSearch, setAlbumDraftSearch,
     albumDraftSongIds,
     albumFolderImportPreview, albumFolderImportBusy, albumFolderImportMessage, albumFolderImportProgress,
-    albumDeleteConfirmArmed, albumCoverInputRef,
+    albumCoverInputRef,
     manualAlbumEntries, metadataAlbums, localAlbums, visibleAlbums, selectedAlbum, selectedAlbumIds,
     selectedAlbumIsManual, selectedAlbumIsFolder,
     albumDraftArtistNames, albumDraftArtistSuggestion, albumDraftHasVariousArtists, albumDraftArtistPreview,
@@ -550,6 +489,6 @@ export function useAlbumsController({
     scanAlbumFolderImport, cancelAlbumFolderImportPreview, commitAlbumFolderImportPreview,
     openCreateAlbumBuilder, openEditAlbumBuilder, closeAlbumBuilder, toggleAlbumDraftSong,
     openAlbumCoverPicker, handleAlbumCoverFile, clearAlbumDraftCover, saveManualAlbumFromDraft,
-    deleteManualAlbum, deleteSelectedAlbum, deleteAllAlbums, remapAlbumSongs
+    deleteManualAlbum, deleteSelectedAlbum, remapAlbumSongs
   };
 }
