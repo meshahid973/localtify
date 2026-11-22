@@ -101,3 +101,38 @@ test("tagged albums group tracks and preserve track totals", () => {
   assert.deepEqual(ids(first.songs),["1","2"]);
   assert.equal(first.coverSong.id,"1");
 });
+
+test("compilation tracks in one folder form one album in track order", () => {
+  const tracks = [
+    song(1, { album: "Soundtrack", artist: "Singer A", filePath: "/music/Soundtrack/02 - Finale.flac", duration: 180 }),
+    song(2, { album: "Soundtrack", artist: "Singer B", filePath: "/music/Soundtrack/01 - Opening.flac", duration: 120 }),
+    song(3, { album: "Another", artist: "Singer C", filePath: "/music/Soundtrack/03 - Other.flac" })
+  ];
+  const albums = exports.buildLocalAlbumEntries(tracks);
+  assert.equal(albums.length, 2);
+  const soundtrack = albums.find(item => item.title === "Soundtrack");
+  assert.ok(soundtrack);
+  assert.equal(soundtrack.artist, "Various Artists");
+  assert.equal(soundtrack.trackCount, 2);
+  assert.deepEqual(ids(soundtrack.songs), ["2", "1"]);
+});
+
+test("same-title albums in separate artist folders stay distinct", () => {
+  const tracks = [
+    song(1, { album: "Greatest Hits", artist: "Singer A", filePath: "/music/A/01.flac" }),
+    song(2, { album: "Greatest Hits", artist: "Singer B", filePath: "/music/B/01.flac" }),
+    song(3, { album: "Greatest Hits", artist: "Singer A", filePath: "/music/A/02.flac" })
+  ];
+  const albums = exports.buildLocalAlbumEntries(tracks);
+  assert.equal(albums.length, 2);
+  assert.equal(albums.find(item => item.artist === "Singer A")?.trackCount, 2);
+});
+
+test("non-Latin album titles have distinct stable identities", () => {
+  const albums = exports.buildLocalAlbumEntries([
+    song(1, { artist: "A", album: "夜空" }),
+    song(2, { artist: "A", album: "春風" })
+  ]);
+  assert.equal(albums.length, 2);
+  assert.notEqual(albums[0].id, albums[1].id);
+});
