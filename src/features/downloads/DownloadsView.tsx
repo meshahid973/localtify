@@ -216,7 +216,7 @@ export default function DownloadsView(props: DownloadsViewProps) {
         </TabsContent>
         <TabsContent value="spotify" className="downloadsSourceContent">
           <div className="downloadsSpotifyStatus">
-            <span>{catalogSelection ? `MusicBrainz album · ${spotifySourceName || "selected tracks"}` : spotifyLoggedIn ? "Spotify connected" : "Spotify public import"}</span>
+            <span>{catalogSelection ? `MusicBrainz album · ${spotifySourceName || "selected tracks"}` : spotifySourceType === "album" ? "Spotify album" : spotifyLoggedIn ? "Spotify connected" : "Spotify public import"}</span>
             <button type="button" className="downloadsTextAction" disabled={spotifyLoginBusy}
               onClick={() => void handleSpotifyLogin()}>{spotifyLoginBusy ? "Connecting…" : spotifyLoggedIn ? "Reconnect" : "Connect account"}</button>
           </div>
