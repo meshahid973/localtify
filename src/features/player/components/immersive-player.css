@@ -286,7 +286,7 @@
 .immersivePlayer[data-lyrics-open="true"] .immersiveBottom > * { grid-column: 1; min-width: 0; }
 .immersivePlayer:has(.immersiveStage[data-lyrics-only="true"]) .immersiveBottom { width: min(100%,440px); display: grid; grid-template-columns: 1fr; }
 @media (max-width: 900px), (max-height: 580px) {
-  .immersivePlayer { overflow-y: auto; }
+  .immersivePlayer { overflow-y: auto; grid-template-columns: minmax(0,1fr); grid-template-rows: auto minmax(0,1fr) auto; }
   .immersivePlayer[data-lyrics-open="true"] .immersiveStage[data-lyrics="true"] {
     grid-template-columns: minmax(0,1fr); width: min(100%,720px);
   }
