@@ -16,12 +16,13 @@ export type SettingsViewProps = {
 export default function SettingsView({
   renderSettingsCategoryContent, settingsRail, settingsCategory
 }: SettingsViewProps) {
+  const selectedTab = settingsRail.tabs.find((tab) => tab.id === settingsCategory);
   return (
     <section data-page-section="settings" className="settingsPage settingsPageV027">
       <PageHeader title="Settings" />
       <div className="settingsLayout settingsPageLayoutV027">
         <SettingsRail {...settingsRail} />
-        <div className="settingsCategoryContent settingsCategoryContentV027">
+        <div className="settingsCategoryContent settingsCategoryContentV027" role="region" aria-label={`${selectedTab?.label || "Application"} settings`}>
           <div key={settingsCategory} className={`settingsCategoryMotion settingsCategoryMotion-${settingsCategory}`}
             data-settings-category={settingsCategory}>
             {renderSettingsCategoryContent()}
