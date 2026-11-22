@@ -277,6 +277,12 @@ function MainModeApp() {
     setStatusText, patchSongLocal, reducedMotion: settings.reducedMotion
   });
 
+  const albumIdBySong = useMemo(() => {
+    const ids = new Map<string, string>();
+    for (const album of albumsController.localAlbums) for (const song of album.songs) ids.set(song.id, album.id);
+    return ids;
+  }, [albumsController.localAlbums]);
+
   const {
     updatePrompt,
     whatsNewOpen,
@@ -5881,6 +5887,8 @@ function MainModeApp() {
         toggleLike,
         askRemoveSong,
         goToArtist: nav.openArtistPage,
+        goToAlbum: nav.openAlbumPage,
+        getAlbumId: (songId: string) => albumIdBySong.get(songId) ?? null,
         openSimilarSongs: (song: Song) => setSimilarRequest({ kind: "song", songId: song.id }),
         notForMe: settings.experimentalMusicAnalysis ? notForMe : undefined
       },
@@ -5958,7 +5966,18 @@ function MainModeApp() {
         removeSong
       }
     },
-    collections: { playSongs: playCollectionSongs, queueSongs: queueCollectionSongs, playPlaylist, openSimilar: setSimilarRequest },
+    collections: {
+      playSongs: playCollectionSongs, queueSongs: queueCollectionSongs, playPlaylist, openSimilar: setSimilarRequest,
+      playlists,
+      addAlbumToPlaylist: (playlistId, songIds) => {
+        const valid = songIds.filter(id => songsById.has(id));
+        if (!valid.length) return;
+        setPlaylists(items => items.map(item => item.id === playlistId
+          ? { ...item, songIds: [...new Set([...item.songIds, ...valid])] } : item));
+        showAppToast("Album tracks added to playlist", "success");
+      },
+      createPlaylistFromAlbum: (name, songIds) => createPlaylistFromSongs(name, songIds)
+    },
     playbackAudio: {
       audioRef,
       currentSong: visualCurrentSong,
