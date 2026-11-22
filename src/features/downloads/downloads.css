@@ -184,3 +184,14 @@
 @media (prefers-reduced-motion: reduce) {
   .downloadsExperience *, .downloadsExperience *::before, .downloadsExperience *::after { animation-duration: .01ms; transition-duration: 0ms; }
 }
+
+.downloadsCatalogHint {
+  margin: var(--lt-space-2) 0;
+  padding: var(--lt-space-2) var(--lt-space-3);
+  border-left: 2px solid var(--lt-accent);
+  border-radius: var(--lt-radius-sm);
+  background: var(--lt-fill-subtle);
+  color: var(--lt-muted);
+  font-size: var(--lt-text-sm);
+  line-height: 1.5;
+}
