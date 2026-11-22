@@ -29,7 +29,9 @@ export default function AlbumPlaylistDialog({ album, playlists, onAdd, onCreate,
   const create = () => {
     const title = name.trim().slice(0, 120);
     if (!title || !songIds.length) return;
-    onCreate(title, songIds);
+    const existing = playlists.find(playlist => playlist.name.trim().toLocaleLowerCase() === title.toLocaleLowerCase());
+    if (existing) onAdd(existing.id, songIds);
+    else onCreate(title, songIds);
     onClose();
   };
   return <dialog ref={dialogRef} className="albumPlaylistDialog" aria-label={`Add ${album.title} to a playlist`}
@@ -55,7 +57,7 @@ export default function AlbumPlaylistDialog({ album, playlists, onAdd, onCreate,
     </div>
     {creating ? <form className="albumPlaylistDialogCreate" onSubmit={event => { event.preventDefault(); create(); }}>
       <input aria-label="New playlist name" autoFocus maxLength={120} placeholder="Playlist name" value={name} onChange={event => setName(event.target.value)}/>
-      <button type="submit" disabled={!name.trim() || !songIds.length}>Create</button>
+      <button type="submit" disabled={!name.trim() || !songIds.length}>{playlists.some(item => item.name.trim().toLocaleLowerCase() === name.trim().toLocaleLowerCase()) ? "Add tracks" : "Create"}</button>
     </form> : <button className="albumPlaylistDialogNew" type="button" onClick={() => setCreating(true)}><Plus size={16}/> New playlist from album</button>}
   </dialog>;
 }
