@@ -21,7 +21,6 @@ export default function AlbumsView(props: AlbumsViewProps) {
   const {
     albumBuilderOpen,
     albumBuilderMode,
-    albumDeleteConfirmArmed,
     albumDraftArtist,
     albumDraftArtistNames,
     albumDraftArtistPreview,
@@ -40,7 +39,6 @@ export default function AlbumsView(props: AlbumsViewProps) {
     albumFolderImportProgress,
     albumSearch,
     albumSortMode,
-    manualAlbums,
     setAlbumDraftArtist,
     setAlbumDraftSearch,
     setAlbumDraftTitle,
@@ -54,7 +52,6 @@ export default function AlbumsView(props: AlbumsViewProps) {
     closeAlbumBuilder,
     commitAlbumFolderImportPreview,
     currentSong,
-    deleteAllAlbums,
     deleteManualAlbum,
     handleAlbumCoverFile,
     localAlbums,
