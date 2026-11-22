@@ -1,5 +1,3 @@
-
-/* Albums owns its browsing, import preview, and album editor layouts. */
 .albumsPageV318 {
   --albums-surface: var(--lt-surface-soft);
   --albums-elevated: var(--lt-surface-raised);
@@ -11,7 +9,7 @@
   padding: 0 0 var(--lt-space-5);
   display: grid;
   align-content: start;
-  gap: 22px;
+  gap: var(--lt-space-4);
   color: var(--albums-text);
 }
 .albumsPageV318 *, .albumsPageV318 *::before, .albumsPageV318 *::after { box-sizing: border-box; }
@@ -20,14 +18,14 @@
 .albumsPageV318 button { cursor: pointer; }
 .albumsPageV318 button:disabled { cursor: not-allowed; opacity: .45; }
 .albumsPageV318 :is(button,input,select):focus-visible { outline: 2px solid rgba(var(--lt-accent-rgb), .58); outline-offset: 2px; }
- .albumsPageV318 :is(.mainAction,.heroGhost,.settingsTinyButton) { min-height: 38px; font-size: 12px; font-weight: 700; }
+.albumsPageV318 :is(.mainAction,.heroGhost,.settingsTinyButton) { min-height: 38px; font-size: 12px; font-weight: 700; }
 .albumsPageV318 :is(.albumBuilderPanelV318,.albumFolderImportPanelV309) {
   min-width: 0;
   border: 1px solid var(--albums-border);
   border-radius: var(--lt-radius-sm);
   background: var(--albums-surface);
 }
-.albumBuilderPanelV318, .albumFolderImportPanelV309 { display: grid; align-content: start; gap: 18px; padding: 21px; }
+.albumBuilderPanelV318, .albumFolderImportPanelV309 { display: grid; align-content: start; gap: var(--lt-space-4); padding: var(--lt-space-4); }
 .albumBuilderHeaderV318, .albumFolderImportHeaderV309 {
   display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 13px; min-width: 0;
 }
@@ -37,7 +35,6 @@
   border-radius: 9px; background: var(--lt-surface-soft); color: var(--albums-text); font: inherit; font-size: 13px; outline: none;
 }
 .albumsPageV318 input::placeholder { color: var(--lt-faint); }
-.albumsDeleteAllV318 { margin-left: auto; }
 .albumsPageV318 .albumsSortV318 {
   min-width: 154px;
   background: var(--lt-surface);
@@ -50,7 +47,6 @@
 .albumCardMetaV318 strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 550; }
 .albumCardMetaV318 em { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--lt-text-sm); color: var(--albums-muted); font-style: normal; }
 .albumCardMetaV318 b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--lt-muted); font-size: var(--lt-text-sm); font-weight: 500; }
-.albumDetailDrawerV318 :is(button,input,select):focus-visible { outline: 2px solid rgba(var(--lt-accent-rgb), .58); outline-offset: 2px; }
 .albumFolderImportHeaderV309 > div:first-child { min-width: 0; }
 .albumFolderImportHeaderV309 p:not(.eyebrow) { max-width: 690px; margin: 7px 0 0; color: var(--albums-muted); font-size: 12px; line-height: 1.5; }
 .albumFolderProgressV309 { display: grid; gap: 8px; }
@@ -109,4 +105,33 @@
   .albumBuilderPanelV318,.albumFolderImportPanelV309 { padding: 15px; }
   .albumBuilderFieldsV318 { grid-template-columns: 1fr; }
   .albumFolderImportSummaryV309 { grid-template-columns: 1fr; }
+}
+
+.albumsPageV318 .pageHeaderSearch { width: min(320px, 100%); max-width: 100%; }
+.albumsPageV318 .pageHeader { min-width: 0; }
+.albumsActionBarV318 { min-width: 0; }
+.albumsActionBarV318 button { max-width: 100%; }
+.albumCardV318 { min-width: 0; content-visibility: auto; contain-intrinsic-size: auto 275px; }
+.albumCardV318 :is(strong,em,b) { min-width: 0; }
+.albumCardCoverV318 { aspect-ratio: 1 / 1; }
+.albumBuilderPanelV318, .albumFolderImportPanelV309 { scroll-margin-block-start: 14px; }
+.albumBuilderSongGridV318 { max-height: min(52vh, 480px); overflow: auto; overscroll-behavior: contain; align-content: start; }
+.albumBuilderSongGridV318 button { min-height: 56px; }
+.albumBuilderSongGridV318 button.selected { background: var(--lt-fill-selected); }
+.albumBuilderSongGridV318 :is(button,input):focus-visible { outline: 2px solid var(--lt-accent); outline-offset: 2px; }
+.albumFolderPreviewCardV309 { max-width: 100%; }
+@media (max-width: 740px) {
+  .albumsPageV318 { gap: var(--lt-space-3); }
+  .albumsActionBarV318 { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .albumsActionBarV318 button { min-width: 0; justify-content: center; }
+  .albumBuilderPanelV318, .albumFolderImportPanelV309 { padding: var(--lt-space-3); }
+  .albumBuilderSongGridV318 { grid-template-columns: 1fr; }
+}
+@media (max-width: 460px) {
+  .albumsActionBarV318 { grid-template-columns: 1fr; }
+  .albumsPageV318 .pageHeaderSearch { width: 100%; }
+  .albumBuilderCoverPickerV319 { flex-direction: row; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .albumsPageV318 * { scroll-behavior: auto; }
 }
