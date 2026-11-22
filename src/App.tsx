@@ -5576,7 +5576,6 @@ function MainModeApp() {
   const libraryAreaDragOver = useStableCallback(handleLibraryAreaDragOver);
   const libraryAreaDragLeave = useStableCallback(handleLibraryAreaDragLeave);
   const libraryAreaDrop = useStableCallback(handleLibraryAreaDrop);
-  const libraryRowSettings = useMemo(() => ({libraryRowStyle: settings.libraryRowStyle}), [settings.libraryRowStyle]);
   const libraryRows = useMemo<Omit<VirtualSongRowsProps, "list" | "className">>(() => ({
     currentId, isPlaying, draggedSongId, libraryDragOverSongId, libraryDropSide, draggedSongTitle,
     onAreaDragOver: libraryAreaDragOver, onAreaDragLeave: libraryAreaDragLeave, onAreaDrop: libraryAreaDrop,
@@ -5689,8 +5688,6 @@ function MainModeApp() {
       rows: libraryRows,
       setLibraryFilterMode,
       setLibrarySortMode,
-      setLibraryRowStyle: (style) => void updateSetting("libraryRowStyle", style),
-      settings: libraryRowSettings,
       showingMissingFiles: view === "library" && libraryFilterMode === "missing",
       shuffleLibrarySongsAction,
       openSimilarSongs: setSimilarRequest,

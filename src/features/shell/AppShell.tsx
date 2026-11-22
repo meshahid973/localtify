@@ -169,7 +169,7 @@ export default function AppShell(props: AppShellProps) {
       data-blur-effects="normal"
       data-card-background={cardBackground}
       data-home-layout={settings.homeLayoutMode || "balanced"}
-      data-library-row-style={settings.libraryRowStyle || "comfyRows"}
+      data-library-row-style="comfyRows"
       data-sidebar-behavior={settings.sidebarBehavior || "slim"}
       data-player-background={playerBackground}
       data-hero-expanded={settings.heroExpanded ? "on" : "off"}
