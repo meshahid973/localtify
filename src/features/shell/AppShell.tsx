@@ -332,6 +332,9 @@ function ShellDialogs({ modals, menu, actions, albums, collections, downloads, t
         sendToDownloads={tracks => {
           downloads.setSpotifyTracks(tracks);
           downloads.setSpotifySelectedIds(new Set(tracks.map(track => track.id)));
+          downloads.setSpotifySourceName?.(albumCompletion.title);
+          downloads.setSpotifySourceType?.("album");
+          downloads.setSpotifyUrl("");
           downloads.setDownloadsTab("spotify");
           actions.nav.go("downloads");
         }}
