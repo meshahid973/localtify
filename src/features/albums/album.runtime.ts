@@ -26,9 +26,10 @@ export function normalizeAlbumValue(value: unknown) {
 
 export function albumKeyPart(value: unknown) {
   return normalizeAlbumValue(value)
+    .normalize("NFKC")
     .toLowerCase()
     .replace(/&/g, "and")
-    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
     .replace(/^-+|-+$/g, "") || "unknown";
 }
 
@@ -150,15 +151,52 @@ export function resizeAlbumCoverFile(file: File, size = 640): Promise<string> {
   });
 }
 
+function songAlbumDirectory(song: Song) {
+  const file = String(song.filePath || "").replace(/\\/g, "/").toLowerCase();
+  return file.includes("/") ? file.slice(0, file.lastIndexOf("/")) : "";
+}
+
+function albumDirectoryId(directory: string) {
+  let hash = 2166136261;
+  for (let i = 0; i < directory.length; i++) hash = Math.imul(hash ^ directory.charCodeAt(i), 16777619);
+  return (hash >>> 0).toString(36);
+}
+
+function albumTrackNumber(song: Song) {
+  const tagged = Number((song as { track?: number | string; trackNumber?: number | string }).trackNumber
+    ?? (song as { track?: number | string }).track);
+  if (Number.isInteger(tagged) && tagged > 0 && tagged <= 999) return tagged;
+  const filename = String(song.filePath || "").replace(/\\/g, "/").split("/").pop() || "";
+  const prefix = /^(?:disc[\s._-]*\d+[\s._-]*)?0*(\d{1,3})[\s._-]+/i.exec(filename);
+  return prefix ? Number(prefix[1]) : 0;
+}
+
 export function buildLocalAlbumEntries(inputSongs: Song[]): LocalAlbumEntry[] {
   const groups = new Map<string, LocalAlbumEntry>();
+  const folderArtists = new Map<string, Set<string>>();
+
+  for (const song of inputSongs) {
+    if (!isPlayableSong(song) || !isUsefulAlbumName(song.album) || normalizeAlbumValue((song as any).albumArtist)) continue;
+    const directory = songAlbumDirectory(song);
+    if (!directory) continue;
+    const group = albumKeyPart(song.album) + "\0" + directory;
+    let artists = folderArtists.get(group);
+    if (!artists) { artists = new Set(); folderArtists.set(group, artists); }
+    artists.add(albumKeyPart(song.artist || "unknown artist"));
+  }
 
   inputSongs.forEach((song) => {
     if (!isPlayableSong(song) || !isUsefulAlbumName(song.album)) return;
 
     const title = normalizeAlbumValue(song.album);
-    const albumArtist = getAlbumArtist(song);
-    const key = `${albumKeyPart(title)}__${albumKeyPart(albumArtist)}`;
+    const directory = songAlbumDirectory(song);
+    const folderKey = albumKeyPart(title) + "\0" + directory;
+    const compilation = !normalizeAlbumValue((song as any).albumArtist) &&
+      Boolean(directory && (folderArtists.get(folderKey)?.size || 0) > 1);
+    const albumArtist = compilation ? "Various Artists" : getAlbumArtist(song);
+    const key = compilation
+      ? albumKeyPart(title) + "__various_" + albumDirectoryId(directory)
+      : albumKeyPart(title) + "__" + albumKeyPart(albumArtist);
     const existing = groups.get(key);
 
     if (existing) {
@@ -193,9 +231,11 @@ export function buildLocalAlbumEntries(inputSongs: Song[]): LocalAlbumEntry[] {
     ...album,
     coverSong: pickAlbumCoverSong(album.songs),
     songs: [...album.songs].sort((a, b) => {
-      const trackA = Number((a as any).track || (a as any).trackNumber || 0);
-      const trackB = Number((b as any).track || (b as any).trackNumber || 0);
-      if (Number.isFinite(trackA) && Number.isFinite(trackB) && trackA !== trackB) return trackA - trackB;
+      const trackA = albumTrackNumber(a);
+      const trackB = albumTrackNumber(b);
+      if (trackA && trackB && trackA !== trackB) return trackA - trackB;
+      if (trackA && !trackB) return -1;
+      if (trackB && !trackA) return 1;
       return getSongAddedTime(a) - getSongAddedTime(b);
     })
   })).sort((a, b) => b.latestAdded - a.latestAdded || a.title.localeCompare(b.title));
