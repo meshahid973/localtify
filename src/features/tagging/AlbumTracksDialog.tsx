@@ -50,7 +50,7 @@ export default function AlbumTracksDialog({ request, sendToDownloads, onClose }:
     if (!data) return;
     const tracks = data.tracks.filter((track) => selected.has(track.id)).map((track): SpotifyTrack => ({
       // Downloads use the ID in file names, so it stays short and stable.
-      id: `mb-${track.recordingId || track.id}`, title: track.title, artist: track.artist, albumName: data.release.title,
+      id: `mb${String(track.recordingId || track.id).replace(/[^a-zA-Z0-9]/g, "").slice(0, 62)}`, title: track.title, artist: track.artist, albumName: data.release.title,
       durationMs: track.durationMs, duration: Math.round(track.durationMs / 1000)
     }));
     sendToDownloads(tracks);
