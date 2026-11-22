@@ -167,8 +167,10 @@ export function buildLocalAlbumEntries(inputSongs: Song[]): LocalAlbumEntry[] {
       existing.totalDuration += Math.max(0, Number(song.duration) || 0);
       existing.latestAdded = Math.max(existing.latestAdded, getSongAddedTime(song));
       if (!existing.year) existing.year = getAlbumYear(song);
-      if (!existing.coverSong || getRendererSafeImageUrl(song.coverUrl) || getRendererSafeImageUrl(song.coverPath)) {
-        existing.coverSong = pickAlbumCoverSong(existing.songs);
+      if (!existing.coverSong ||
+          (!getCardCoverUrl(existing.coverSong) && !getRendererSafeImageUrl(existing.coverSong.coverPath) &&
+           (getCardCoverUrl(song) || getRendererSafeImageUrl(song.coverPath)))) {
+        existing.coverSong = song;
       }
       return;
     }
