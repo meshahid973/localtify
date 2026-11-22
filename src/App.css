@@ -2283,21 +2283,6 @@ body.localtifyBackgroundMode .ambientSurface,
   margin: 0 !important;
 }
 
-.virtualHomeGridCanvas{
-  min-height: 100%;
-}
-
-.virtualHomeGridRow{
-  position: absolute;
-  inset: 0 0 auto 0;
-  display: grid;
-  gap: 14px;
-  width: 100%;
-  align-items: start;
-  padding-bottom: 14px;
-  box-sizing: border-box;
-  contain: layout paint style;
-}
 
 .virtualSongViewport::-webkit-scrollbar{
   width: 8px;
