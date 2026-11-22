@@ -58,6 +58,10 @@ export type DownloadsViewProps = {
   spotifySelectedIds: Set<string>;
   spotifyTrackStatusLabel: (track: SpotifyTrack, selected: boolean) => string;
   spotifyTracks: SpotifyTrack[];
+  spotifySourceName?: string;
+  spotifySourceType?: string;
+  setSpotifySourceName?: Dispatch<SetStateAction<string>>;
+  setSpotifySourceType?: Dispatch<SetStateAction<string>>;
   spotifyUrl: string;
   visibleDownloadQueueItems: DownloadQueueItem[];
   visibleDownloadResults: DownloadResult[];
@@ -103,6 +107,7 @@ export default function DownloadsView(props: DownloadsViewProps) {
     setSpotifySelectedIds, setSpotifyTracks, setSpotifyUrl, settings,
     spotifyDownloadBusy, spotifyFetchBusy, spotifyFetchError, spotifyLoggedIn,
     spotifyLoginBusy, spotifySelectedIds, spotifyTrackStatusLabel, spotifyTracks, spotifyUrl,
+    spotifySourceName, spotifySourceType, setSpotifySourceName, setSpotifySourceType,
     visibleDownloadQueueItems, visibleDownloadResults, songs
   } = props;
   const [queueFilter, setQueueFilter] = useState<QueueFilter>("all");
@@ -152,6 +157,8 @@ export default function DownloadsView(props: DownloadsViewProps) {
     setSpotifySelectedIds(new Set());
     setSpotifyUrl("");
     setSpotifyFetchError("");
+    setSpotifySourceName?.("");
+    setSpotifySourceType?.("");
   };
   const openSettings = () => { changeView("settings", "unknown"); setSettingsCategory("downloads"); };
   const tools = [
