@@ -39,7 +39,8 @@ export default function AlbumPage({ albumId, albums, currentId, isPlaying, toggl
   const moreByArtist = useMemo(() => {
     if (!album) return [];
     const lead = leadArtist(album);
-    return lead ? albums.filter((item) => item.id !== album.id && leadArtist(item) === lead).slice(0, 12) : [];
+    if (!lead || /^(?:various artists?|unknown(?: artist)?)$/i.test(lead)) return [];
+    return albums.filter((item) => item.id !== album.id && leadArtist(item) === lead).slice(0, 12);
   }, [album, albums]);
 
   if (!album) {
