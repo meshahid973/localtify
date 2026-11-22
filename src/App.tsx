@@ -423,8 +423,7 @@ function MainModeApp() {
 
   function changeView(nextView: View, _source: "nav" | "onboarding" | "settings" | "unknown" = "nav") {
     setLyricsOpen(false);
-    // Old runtime callers may still provide the retired album destination.
-    if (["albums", "covers"].includes(String(nextView))) nextView = "library";
+    if (nextView === "covers") nextView = "library";
     if (view === nextView) return;
 
     if (viewSwitchTimerRef.current !== null) {
