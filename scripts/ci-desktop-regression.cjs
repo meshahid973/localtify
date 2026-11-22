@@ -226,7 +226,7 @@ server.listen(5173,async()=>{
     await screenshot(win,"desktop-albums");
     const openAlbum=await win.webContents.executeJavaScript("(()=>{const button=document.querySelector('.albumCardV318 .mediaCardOpen');if(!button)return false;button.click();return true})()");
     assert.ok(openAlbum,"Album artwork must open its detail page");
-    await until(()=>win.webContents.executeJavaScript("!!document.querySelector('section[data-page-section=album] .collectionHero') && !!document.querySelector('section[data-page-section=album] .songButton') && !document.querySelector('.appCrashBoundary')").catch(()=>false),"album detail with tracks",35000,16);
+    await until(()=>win.webContents.executeJavaScript("!!document.querySelector('section[data-page-section=album] .collectionHero') && !!document.querySelector('section[data-page-section=album] .trackList .trackRow') && !document.querySelector('.appCrashBoundary')").catch(()=>false),"album detail with tracks",35000,16);
     await screenshot(win,"desktop-album-detail");
     await win.webContents.executeJavaScript("document.querySelector('.sidebar [data-nav-id=library]').click()");
     await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.songButton') && !document.querySelector('.appCrashBoundary')").catch(()=>false),"return from album to library",35000,16);
