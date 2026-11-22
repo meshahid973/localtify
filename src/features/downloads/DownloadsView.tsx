@@ -152,6 +152,7 @@ export default function DownloadsView(props: DownloadsViewProps) {
     (queueFilter === "attention" && needsAttention(item.status)) ||
     (queueFilter === "completed" && item.status === "done"));
   const working = downloadBusy || spotifyDownloadBusy || convertBusy;
+  const catalogSelection = spotifyTracks.length > 0 && spotifyTracks.every(track => /^mb[a-zA-Z0-9]{32,62}$/.test(track.id));
   const clearSpotify = () => {
     setSpotifyTracks([]);
     setSpotifySelectedIds(new Set());
@@ -169,7 +170,7 @@ export default function DownloadsView(props: DownloadsViewProps) {
       { label: "Fetch Spotify link", icon: <RotateCcw size={15} />, onSelect: () => void fetchSpotifyTracks(), disabled: !spotifyUrl.trim() || working || spotifyFetchBusy, separatorBefore: true },
       { label: "Select all tracks", onSelect: () => setSpotifySelectedIds(new Set(spotifyTracks.map(track => track.id))), disabled: spotifyDownloadBusy || !spotifyTracks.length },
       { label: "Clear selection", onSelect: () => setSpotifySelectedIds(new Set()), disabled: spotifyDownloadBusy || !spotifySelectedIds.size },
-      { label: "Clear Spotify preview", onSelect: clearSpotify, disabled: spotifyDownloadBusy || !spotifyTracks.length },
+      { label: catalogSelection ? "Clear catalog preview" : "Clear Spotify preview", onSelect: clearSpotify, disabled: spotifyDownloadBusy || !spotifyTracks.length },
       { label: spotifyLoggedIn ? "Disconnect Spotify" : "Connect Spotify",
         onSelect: () => void (spotifyLoggedIn ? handleSpotifyLogout() : handleSpotifyLogin()), disabled: spotifyLoginBusy }
     ] : [{ label: "Clear pasted links", icon: <X size={15} />, onSelect: () => setDownloadText(""), disabled: !downloadText.trim(), separatorBefore: true }]),
@@ -194,7 +195,7 @@ export default function DownloadsView(props: DownloadsViewProps) {
       <Tabs value={downloadsTab} onValueChange={value => setDownloadsTab(value as DownloadsTab)} variant="pill" className="downloadsTabs">
         <TabsList className="downloadsTabList">
           <TabsTrigger value="youtube">YouTube</TabsTrigger>
-          <TabsTrigger value="spotify">Spotify</TabsTrigger>
+          <TabsTrigger value="spotify">{catalogSelection ? "Catalog" : "Spotify"}</TabsTrigger>
         </TabsList>
         <TabsContent value="youtube" className="downloadsSourceContent">
           <label className="downloadsInputLabel" htmlFor="downloads-youtube-links">Paste YouTube links</label>
@@ -215,10 +216,11 @@ export default function DownloadsView(props: DownloadsViewProps) {
         </TabsContent>
         <TabsContent value="spotify" className="downloadsSourceContent">
           <div className="downloadsSpotifyStatus">
-            <span>{spotifyLoggedIn ? "Spotify connected" : "Spotify public import"}</span>
+            <span>{catalogSelection ? `MusicBrainz album · ${spotifySourceName || "selected tracks"}` : spotifyLoggedIn ? "Spotify connected" : "Spotify public import"}</span>
             <button type="button" className="downloadsTextAction" disabled={spotifyLoginBusy}
               onClick={() => void handleSpotifyLogin()}>{spotifyLoginBusy ? "Connecting…" : spotifyLoggedIn ? "Reconnect" : "Connect account"}</button>
           </div>
+          {catalogSelection ? <p className="downloadsCatalogHint">Album tracks are matched by title, artist and duration. Check the selected recordings before downloading.</p> : null}
           <label className="downloadsInputLabel" htmlFor="downloads-spotify-link">Spotify link</label>
           <div className="downloadsInputSurface downloadsInputSingle">
             <Link2 size={17} className="downloadsLinkIcon" aria-hidden="true" />
@@ -243,7 +245,7 @@ export default function DownloadsView(props: DownloadsViewProps) {
               {spotifyDownloadBusy ? "Cancel download" : spotifyFetchBusy ? "Fetching…" : spotifyTracks.length ? "Download selected" : "Fetch tracks"}
             </Button>
           </div>
-          {spotifyTracks.length ? <div className="downloadsSpotifyPreview" aria-label="Spotify tracks">
+          {spotifyTracks.length ? <div className="downloadsSpotifyPreview" aria-label={catalogSelection ? "Catalog album tracks" : "Spotify tracks"}>
             <div className="downloadsPreviewTitle">
               <strong>{spotifyTracks.length} tracks</strong>
               <span aria-live="polite">{spotifySelectedIds.size} selected</span>
