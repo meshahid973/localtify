@@ -11,71 +11,10 @@ import { MediaCard } from "../../shared/ui/MediaCard";
 import { prettyMeta, prettyTitle } from "../search/search.utils";
 import { albumTarget, useAppActions } from "../shell/appActions";
 import type { LocalAlbumEntry } from "./album.types";
+import type { Song } from "../library/song.types";
+import type { useAlbumsController } from "./useAlbumsController";
 
-export type AlbumsViewProps = {
-  albumBuilderOpen: any;
-  albumBuilderMode: any;
-  albumDeleteConfirmArmed: any;
-  albumDraftArtist: any;
-  albumDraftArtistNames: any;
-  albumDraftArtistPreview: any;
-  albumDraftArtistSuggestion: any;
-  albumDraftCoverUrl: any;
-  albumDraftHasVariousArtists: any;
-  albumDraftPreviewCoverSong: any;
-  albumDraftSearch: any;
-  albumDraftSearchResults: any;
-  albumDraftSongIds: any;
-  albumDraftTitle: any;
-  albumDraftYear: any;
-  albumFolderImportBusy: any;
-  albumFolderImportMessage: any;
-  albumFolderImportPreview: any;
-  albumFolderImportProgress: any;
-  albumSearch: any;
-  albumSortMode: any;
-  manualAlbums: any;
-  setAlbumDraftArtist: any;
-  setAlbumDraftSearch: any;
-  setAlbumDraftTitle: any;
-  setAlbumDraftYear: any;
-  setAlbumSearch: any;
-  setAlbumSortMode: any;
-  setSelectedAlbumId: any;
-  albumBuilderSectionRef: any;
-  albumCoverInputRef: any;
-  cancelAlbumFolderImportPreview: any;
-  clearAlbumDraftCover: any;
-  closeAlbumBuilder: any;
-  commitAlbumFolderImportPreview: any;
-  currentId: any;
-  currentSong: any;
-  deleteAllAlbums: any;
-  deleteManualAlbum: any;
-  deleteSelectedAlbum: any;
-  handleAlbumCoverFile: any;
-  localAlbums: any;
-  manualAlbumEntries: any;
-  metadataAlbums: any;
-  openAlbumCoverPicker: any;
-  openCreateAlbumBuilder: any;
-  openEditAlbumBuilder: any;
-  openPlaylistPicker: any;
-  playAlbumSongs: any;
-  queueAlbumSongs: any;
-  saveManualAlbumFromDraft: any;
-  scanAlbumFolderImport: any;
-  selectSong: any;
-  selectedAlbum: any;
-  selectedAlbumIds: any;
-  selectedAlbumIsFolder: any;
-  selectedAlbumIsManual: any;
-  shuffleAlbumSongs: any;
-  songs: any;
-  toggleAlbumDraftSong: any;
-  toggleLike: any;
-  visibleAlbums: any;
-};
+export type AlbumsViewProps = ReturnType<typeof useAlbumsController> & { songs: Song[]; currentSong: Song | null };
 
 export default function AlbumsView(props: AlbumsViewProps) {
   const actions = useAppActions();
@@ -158,7 +97,6 @@ export default function AlbumsView(props: AlbumsViewProps) {
                   <button className="mainAction" type="button" onClick={() => openCreateAlbumBuilder(currentSong || songs[0] || null)}><ActionLabel icon={Plus}>add album</ActionLabel></button>
                   <button className="heroGhost" type="button" onClick={() => void scanAlbumFolderImport("single")} disabled={albumFolderImportBusy}><ActionLabel icon={FolderInput}>import album folder</ActionLabel></button>
                   <button className="heroGhost" type="button" onClick={() => void scanAlbumFolderImport("library")} disabled={albumFolderImportBusy}><ActionLabel icon={FolderTree}>import album library</ActionLabel></button>
-                  <button className={`heroGhost danger albumsDeleteAllV318 ${albumDeleteConfirmArmed ? "confirmArmed" : ""}`} type="button" onClick={() => void deleteAllAlbums()} disabled={!manualAlbums.length && !metadataAlbums.length}><ActionLabel icon={Trash2}>{albumDeleteConfirmArmed ? "sure? delete" : "delete all albums"}</ActionLabel></button>
                 </div>}
 
                 {(albumFolderImportBusy || albumFolderImportPreview || albumFolderImportMessage) ? (
@@ -267,12 +205,12 @@ export default function AlbumsView(props: AlbumsViewProps) {
                         cute
                         tone="info"
                         eyebrow="albums"
-                        title="No albums yet"
-                        message="Give Localtify an album folder and it’ll make the shelf feel tidy."
-                        detail="Best folder shape: Album name → tracks → cover.jpg or folder.png."
+                        title={albumSearch ? "No matching albums" : "No albums yet"}
+                        message={albumSearch ? "Try a different album title or artist." : "Create a custom album, or import tracks with album tags."}
+                        detail={albumSearch ? undefined : "Best folder shape: Album name → tracks → cover.jpg or folder.png."}
                         actions={
-                          <button className="mainAction" type="button" onClick={() => void scanAlbumFolderImport("library")} disabled={albumFolderImportBusy}>
-                            import album library
+                          <button className="mainAction" type="button" onClick={() => albumSearch ? setAlbumSearch("") : isAndroidApp() ? actions.nav.go("library") : void scanAlbumFolderImport("library")} disabled={!albumSearch && albumFolderImportBusy}>
+                            {albumSearch ? "clear search" : isAndroidApp() ? "open library" : "import album library"}
                           </button>
                         }
                       />
