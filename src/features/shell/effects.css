@@ -251,54 +251,6 @@
   height: clamp(220px, 18vw, 330px) !important;
 }
 
-.app[data-library-row-style="compactRows"] .songRow{
-  min-height: 56px !important;
-  height: 56px !important;
-  padding-block: 5px !important;
-}
-
-.app[data-library-row-style="compactRows"] .songArt{
-  width: 40px !important;
-  height: 40px !important;
-}
-
-.app[data-library-row-style="compactRows"] .songMeta strong{
-  font-size: 13px !important;
-}
-
-.app[data-library-row-style="compactRows"] .songMeta small{
-  font-size: 11px !important;
-}
-
-.app[data-library-row-style="comfyRows"] .songRow{
-  min-height: 74px !important;
-  height: 74px !important;
-}
-
-.app[data-library-row-style="comfyRows"] .songArt{
-  width: 52px !important;
-  height: 52px !important;
-}
-
-.app[data-library-row-style="listOnly"] .songRow{
-  min-height: 50px !important;
-  height: 50px !important;
-  background: transparent !important;
-  border-color: rgba(255, 255, 255, 0.052) !important;
-  border-left: 0 !important;
-  border-right: 0 !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-}
-
-.app[data-library-row-style="listOnly"] .songArt{
-  display: none !important;
-}
-
-.app[data-library-row-style="listOnly"] .songButton{
-  grid-template-columns: 34px minmax(0, 1fr) !important;
-}
-
 .app[data-player-background="flat"] .playerBar{
   background: var(--lt-bg-elevated) !important;
   border-color: rgba(255,255,255,0.06) !important;
