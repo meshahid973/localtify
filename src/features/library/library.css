@@ -300,29 +300,6 @@
   background: rgba(var(--lt-accent-rgb), .07) !important;
 }
 
-.libraryCoverCards {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
-  gap: 13px;
-}
-
-.libraryPage .homeAlbumCard {
-  min-width: 0;
-  padding: 0 !important;
-  border: 0 !important;
-  color: inherit !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  transform: none !important;
-}
-
-.libraryPage .homeAlbumArt,
-.libraryPage .homeAlbumArt .coverImage { border-radius: 8px !important; }
-.libraryPage .homeAlbumMeta strong { color: var(--lt-text) !important; }
-.libraryPage .homeAlbumMeta small,
-.libraryPage .homeAlbumStats { color: var(--lt-muted) !important; }
-
 .libraryEmpty {
   min-height: 300px;
   display: grid;
