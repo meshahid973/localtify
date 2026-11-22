@@ -314,10 +314,11 @@ function createSyncServer({ repositories, coverPath, statePath, serverName = "co
     if (!device) return send(response, 401, { error: "This phone is not paired with this Mac" });
 
     if (request.method === "GET" && route === "/v1/snapshot") {
+      const data = await snapshotAsync();
       device.lastSyncAt = now();
       writeState();
       onChanged({ devices: true });
-      return sendSnapshot(response, await snapshotAsync());
+      return sendSnapshot(response, data);
     }
     if (request.method === "POST" && route === "/v1/changes") {
       const body = await readJson(request);
