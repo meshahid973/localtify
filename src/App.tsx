@@ -24,6 +24,7 @@ import { useScreensaverController } from "./features/shell/useScreensaverControl
 import { useDiagnosticsInfo } from "./features/shell/useDiagnosticsInfo";
 import { useFeedbackController } from "./features/feedback";
 import { usePlaylistsController } from "./features/playlists";
+import { useAlbumsController } from "./features/albums/useAlbumsController";
 import { useAppMenuCommands } from "./features/shell/useAppMenuCommands";
 import { updateStatusLabel, useUpdatesController } from "./features/updates";
 import { useSettingsController } from "./features/settings";
@@ -269,6 +270,11 @@ function MainModeApp() {
 
   const { libraryIndex, mostPlayed, missingSongsForLibrary, visibleSongs, libraryOrderLocked, songsById, songIndexById, playableSongs } = useLibraryDerivedState({
     songs, deferredQuery, view, libraryFilterMode, librarySortMode, libraryRenderLimit, libraryListLengthRef, libraryRenderLimitRef
+  });
+
+  const albumsController = useAlbumsController({
+    view, songs, songsById, setSongs, setLibraryScanBusy, setLibraryScanMessage,
+    setStatusText, patchSongLocal, reducedMotion: settings.reducedMotion
   });
 
   const {
@@ -5682,6 +5688,7 @@ function MainModeApp() {
       view,
       visibleSongs
     },
+    albums: { ...albumsController, songs, currentSong },
     artists: {
       songs
     },
