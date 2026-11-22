@@ -20,6 +20,7 @@ const WhatsNewModal = lazy(() => import("../updates/WhatsNewModal"));
 import { clamp } from "../../shared/utils/format";
 import type { AppShellProps } from "./appShell.contract";
 import type { Song } from "../library/song.types";
+import type { LocalAlbumEntry } from "../albums/album.types";
 import { useDownloadTagPrompt } from "../tagging/useDownloadTagPrompt";
 import SidebarNav from "./SidebarNav";
 import { libraryViews } from "./navigation.constants";
@@ -61,6 +62,9 @@ const SongEditorModal = lazy(() => import("../library/components/SongEditorModal
 const DeleteSongModal = lazy(() => import("../library/components/DeleteSongModal"));
 const PlaylistPickerModal = lazy(() => import("../playlists/components/PlaylistPickerModal"));
 const TagSearchDialog = lazy(() => import("../tagging/TagSearchDialog"));
+const AlbumTagSearchDialog = lazy(() => import("../tagging/AlbumTagSearchDialog"));
+const AlbumTracksDialog = lazy(() => import("../tagging/AlbumTracksDialog"));
+const AlbumPlaylistDialog = lazy(() => import("../albums/AlbumPlaylistDialog"));
 const DownloadTagDialog = lazy(() => import("../tagging/DownloadTagDialog"));
 
 export type { AppShellProps } from "./appShell.contract";
@@ -279,7 +283,7 @@ export default function AppShell(props: AppShellProps) {
             contentRef={contentRef} backgroundStyle={playerBackground} backgrounded={isAppBackgrounded} />
       </div>
 
-      <ShellDialogs modals={modals} menu={menu} actions={actions}
+      <ShellDialogs modals={modals} menu={menu} actions={actions} albums={albums}
         collections={collections} downloads={downloads} taggingEnabled={settings.musicbrainzTagging === true}
         openSimilarSongs={openSimilarSongs} />
 
@@ -292,10 +296,11 @@ export default function AppShell(props: AppShellProps) {
 }
 
 /** Menu and tagging state live here; opening a dialog cannot rerender Home or the player. */
-function ShellDialogs({ modals, menu, actions, collections, downloads, taggingEnabled, openSimilarSongs }: {
+function ShellDialogs({ modals, menu, actions, albums, collections, downloads, taggingEnabled, openSimilarSongs }: {
   modals: AppShellProps["modals"];
   menu: CollectionMenuStore;
   actions: AppActions;
+  albums: AppShellProps["albums"];
   collections: AppShellProps["collections"];
   downloads: AppShellProps["downloads"];
   taggingEnabled: boolean;
@@ -303,14 +308,34 @@ function ShellDialogs({ modals, menu, actions, collections, downloads, taggingEn
 }) {
   const collectionMenu = useSyncExternalStore(menu.subscribe, menu.getSnapshot, menu.getSnapshot);
   const [tagSearchSong, setTagSearchSong] = useState<Song | null>(null);
+  const [albumTag, setAlbumTag] = useState<LocalAlbumEntry | null>(null);
+  const [albumCompletion, setAlbumCompletion] = useState<LocalAlbumEntry | null>(null);
+  const [albumPlaylist, setAlbumPlaylist] = useState<LocalAlbumEntry | null>(null);
   const downloadTagPrompt = useDownloadTagPrompt(taggingEnabled, Boolean(downloads.downloadBusy || downloads.spotifyDownloadBusy), downloads.spotifyTracks, downloads.visibleDownloadResults);
   return <>
       <SongContextMenu {...modals.songContextMenu} findOnMusicBrainz={taggingEnabled ? setTagSearchSong : undefined} />
       <CollectionContextMenu state={collectionMenu} onClose={menu.close} open={actions.openCollection} play={actions.playCollection} queue={actions.queueCollection}
+        goToArtist={actions.nav.openArtistPage}
+        addAlbumToPlaylist={setAlbumPlaylist}
+        editAlbum={album => { actions.nav.go("albums"); albums.openEditAlbumBuilder(album); }}
+        findAlbumOnMusicBrainz={taggingEnabled ? setAlbumTag : undefined}
+        completeAlbum={taggingEnabled ? setAlbumCompletion : undefined}
         findSimilar={(target) => target.playlist
           ? collections.openSimilar({ kind: "playlist", playlistId: target.playlist.id })
           : openSimilarSongs(playableIds(target.songs), `${target.kind}:${target.id}`, target.title)} />
       {tagSearchSong ? <Suspense fallback={null}><TagSearchDialog key={tagSearchSong.id} song={tagSearchSong} onClose={() => setTagSearchSong(null)} /></Suspense> : null}
+      {albumTag ? <Suspense fallback={null}><AlbumTagSearchDialog key={albumTag.id} album={albumTag} onClose={() => setAlbumTag(null)} /></Suspense> : null}
+      {albumPlaylist ? <Suspense fallback={null}><AlbumPlaylistDialog key={albumPlaylist.id} album={albumPlaylist} playlists={collections.playlists}
+        onAdd={collections.addAlbumToPlaylist} onCreate={collections.createPlaylistFromAlbum} onClose={() => setAlbumPlaylist(null)} /></Suspense> : null}
+      {albumCompletion ? <Suspense fallback={null}><AlbumTracksDialog key={albumCompletion.id}
+        request={{ songIds: albumCompletion.songs.map(song => song.id), title: albumCompletion.title, artist: albumCompletion.artist, label: albumCompletion.title }}
+        sendToDownloads={tracks => {
+          downloads.setSpotifyTracks(tracks);
+          downloads.setSpotifySelectedIds(new Set(tracks.map(track => track.id)));
+          downloads.setDownloadsTab("spotify");
+          actions.nav.go("downloads");
+        }}
+        onClose={() => setAlbumCompletion(null)} /></Suspense> : null}
       {downloadTagPrompt.songIds.length ? <Suspense fallback={null}><DownloadTagDialog songIds={downloadTagPrompt.songIds}
         titleOf={(id) => modals.songContextMenu.songsById.get(id)?.title || "Unknown song"} onClose={downloadTagPrompt.dismiss} /></Suspense> : null}
       {modals.similarSongs.seed ? <Suspense fallback={null}><SimilarSongsDialog key={modals.similarSongs.seed.key} {...modals.similarSongs} /></Suspense> : null}
