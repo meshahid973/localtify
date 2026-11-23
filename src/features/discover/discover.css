@@ -103,6 +103,9 @@
 }
 
 .discoverCatalog { display: grid; min-width: 0; gap: var(--lt-space-3); }
+.discoverCatalogHint { display:flex; align-items:center; gap:10px; margin:0; padding:12px 0; min-width:0; color:var(--lt-muted); font-size:var(--lt-text-sm); }
+.discoverCatalogHint > svg { flex:none; color:var(--lt-faint); }
+.discoverCatalogMessage { margin:0; padding:8px 0; color:var(--lt-muted); font-size:var(--lt-text-sm); }
 .discoverSearch { display: flex; flex-wrap: wrap; align-items: center; gap: var(--lt-space-2); }
 .discoverSearch input { min-width: 0; min-height: var(--lt-control-height); padding: 0 var(--lt-space-3); border: 1px solid var(--lt-border); border-radius: var(--lt-radius-item); background: var(--lt-surface-soft); color: var(--lt-text); font: inherit; flex: 1 1 200px; }
 .discoverSearch input:focus-visible { outline: 2px solid var(--lt-accent); outline-offset: 2px; }

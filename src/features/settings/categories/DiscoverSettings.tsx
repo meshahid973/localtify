@@ -87,7 +87,7 @@ export default function DiscoverSettings({ settings, updateSetting }: Props) {
       <div className="discoverProviderStatus" role="status">
         <span className={`discoverProviderDot ${lastfmCheck === "ok" ? "ready" : ""}`} aria-hidden="true" />
         <span>{sourceLabel}</span>
-        <Button variant="secondary" size="icon" className="settingsTinyButton" type="button" disabled={checking} onClick={() => void refreshProviderStatus()} aria-label="Test Last.fm connection" title="Test Last.fm connection"><RefreshCw size={14} /></Button>
+        {source === "default" || source === "override" ? <Button variant="secondary" size="sm" className="settingsActionButton discoverProviderTestButton" type="button" disabled={checking} onClick={() => void refreshProviderStatus()}><RefreshCw size={14} aria-hidden="true" /> {checking ? "Testing…" : "Test connection"}</Button> : null}
       </div>
       {checking ? <p className="settingsHintText" role="status">Checking Last.fm…</p> : null}
       {connectionLabel ? <p className="settingsHintText" role="status">{connectionLabel}</p> : null}

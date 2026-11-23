@@ -170,7 +170,7 @@ export default function DownloadsView(props: DownloadsViewProps) {
       ...(!catalogSelection ? [{ label: "Fetch Spotify link", icon: <RotateCcw size={15} />, onSelect: () => void fetchSpotifyTracks(), disabled: !spotifyUrl.trim() || working || spotifyFetchBusy, separatorBefore: true }] : []),
       { label: "Select all tracks", onSelect: () => setSpotifySelectedIds(new Set(spotifyTracks.map(track => track.id))), disabled: spotifyDownloadBusy || !spotifyTracks.length },
       { label: "Clear selection", onSelect: () => setSpotifySelectedIds(new Set()), disabled: spotifyDownloadBusy || !spotifySelectedIds.size },
-      { label: catalogSelection ? "Clear catalog preview" : "Clear Spotify preview", onSelect: clearSpotify, disabled: spotifyDownloadBusy || !spotifyTracks.length },
+      ...(!catalogSelection ? [{ label: "Clear Spotify preview", onSelect: clearSpotify, disabled: spotifyDownloadBusy || !spotifyTracks.length }] : []),
       ...(!catalogSelection ? [{ label: spotifyLoggedIn ? "Disconnect Spotify" : "Connect Spotify",
         onSelect: () => void (spotifyLoggedIn ? handleSpotifyLogout() : handleSpotifyLogin()), disabled: spotifyLoginBusy }] : [])
     ] : [{ label: "Clear pasted links", icon: <X size={15} />, onSelect: () => setDownloadText(""), disabled: !downloadText.trim(), separatorBefore: true }]),

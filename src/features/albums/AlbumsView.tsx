@@ -89,8 +89,7 @@ export default function AlbumsView(props: AlbumsViewProps) {
                        { value: "artist", label: "artist" }, { value: "year", label: "year" }]} />
                 </PageHeader>
 
-                {/* Album management (create, import, clear tags) is Mac-only. */}
-                {isAndroidApp() ? null : <div className="albumsActionBarV318">
+                                {isAndroidApp() ? null : <div className="albumsActionBarV318">
                   <button className="albumAction albumActionPrimary" type="button" onClick={() => openCreateAlbumBuilder(currentSong || songs[0] || null)}><ActionLabel icon={Plus}>add album</ActionLabel></button>
                   <button className="albumAction" type="button" onClick={() => void scanAlbumFolderImport("single")} disabled={albumFolderImportBusy}><ActionLabel icon={FolderInput}>import album folder</ActionLabel></button>
                   <button className="albumAction" type="button" onClick={() => void scanAlbumFolderImport("library")} disabled={albumFolderImportBusy}><ActionLabel icon={FolderTree}>import album library</ActionLabel></button>
