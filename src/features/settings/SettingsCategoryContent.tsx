@@ -8,6 +8,7 @@ import DiscoverSettings from "./categories/DiscoverSettings";
 import UpdateSettings from "./categories/UpdateSettings";
 import AboutSettings from "./categories/AboutSettings";
 import ExperimentalSettings from "./categories/ExperimentalSettings";
+import LyricsSettings from "./categories/LyricsSettings";
 import AdvancedSettings from "./categories/AdvancedSettings";
 import { detectSettingsPlatform } from "./settings.shared";
 import type { PlatformInfoLike } from "./settings.shared";
@@ -23,6 +24,7 @@ const SettingsCategoryContent = memo(function SettingsCategoryContent(p: LegacyS
   switch (p.settingsCategory) {
     case "appearance": return <AppearanceSettings settings={p.settings} updateSetting={p.updateSetting} coverColorSyncOptions={p.coverColorSyncOptions} selectedCoverColorSyncMode={p.selectedCoverColorSyncMode} updateCoverColorSyncMode={p.updateCoverColorSyncMode} openAdvanced={() => p.setSettingsCategory?.("advanced")} />;
     case "playback": return <PlaybackSettings settings={p.settings} updateSetting={p.updateSetting} />;
+    case "lyrics": return <LyricsSettings settings={p.settings} songs={p.songs || []} updateSetting={p.updateSetting} />;
     case "discord": return <DiscordSettings settings={p.settings} updateSetting={p.updateSetting} discordPreview={p.discordPreview} discordStyleOptions={p.discordStyleOptions} discordSecondLineOptions={p.discordSecondLineOptions} discordArtModeOptions={p.discordArtModeOptions} />;
     case "covers":
     case "library":

@@ -17,9 +17,11 @@ const SETTINGS_NAV_GROUPS: ReadonlyArray<{
   label: string;
   ids: ReadonlyArray<SettingsCategory>;
 }> = [
-  { label: "Listening", ids: ["appearance", "playback", "discover", "discord"] },
+  { label: "Appearance", ids: ["appearance"] },
+  { label: "Listening", ids: ["playback", "lyrics", "experimental"] },
   { label: "Your collection", ids: ["library", "downloads"] },
-  { label: "Application", ids: ["updates", "experimental", "advanced", "about"] }
+  { label: "Connections", ids: ["discover", "discord"] },
+  { label: "Application", ids: ["updates", "advanced", "about"] }
 ];
 
 export default function SettingsRail({
