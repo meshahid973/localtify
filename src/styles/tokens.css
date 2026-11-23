@@ -33,6 +33,8 @@
   --lt-overlay-scrim: rgba(0, 0, 0, .60);
   --lt-overlay-scrim-soft: rgba(0, 0, 0, .50);
   --lt-on-image: #ffffff;
+  --lt-like-heart: #fe587a;
+  --lt-like-heart-rgb: 254, 88, 122;
   --lt-image-scrim: rgba(0, 0, 0, .35);
   --lt-update-from: #1351a8;
   --lt-update-to: #176cce;
