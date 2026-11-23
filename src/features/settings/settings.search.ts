@@ -12,14 +12,6 @@ export function settingsTabMatchesSearch(tab: (typeof settingsCategoryTabs)[numb
   return query.split(" ").every((part) => haystack.includes(part));
 }
 
-export function resolveSettingsCategoryFromSearch(value: string): SettingsCategory | null {
-  const query = normalizeSettingsSearch(value);
-  if (!query) return null;
-  const exactMatch = settingsCategoryTabs.find((tab) => tab.id === query || tab.label.toLowerCase() === query);
-  if (exactMatch) return exactMatch.id;
-  return settingsCategoryTabs.find((tab) => settingsTabMatchesSearch(tab, query))?.id ?? null;
-}
-
 export type SettingsControlLink = {
   id: string;
   label: string;

@@ -569,6 +569,17 @@ server.listen(5173,async()=>{
       const appearanceSelected=await win.webContents.executeJavaScript("(()=>{const button=[...document.querySelectorAll('.settingsCategoryButton')].find(button=>button.textContent.includes('Appearance'));if(!button)return false;button.click();return true;})()");
       assert.equal(appearanceSelected,true,"Appearance remains reachable from Settings");
       await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('.settingsModeButton').length===2").catch(()=>false),"appearance navigation");
+      const searched = await win.webContents.executeJavaScript("(()=>{const e=document.querySelector('#settings-section-search');if(!e)return false;Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,'crossfade');e.dispatchEvent(new Event('input',{bubbles:true}));return true})()");
+      assert.ok(searched,"Settings control search must be accessible");
+      await until(()=>win.webContents.executeJavaScript("Array.from(document.querySelectorAll('.settingsControlResult')).some(el=>el.textContent.includes('Crossfade'))").catch(()=>false),"crossfade control search");
+      const openedControl=await win.webContents.executeJavaScript("(()=>{const b=[...document.querySelectorAll('.settingsControlResult')].find(el=>el.textContent.includes('Crossfade'));if(!b)return false;b.click();return true})()");
+      assert.ok(openedControl,"Settings search result must be actionable");
+      await until(()=>win.webContents.executeJavaScript("document.querySelector('[data-settings-category=playback] #settings-playback-transitions')!==null").catch(()=>false),"direct crossfade settings");
+      await screenshot(win,"settings-search-crossfade");
+      await win.webContents.executeJavaScript("document.querySelector('.settingsCategoryButton[title*=\"Lyrics\"]')?.click()");
+      await until(()=>win.webContents.executeJavaScript("!!document.querySelector('[data-settings-category=lyrics] #settings-lyrics-display')").catch(()=>false),"independent lyrics settings");
+      await screenshot(win,"settings-lyrics");
+
     }
     // Render the actual title-bar update banner and remote What's New flow without installing a fake package.
     win.webContents.send("localitfy:auto-update-event",{

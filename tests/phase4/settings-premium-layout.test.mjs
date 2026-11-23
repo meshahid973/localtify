@@ -16,7 +16,7 @@ test("Settings keeps the existing category rendering and reduced-motion support"
   assert.match(view, /key=\{settingsCategory\}/);
   assert.match(view, /import "\.\/settings\.css";/);
   assert.match(view, /import "\.\/settings-premium\.css";/);
-  for (const section of ["appearance", "playback", "discord", "library", "downloads", "updates", "about", "experimental", "advanced"]) {
+  for (const section of ["appearance", "playback", "lyrics", "discord", "library", "downloads", "updates", "about", "experimental", "advanced"]) {
     assert.ok(sections.includes('case "' + section + '":'), "Missing Settings category: " + section);
   }
 });
@@ -28,7 +28,8 @@ test("Compact navigation keeps search, category controls, and keyboard semantics
   assert.match(rail, /onSearchChange\(""\)/);
   assert.match(rail, /onCategoryChange\(tab\.id\)/);
   assert.match(rail, /aria-current=\{selected \? "page" : undefined\}/);
-  assert.match(rail, /No matching section/);
+  assert.match(rail, /No matching setting/);
+  assert.match(rail, /settingsControlResult/);
 });
 
 test("Compact styles cover inputs, focus indicators, and narrower viewports without hiding functionality", () => {
@@ -177,4 +178,21 @@ test("Advanced reset controls remain theme-aware without feedback cards", () => 
   assert.match(skin, /settingsDangerMascotV501/);
   assert.match(skin, /settingsDangerPanelV491/);
   assert.doesNotMatch(skin, /feedbackSettingsCardV331|feedbackWebhookStatusV337/);
+});
+
+test("Settings search targets actual sections and never recreates the feedback feature", () => {
+  const search = read("src/features/settings/settings.search.ts");
+  const componentFiles = [
+    "AppearanceSettings", "PlaybackSettings", "LibrarySettings", "DownloadSettings",
+    "DiscordSettings", "DiscoverSettings", "LyricsSettings", "ExperimentalSettings",
+    "UpdateSettings", "AdvancedSettings"
+  ].map(name => read("src/features/settings/categories/" + name + ".tsx")).join("\n");
+  const targets = [...search.matchAll(/target: "(settings-[\w-]+)"/g)].map(item => item[1]);
+  assert.ok(targets.length >= 20, "Control search must cover each major Settings workflow");
+  assert.equal(new Set(targets).size, targets.length, "Each control result should have a stable target");
+  for (const id of targets) assert.ok(componentFiles.includes('id="' + id + '"'), "Missing Settings search target: " + id);
+  assert.doesNotMatch(search, /feedback|Feedback/i);
+  assert.match(read("src/features/settings/settings.shared.tsx"), /export function SettingsChoiceGroup/);
+  assert.match(read("src/features/settings/categories/DownloadSettings.tsx"), /SettingsChoiceGroup/);
+  assert.match(read("src/features/settings/categories/DiscordSettings.tsx"), /SettingsChoiceGroup/);
 });

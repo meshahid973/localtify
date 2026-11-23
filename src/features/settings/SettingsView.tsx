@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import SettingsRail from "./SettingsRail";
 import type { SettingsRailProps } from "./SettingsRail";
 import type { SettingsCategory } from "./settings.types";
+import { settingsCategoryTabs } from "./settings.constants";
 
 export type SettingsViewProps = {
   renderSettingsCategoryContent: () => ReactNode;
@@ -16,7 +17,7 @@ export type SettingsViewProps = {
 export default function SettingsView({
   renderSettingsCategoryContent, settingsRail, settingsCategory
 }: SettingsViewProps) {
-  const selectedTab = settingsRail.tabs.find((tab) => tab.id === settingsCategory);
+  const selectedTab = settingsCategoryTabs.find((tab) => tab.id === settingsCategory);
   return (
     <section data-page-section="settings" className="settingsPage settingsPageV027">
       <PageHeader title="Settings" />
