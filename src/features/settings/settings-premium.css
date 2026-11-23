@@ -1,22 +1,22 @@
 .settingsPage.settingsPageV027 {
-  width: min(100%, 1120px);
-  margin: 0 auto;
-  gap: var(--lt-page-gap);
-  padding: 0 0 var(--lt-space-5);
+
+
+
+
   color: var(--settings-text);
 }
 .settingsPage.settingsPageV027 .settingsLayout {
-  grid-template-columns: 226px minmax(0, 1fr);
-  gap: var(--lt-space-5);
-  align-items: start;
+
+
+
 }
 .settingsPage.settingsPageV027 .settingsCategoryRail {
-  position: sticky; top: 12px; max-height: calc(100vh - 120px);
-  padding: 12px; gap: 8px; overflow-y: auto;
-  border-radius: var(--lt-radius-sm); border: 0;
-  background: transparent;
+
+
+
+
 }
-.settingsPage.settingsPageV027 .settingsSearchBoxV027 { display: grid; gap: 7px; padding: 1px 1px 8px; }
+.settingsPage.settingsPageV027 .settingsSearchBoxV027 { display: grid;   }
 .settingsPageV027 .settingsSearchBoxV027 > label,
 .settingsPageV027 .settingsNavCaption { color: var(--settings-muted); font-size: 11px; font-weight: 650; letter-spacing: .065em; text-transform: uppercase; }
 .settingsPageV027 .settingsNavCaption { margin: 10px 9px 5px; }
@@ -26,9 +26,9 @@
 .settingsPageV027 .settingsSearchField > svg { position: absolute; left: 9px; color: var(--settings-muted); pointer-events: none; }
 .settingsPage.settingsPageV027 .settingsSearchBoxV027 .settingsSearchField input {
   appearance: none; -webkit-appearance: none;
-  width: 100%; min-height: 43px; padding: 10px 36px 10px 39px;
-  border-radius: 8px; border: 1px solid var(--settings-edge);
-  background: var(--lt-surface-soft); color: var(--settings-text); font-size: 13px;
+  width: 100%;  padding: 10px 36px 10px 39px;
+
+   color: var(--settings-text); font-size: 13px;
 }
 .settingsPageV027 .settingsSearchField input::-webkit-search-cancel-button,
 .settingsPageV027 .settingsSearchField input::-webkit-search-decoration,
@@ -37,41 +37,41 @@
 .settingsPageV027 .settingsSearchClear { position: absolute; right: 3px; display: grid; place-items: center; width: 31px; height: 31px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--settings-muted); cursor: pointer; }
 .settingsPageV027 .settingsSearchClear:hover { background: var(--settings-elevated); color: var(--settings-text); }
 .settingsPage.settingsPageV027 .settingsSearchHintV027 { margin: 0 4px; color: var(--settings-muted); font-size: 11px; }
-.settingsPage.settingsPageV027 .settingsCategoryRail nav { display: grid; gap: 5px; min-width: 0; }
+.settingsPage.settingsPageV027 .settingsCategoryRail nav {    }
 .settingsPage.settingsPageV027 .settingsCategoryButton {
-  display: flex; align-items: center; gap: 11px;
-  width: 100%; min-height: var(--lt-control-height); padding: var(--lt-space-2) var(--lt-space-3);
-  border: 1px solid transparent; border-radius: var(--lt-radius-item);
-  background: transparent; color: var(--settings-muted);
+
+
+
+
   transition: background-color var(--lt-control-motion) ease, color var(--lt-control-motion) ease;
 }
-.settingsPage.settingsPageV027 .settingsCategoryButton:hover { color: var(--settings-text); background: var(--settings-elevated); }
+.settingsPage.settingsPageV027 .settingsCategoryButton:hover {   }
 .settingsPage.settingsPageV027 .settingsCategoryButton[aria-current="page"] {
-  color: var(--settings-text);
-  border-color: transparent;
-  background: var(--lt-fill-selected);
+
+
+
 }
-.settingsPage.settingsPageV027 .settingsCategoryIcon { display: grid; place-items: center; width: 21px; color: var(--settings-muted); }
-.settingsPage.settingsPageV027 .settingsCategoryButton[aria-current="page"] .settingsCategoryIcon { color: var(--settings-accent); }
+.settingsPage.settingsPageV027 .settingsCategoryIcon {     }
+.settingsPage.settingsPageV027 .settingsCategoryButton[aria-current="page"] .settingsCategoryIcon {  }
 .settingsPageV027 .settingsCategoryIcon svg { width: 19px; height: 19px; }
-.settingsPage.settingsPageV027 .settingsCategoryCopy strong { font-size: 14px; font-weight: 640; }
-.settingsPage.settingsPageV027 .settingsCategoryPage { gap: 16px; }
+.settingsPage.settingsPageV027 .settingsCategoryCopy strong {   }
+.settingsPage.settingsPageV027 .settingsCategoryPage {  }
 .settingsPage.settingsPageV027 .settingsCategoryHeader {
-  align-items: center; padding: 4px 0 14px; gap: 14px;
-  border-bottom: 1px solid var(--settings-edge);
+    gap: 14px;
+
 }
-.settingsPage.settingsPageV027 .settingsCategoryHeader h4 { margin: 2px 0 0; font-size: var(--lt-text-title); font-weight: 650; color: var(--settings-text); line-height: 1.2; }
+.settingsPage.settingsPageV027 .settingsCategoryHeader h4 { margin: 2px 0 0;   color: var(--settings-text);  }
 .settingsPage.settingsPageV027 .settingsCategoryHeader .eyebrow { margin: 0; color: var(--settings-accent); font-size: 12px; letter-spacing: .08em; }
 .settingsPage.settingsPageV027 .settingsCategoryHeader > span { color: var(--settings-muted); font-size: 12px; }
 .settingsPage.settingsPageV027 .settingsPanelCard {
-  gap: var(--lt-section-gap); padding: var(--lt-surface-padding);
-  border-radius: var(--lt-radius-panel); border: 1px solid var(--lt-border);
-  background: var(--settings-surface);
-  box-shadow: none;
+
+
+
+
 }
-.settingsPage.settingsPageV027 .settingsPanelHeader { gap: 12px; align-items: center; }
+.settingsPage.settingsPageV027 .settingsPanelHeader {   }
 .settingsPage.settingsPageV027 .settingsPanelHeader > div { gap: 4px; }
-.settingsPage.settingsPageV027 .settingsPanelHeader strong { color: var(--settings-text); font-size: 15px; }
+.settingsPage.settingsPageV027 .settingsPanelHeader strong { color: var(--settings-text);  }
 .settingsPage.settingsPageV027 .settingsPanelHeader span,
 .settingsPage.settingsPageV027 .settingsPanelHeader p { color: var(--settings-muted); font-size: 12px; line-height: 1.5; }
 .settingsPage.settingsPageV027 .settingsTwoColumn,
@@ -81,11 +81,11 @@
 .settingsPage.settingsPageV027 .settingsAudioEffectsPanel .settingsSelectField { max-width: 540px; }
 .settingsPage.settingsPageV027 .settingsLayoutControls .settingsMiniGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .settingsPage.settingsPageV027 :is(.toggleRow,.rangeRow) {
-  min-height: 52px; padding: 10px 0; gap: 14px;
-  border-bottom: 1px solid var(--settings-edge);
+
+
 }
-.settingsPage.settingsPageV027 :is(.toggleRow,.rangeRow):last-child { border-bottom-color: transparent; }
-.settingsPage.settingsPageV027 :is(.toggleRow,.rangeRow) strong { color: var(--settings-text); font-size: 14px; }
+.settingsPage.settingsPageV027 :is(.toggleRow,.rangeRow):last-child {  }
+.settingsPage.settingsPageV027 :is(.toggleRow,.rangeRow) strong { color: var(--settings-text);  }
 .settingsPage.settingsPageV027 :is(.toggleRow,.rangeRow) small { color: var(--settings-muted); font-size: 12px; }
 .settingsPage.settingsPageV027 .toggleRow input[type="checkbox"] {
   appearance: none; position: relative;
@@ -108,28 +108,28 @@
   color: var(--settings-text); font-size: 14px;
 }
 .settingsPage.settingsPageV027 :is(.settingsActionButton,.settingsTinyButton) {
-  min-height: 40px; padding: 9px 13px;
-  border: 1px solid var(--settings-edge); border-radius: 8px;
-  background: var(--settings-elevated); color: var(--settings-text);
-  font-size: 13px; font-weight: 630; cursor: pointer;
+
+
+
+    cursor: pointer;
 }
-.settingsPage.settingsPageV027 :is(.settingsActionButton,.settingsTinyButton):hover:not(:disabled) { background: color-mix(in oklab, var(--settings-accent) 11%, var(--settings-elevated)); }
+.settingsPage.settingsPageV027 :is(.settingsActionButton,.settingsTinyButton):hover:not(:disabled) {  }
 .settingsPage.settingsPageV027 :is(.settingsActionButton,.settingsTinyButton):disabled { opacity: .45; cursor: not-allowed; }
-.settingsPage.settingsPageV027 .settingsPrimaryAction { border-color: color-mix(in oklab, var(--settings-accent) 24%, transparent); background: color-mix(in oklab, var(--settings-accent) 12%, var(--settings-surface)); }
+.settingsPage.settingsPageV027 .settingsPrimaryAction {   }
 .settingsPage.settingsPageV027 :is(.settingsChoicePillV491,.settingsChoice,.cleanerOptionV440) {
-  min-height: 50px; padding: 10px 12px; gap: 4px;
-  border-radius: 8px; background: var(--settings-elevated); border-color: var(--settings-edge);
-  color: var(--settings-text);
+
+    border-color: var(--settings-edge);
+
 }
-.settingsPage.settingsPageV027 :is(.settingsChoicePillV491,.settingsChoice,.cleanerOptionV440).active { background: color-mix(in oklab, var(--settings-accent) 12%, var(--settings-surface)); border-color: color-mix(in oklab, var(--settings-accent) 32%, transparent); }
+.settingsPage.settingsPageV027 :is(.settingsChoicePillV491,.settingsChoice,.cleanerOptionV440).active {   }
 .settingsPage.settingsPageV027 .settingsChoiceRowV491 { gap: 7px; }
 
 
-.settingsPage.settingsPageV027 .settingsDisclosure { min-width: 0; border: 1px solid var(--settings-edge); border-radius: 10px; background: var(--settings-surface); }
+.settingsPage.settingsPageV027 .settingsDisclosure { min-width: 0;    }
 
 .settingsPage.settingsPageV027 .settingsDisclosure > summary {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 12px 14px; cursor: pointer; color: var(--settings-text); font-size: 14px; font-weight: 630; list-style: none;
+   cursor: pointer; color: var(--settings-text); font-size: 14px;  list-style: none;
 }
 
 .settingsPage.settingsPageV027 .settingsDisclosure > summary::-webkit-details-marker { display: none; }

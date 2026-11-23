@@ -85,8 +85,8 @@ test("Feedback transport and UI are absent; performance diagnostics remain", () 
 
 test("Settings use a readable width and grouped navigation", () => {
   const rail = read("src/features/settings/SettingsRail.tsx");
-  assert.match(skin, /width: min\(100%, 1120px\)/);
-  assert.match(skin, /grid-template-columns: 226px minmax\(0, 1fr\)/);
+  assert.match(skin, /width: min\(100%,\s*1180px\)/);
+  assert.match(skin, /grid-template-columns: 206px minmax\(0,\s*1fr\)/);
   for (const heading of ["Listening", "Your collection", "Application"]) {
     assert.ok(rail.includes(heading), "Missing settings navigation group: " + heading);
   }
