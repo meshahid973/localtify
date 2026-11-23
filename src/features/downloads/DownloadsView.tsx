@@ -167,12 +167,12 @@ export default function DownloadsView(props: DownloadsViewProps) {
     { label: "Open downloads folder", icon: <FolderOpen size={15} />, onSelect: () => void window.localitfy.openDownloadsFolder(settings.downloadFolder || undefined) },
     { label: "Download settings", icon: <Settings2 size={15} />, onSelect: openSettings },
     ...(downloadsTab === "spotify" ? [
-      { label: "Fetch Spotify link", icon: <RotateCcw size={15} />, onSelect: () => void fetchSpotifyTracks(), disabled: !spotifyUrl.trim() || working || spotifyFetchBusy, separatorBefore: true },
+      ...(!catalogSelection ? [{ label: "Fetch Spotify link", icon: <RotateCcw size={15} />, onSelect: () => void fetchSpotifyTracks(), disabled: !spotifyUrl.trim() || working || spotifyFetchBusy, separatorBefore: true }] : []),
       { label: "Select all tracks", onSelect: () => setSpotifySelectedIds(new Set(spotifyTracks.map(track => track.id))), disabled: spotifyDownloadBusy || !spotifyTracks.length },
       { label: "Clear selection", onSelect: () => setSpotifySelectedIds(new Set()), disabled: spotifyDownloadBusy || !spotifySelectedIds.size },
       { label: catalogSelection ? "Clear catalog preview" : "Clear Spotify preview", onSelect: clearSpotify, disabled: spotifyDownloadBusy || !spotifyTracks.length },
-      { label: spotifyLoggedIn ? "Disconnect Spotify" : "Connect Spotify",
-        onSelect: () => void (spotifyLoggedIn ? handleSpotifyLogout() : handleSpotifyLogin()), disabled: spotifyLoginBusy }
+      ...(!catalogSelection ? [{ label: spotifyLoggedIn ? "Disconnect Spotify" : "Connect Spotify",
+        onSelect: () => void (spotifyLoggedIn ? handleSpotifyLogout() : handleSpotifyLogin()), disabled: spotifyLoginBusy }] : [])
     ] : [{ label: "Clear pasted links", icon: <X size={15} />, onSelect: () => setDownloadText(""), disabled: !downloadText.trim(), separatorBefore: true }]),
     { label: "Retry failed", icon: <RotateCcw size={15} />, onSelect: () => void retryFailedDownloads(), disabled: working || (!failedDownloadQueueItems.length && !activity.some(item => needsAttention(item.status))), separatorBefore: true },
     { label: "Clear completed", onSelect: () => void clearFinishedDownloads(), disabled: working || (!finishedDownloadQueueItems.length && !visibleDownloadResults.some(item => item.ok !== false)) },
@@ -217,10 +217,13 @@ export default function DownloadsView(props: DownloadsViewProps) {
         <TabsContent value="spotify" className="downloadsSourceContent">
           <div className="downloadsSpotifyStatus">
             <span>{catalogSelection ? `MusicBrainz album · ${spotifySourceName || "selected tracks"}` : spotifySourceType === "album" ? "Spotify album" : spotifyLoggedIn ? "Spotify connected" : "Spotify public import"}</span>
-            <button type="button" className="downloadsTextAction" disabled={spotifyLoginBusy}
-              onClick={() => void handleSpotifyLogin()}>{spotifyLoginBusy ? "Connecting…" : spotifyLoggedIn ? "Reconnect" : "Connect account"}</button>
+            {catalogSelection
+              ? <button type="button" className="downloadsTextAction" disabled={working || spotifyFetchBusy} onClick={clearSpotify}>Back to Spotify import</button>
+              : <button type="button" className="downloadsTextAction" disabled={spotifyLoginBusy}
+                  onClick={() => void handleSpotifyLogin()}>{spotifyLoginBusy ? "Connecting…" : spotifyLoggedIn ? "Reconnect" : "Connect account"}</button>}
           </div>
           {catalogSelection ? <p className="downloadsCatalogHint">Album tracks are matched by title, artist and duration. Check the selected recordings before downloading.</p> : null}
+          {!catalogSelection ? <>
           <label className="downloadsInputLabel" htmlFor="downloads-spotify-link">Spotify link</label>
           <div className="downloadsInputSurface downloadsInputSingle">
             <Link2 size={17} className="downloadsLinkIcon" aria-hidden="true" />
@@ -233,6 +236,7 @@ export default function DownloadsView(props: DownloadsViewProps) {
               aria-label="Fetch another Spotify link" title="Fetch Spotify link" disabled={working || !spotifyUrl.trim()}
               onClick={() => void fetchSpotifyTracks()}>Fetch</button> : null}
           </div>
+          </> : null}
           {spotifyFetchError ? <div className="downloadsInlineError" role="alert">
             <AlertCircle size={16} /><span>{spotifyFetchError}</span>
             <button type="button" className="downloadsTextAction" onClick={() => void copyDownloadError(spotifyFetchError)}>Copy</button>
@@ -319,14 +323,10 @@ export default function DownloadsView(props: DownloadsViewProps) {
           const retry = () => void (item.source === "local" ? convertLocalMedia() :
             retryDownload(item.url, item.source === "spotify" ? "spotify" : "youtube", item.spotifyTrackId || "", item.recoveryId));
           const actions = [
-            ...(canRetry ? [{ label: item.status === "interrupted" ? "Resume download" : "Retry download",
-              icon: <RotateCcw size={15} />, onSelect: retry, disabled: working }] : []),
-            ...(done && !notImported ? [{ label: "Open in library", icon: <Music2 size={15} />,
-              onSelect: () => void openDownloadedSongInLibrary(item) }] : []),
             { label: "Open downloads folder", icon: <FolderOpen size={15} />,
               onSelect: () => void window.localitfy.openDownloadsFolder(settings.downloadFolder || undefined) },
-            ...(attention ? [{ label: "Copy error", icon: <Copy size={15} />,
-              onSelect: () => void copyDownloadError(item.error || item.message || item.url) }] : [])
+            ...(attention && item.error ? [{ label: "Copy error", icon: <Copy size={15} />,
+              onSelect: () => void copyDownloadError(item.error) }] : [])
           ];
           return <div key={item.recoveryId || item.id} className="downloadsActivityRow">
             <DownloadArtwork song={song} remoteUrl={track?.coverUrl || track?.albumCoverUrl || track?.spotifyCoverUrl} />
