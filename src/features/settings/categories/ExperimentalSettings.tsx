@@ -27,7 +27,7 @@ export default function ExperimentalSettings({ settings, songs, updateSetting }:
       try {
         const next = await window.localitfy.getAnalysisStatus();
         if (!stopped && version === requestVersion.current) { setStatus(next); setError(""); }
-      } catch { if (!stopped) setError("Could not load experimental feature status. Please reopen this section."); }
+      } catch { if (!stopped) setError("Could not load audio analysis status. Please reopen this section."); }
       if (!stopped) timer = window.setTimeout(poll, 1500);
     };
     void poll();
