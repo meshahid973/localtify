@@ -192,7 +192,7 @@ export default function DiscoverView({ settings, updateSetting, sendToDownloads,
     </PageHeader>
     {needsSetup ? setup : null}
     {settings.discoverEnabled && result?.status === "needs-key" ? <div className="discoverKeyNotice" role="status">
-      <span>Add a Last.fm key for personalized recommendations.</span>
+      <span>Public catalog search works without a key. Last.fm recommendations require an API key.</span>
     </div> : null}
 
     {settings.discoverEnabled ? <section className="discoverCatalog" aria-labelledby="discover-catalog-title">
