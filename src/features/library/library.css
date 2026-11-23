@@ -189,13 +189,13 @@
 
 .libraryPage .songRow {
   min-width: 0 !important;
-  min-height: 64px !important;
+  min-height: 72px !important;
   margin: 2px 0 !important;
-  padding: 5px 8px !important;
+  padding: 6px 10px !important;
   display: grid !important;
-  grid-template-columns: minmax(0, 1fr) 64px 34px 34px !important;
+  grid-template-columns: minmax(0, 1fr) 70px 36px 36px !important;
   align-items: center !important;
-  gap: 8px !important;
+  gap: 12px !important;
   border: 1px solid transparent !important;
   border-radius: 9px !important;
   color: var(--lt-text) !important;
@@ -339,7 +339,7 @@
   .libraryPage .pageHeaderTools .librarySort { flex: 0 0 142px; }
   .libraryMissingBanner { grid-template-columns: auto minmax(0, 1fr); }
   .libraryMissingActions { grid-column: 1 / -1; justify-content: flex-start; }
-  .libraryPage .songRow { grid-template-columns: minmax(0, 1fr) 32px 32px !important; }
+  .libraryPage .songRow { grid-template-columns: minmax(0, 1fr) 36px 36px !important; }
   .libraryPage .songDurationInfo { display: none !important; }
 }
 

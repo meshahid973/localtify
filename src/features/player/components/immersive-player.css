@@ -271,7 +271,7 @@
   gap: clamp(24px,4vw,58px); place-items: center stretch;
 }
 .immersivePlayer[data-lyrics-open="true"] .immersiveStage[data-lyrics="true"] > .immersiveArtwork {
-  display: block; width: min(100%,370px); justify-self: center;
+  display: block; width: min(100%,100cqh,370px); justify-self: center;
 }
 .immersivePlayer[data-lyrics-open="true"] .immersiveLyrics { width: 100%; min-width: 0; max-height: 100%; }
 .immersivePlayer[data-lyrics-open="true"] .immersiveLyrics .lyricsView { max-width: none; width: 100%; }
