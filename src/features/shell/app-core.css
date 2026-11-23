@@ -442,7 +442,7 @@ button:disabled{
   padding: 0 15px;
   border: 1px solid color-mix(in srgb, var(--lt-danger) 28%, transparent);
   border-radius: var(--pill);
-  color: #fff;
+  color: var(--lt-danger);
   background: color-mix(in srgb, var(--lt-danger) 15%, transparent);
   font-weight: 850;
   transition: transform 120ms ease,
@@ -575,8 +575,8 @@ button:disabled{
 }
 
 ::-webkit-scrollbar-thumb{
-  background: rgba(255, 255, 255, 0.13);
-  border: 3px solid rgba(0, 0, 0, 0.45);
+  background: var(--lt-border-strong);
+  border: 3px solid var(--lt-bg);
   border-radius: var(--pill);
 }
 
@@ -743,7 +743,7 @@ button:disabled{
   min-height: 54px;
 
   padding: 6px 8px;
-  background: rgba(255, 255, 255, 0.035);
+  background: var(--lt-fill-subtle);
 }
 
 .songButton{
@@ -808,7 +808,7 @@ button:disabled{
 
 .hero{
   border-radius: 15px;
-  border-inline: 1px solid rgba(255, 255, 255, 0.075);
+  border-inline: 1px solid var(--lt-border);
 }
 }
 
@@ -819,7 +819,7 @@ button:disabled{
   border-radius: 8px;
   border-left: 0;
   border-right: 0;
-  background: linear-gradient(90deg, rgba(0, 0, 0, 0.92), rgba(12, 12, 12, 0.74) 52%, rgba(0, 0, 0, 0.72)),
+  background: linear-gradient(90deg, color-mix(in srgb, var(--lt-bg) 92%, transparent), color-mix(in srgb, var(--lt-bg-elevated) 74%, transparent) 52%, color-mix(in srgb, var(--lt-bg) 72%, transparent)),
     var(--panel);
 }
 
@@ -1029,7 +1029,7 @@ button:disabled{
   inset: -2px !important;
   z-index: 0 !important;
 
-  background-image: linear-gradient(90deg, rgba(0,0,0,.86) 0%, rgba(0,0,0,.42) 44%, rgba(0,0,0,.2) 100%),
+  background-image: linear-gradient(90deg, color-mix(in srgb, var(--lt-bg) 86%, transparent) 0%, color-mix(in srgb, var(--lt-bg) 42%, transparent) 44%, color-mix(in srgb, var(--lt-bg) 20%, transparent) 100%),
     var(--cover-url, none) !important;
   background-size: cover !important;
   background-position: center !important;
@@ -1044,7 +1044,7 @@ button:disabled{
   inset: 0 !important;
   z-index: 0 !important;
   pointer-events: none !important;
-  background: linear-gradient(90deg, rgba(0,0,0,.72), rgba(0,0,0,.28) 55%, rgba(0,0,0,.38)),
+  background: linear-gradient(90deg, color-mix(in srgb, var(--lt-bg) 72%, transparent), color-mix(in srgb, var(--lt-bg) 28%, transparent) 55%, color-mix(in srgb, var(--lt-bg) 38%, transparent)),
     repeating-linear-gradient(90deg, rgba(255,255,255,.025) 0 1px, transparent 1px 9px),
     linear-gradient(180deg, rgba(255,255,255,.035), transparent 34%) !important;
 }
@@ -1245,13 +1245,13 @@ body.isResizingPlayer{
 [data-ambient="on"] .ambientSurface::after{
   display: block !important;
   content: "" !important;
-  background: linear-gradient(90deg, rgba(0, 0, 0, 0.88) 0%, rgba(0, 0, 0, 0.58) 44%, rgba(0, 0, 0, 0.38) 100%),
+  background: linear-gradient(90deg, color-mix(in srgb, var(--lt-bg) 88%, transparent) 0%, color-mix(in srgb, var(--lt-bg) 58%, transparent) 44%, color-mix(in srgb, var(--lt-bg) 38%, transparent) 100%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 44%),
     repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 10px) !important;
 }
 
 [data-ambient="off"] .ambientSurface::after{
-  background: linear-gradient(90deg, rgba(0, 0, 0, 0.88), rgba(0, 0, 0, 0.58)) !important;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--lt-bg) 88%, transparent), color-mix(in srgb, var(--lt-bg) 58%, transparent)) !important;
 }
 
 .appShell{
@@ -1524,11 +1524,11 @@ button { transition: color var(--lt-control-motion) ease, background-color var(-
 .app .ambientSurface::after,
 .app[data-ambient="on"] .ambientSurface::after{
   background:
-    linear-gradient(90deg, rgba(0, 0, 0, 0.88), rgba(0, 0, 0, 0.58) 54%, rgba(0, 0, 0, 0.76)),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(0, 0, 0, 0.18)) !important;
+    linear-gradient(90deg, color-mix(in srgb, var(--lt-bg) 88%, transparent), color-mix(in srgb, var(--lt-bg) 58%, transparent) 54%, color-mix(in srgb, var(--lt-bg) 76%, transparent)),
+    linear-gradient(180deg, color-mix(in srgb, var(--lt-text) 2.5%, transparent), color-mix(in srgb, var(--lt-bg) 18%, transparent)) !important;
   background-image:
-    linear-gradient(90deg, rgba(0, 0, 0, 0.88), rgba(0, 0, 0, 0.58) 54%, rgba(0, 0, 0, 0.76)),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(0, 0, 0, 0.18)) !important;
+    linear-gradient(90deg, color-mix(in srgb, var(--lt-bg) 88%, transparent), color-mix(in srgb, var(--lt-bg) 58%, transparent) 54%, color-mix(in srgb, var(--lt-bg) 76%, transparent)),
+    linear-gradient(180deg, color-mix(in srgb, var(--lt-text) 2.5%, transparent), color-mix(in srgb, var(--lt-bg) 18%, transparent)) !important;
   background-size: auto !important;
 }
 

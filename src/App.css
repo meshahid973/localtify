@@ -85,7 +85,7 @@
   backdrop-filter: blur(14px) saturate(125%) !important;
   -webkit-backdrop-filter: blur(14px) saturate(125%) !important;
   border: 1px solid rgba(var(--lt-accent-rgb), 0.28) !important;
-  background: rgba(6, 6, 8, 0.58) !important;
+  background: var(--lt-glass-background) !important;
   box-shadow: 0 18px 60px rgba(0,0,0,0.32) !important;
 }
 
@@ -330,7 +330,7 @@
   top: 34%;
   left: 12%;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--lt-accent);
   box-shadow:
     0 0 0 8px rgba(var(--lt-accent-rgb), 0.10),
     0 0 30px rgba(var(--lt-accent-rgb), 0.65);
@@ -709,7 +709,7 @@ body.isResizingSidebar{
 .whatsNewSubtext{
   max-width: 34rem;
   margin: 0 0 18px;
-  color: rgba(255, 255, 255, 0.62);
+  color: var(--lt-muted);
   font-size: 13px;
   line-height: 1.48;
 }
@@ -787,7 +787,7 @@ body.isResizingSidebar{
   border-color: var(--shell-border) !important;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.052), rgba(255, 255, 255, 0.022)),
-    rgba(0, 0, 0, 0.32) !important;
+    var(--lt-fill-subtle) !important;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.055),
     0 18px 48px rgba(0, 0, 0, 0.18) !important;
@@ -1160,7 +1160,7 @@ body{
 .ambientSurface{
   isolation: auto !important;
   background:
-    color-mix(in oklab, var(--surface, rgba(255,255,255,.04)) 72%, var(--lt-bg) 28%) !important;
+    color-mix(in oklab, var(--surface) 72%, var(--lt-bg) 28%) !important;
   border-color: color-mix(in oklab, var(--lt-accent) 16%, var(--lt-border) 84%) !important;
   box-shadow: none !important;
 }
@@ -1177,7 +1177,7 @@ body{
 }
 
 .ambientSurface:hover{
-  background: color-mix(in oklab, var(--lt-accent) 6%, var(--surface, rgba(255,255,255,.04)) 94%) !important;
+  background: color-mix(in oklab, var(--lt-accent) 6%, var(--surface) 94%) !important;
   border-color: color-mix(in oklab, var(--lt-accent) 26%, var(--lt-border) 74%) !important;
   box-shadow: none !important;
 }
@@ -1192,11 +1192,11 @@ body{
 }
 
 :root{
-  --theme-accent: var(--lt-accent, #8dffce);
+  --theme-accent: var(--lt-accent);
   --theme-accent-2: var(--accent-2, var(--theme-accent));
   --theme-progress: var(--progress, var(--theme-accent));
   --theme-highlight: var(--highlight, var(--theme-accent-2));
-  --theme-bg: var(--lt-bg, #050506);
+  --theme-bg: var(--lt-bg);
 }
 
 .shell{
@@ -1209,11 +1209,11 @@ body{
 }
 
 :root{
-  --localtify-sidebar-bg: color-mix(in oklab, var(--lt-bg) 72%, var(--lt-accent, #ff65df) 17%);
-  --localtify-sidebar-bg-2: color-mix(in oklab, var(--bg-2, #080808) 70%, var(--accent-2, var(--lt-accent, #ff65df)) 16%);
-  --localtify-panel-bg: color-mix(in oklab, var(--surface, #101010) 76%, var(--lt-accent, #ff65df) 9%);
-  --localtify-panel-bg-2: color-mix(in oklab, var(--surface-2, #151515) 74%, var(--accent-2, var(--lt-accent, #ff65df)) 8%);
-  --localtify-line-soft: color-mix(in oklab, var(--lt-accent, #ff65df) 12%, rgba(255,255,255,.045));
+  --localtify-sidebar-bg: color-mix(in oklab, var(--lt-bg) 72%, var(--lt-accent) 17%);
+  --localtify-sidebar-bg-2: color-mix(in oklab, var(--bg-2) 70%, var(--accent-2, var(--lt-accent)) 16%);
+  --localtify-panel-bg: color-mix(in oklab, var(--surface) 76%, var(--lt-accent) 9%);
+  --localtify-panel-bg-2: color-mix(in oklab, var(--surface-2) 74%, var(--accent-2, var(--lt-accent)) 8%);
+  --localtify-line-soft: color-mix(in oklab, var(--lt-accent) 12%, var(--lt-border));
 }
 
 body{
@@ -1249,8 +1249,8 @@ body{
 .app[data-theme] .main{
   background:
     linear-gradient(180deg,
-      color-mix(in srgb, var(--lt-accent, #ff6edb) 8%, var(--lt-bg)) 0%,
-      color-mix(in srgb, var(--lt-accent, #ff6edb) 4%, var(--lt-bg)) 38%,
+      color-mix(in srgb, var(--lt-accent) 8%, var(--lt-bg)) 0%,
+      color-mix(in srgb, var(--lt-accent) 4%, var(--lt-bg)) 38%,
       var(--lt-bg) 100%) !important;
 }
 
@@ -1998,8 +1998,8 @@ body.localtifyIdle .app:not(.songDragActive) .secretLayer{
 .app{
   background-color: var(--app-bg-solid, var(--lt-bg)) !important;
   background-image:
-    radial-gradient(circle at 12% -12%, color-mix(in oklab, var(--lt-accent, #e64be8) 10%, transparent), transparent 34%),
-    radial-gradient(circle at 88% 4%, color-mix(in oklab, var(--accent-2, #8b5cf6) 7%, transparent), transparent 36%) !important;
+    radial-gradient(circle at 12% -12%, color-mix(in oklab, var(--lt-accent) 10%, transparent), transparent 34%),
+    radial-gradient(circle at 88% 4%, color-mix(in oklab, var(--accent-2) 7%, transparent), transparent 36%) !important;
   background-size: auto !important;
   background-position: center !important;
 }
@@ -2138,8 +2138,8 @@ body::after,
   overflow: hidden;
   isolation: isolate;
   background:
-    radial-gradient(circle at 50% 42%, rgba(var(--lt-accent-rgb, 227, 78, 232), 0.16), transparent 58%),
-    rgba(8, 5, 12, 0.92);
+    radial-gradient(circle at 50% 42%, rgba(var(--lt-accent-rgb), 0.16), transparent 58%),
+    var(--lt-surface-raised);
   contain: paint;
 }
 
@@ -2149,14 +2149,14 @@ body::after,
   z-index: 1;
   display: grid;
   place-items: center;
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--lt-muted);
   font-size: clamp(1rem, 35%, 2.8rem);
   font-weight: 800;
   letter-spacing: -0.06em;
   text-transform: lowercase;
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.055), transparent 42%),
-    radial-gradient(circle at 50% 45%, rgba(var(--lt-accent-rgb, 227, 78, 232), 0.18), transparent 62%);
+    radial-gradient(circle at 50% 45%, rgba(var(--lt-accent-rgb), 0.18), transparent 62%);
   opacity: 1;
   transform: scale(1.01);
   transition: opacity 220ms ease, transform 280ms ease;
@@ -2461,7 +2461,7 @@ body.localitfyThemePainting .app{
   place-items: center !important;
   padding: 18px !important;
   overflow: auto !important;
-  background: rgba(0,0,0,.68) !important;
+  background: var(--lt-overlay-scrim) !important;
   backdrop-filter: blur(22px) saturate(120%) !important;
   -webkit-backdrop-filter: blur(22px) saturate(120%) !important;
 }
