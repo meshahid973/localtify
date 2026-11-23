@@ -126,3 +126,22 @@
  .settingsPage.settingsPageV027 .settingsActionRow { gap: 7px; }
  .settingsPage.settingsPageV027 .settingsActionRow > button { max-width: 100%; }
 }
+
+.settingsPage.settingsPageV027 .settingsControlResults { display: grid; gap: 3px; min-width: 0; padding: 8px 0 12px; border-bottom: 1px solid var(--lt-border); }
+.settingsPage.settingsPageV027 .settingsControlResultsTitle { padding: 0 9px 5px; font-size: 10px; letter-spacing: .04em; color: var(--lt-muted); }
+.settingsPage.settingsPageV027 .settingsControlResult {
+  width: 100%; min-width: 0; display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; min-height: 45px; padding: 7px 9px; border: 0; border-radius: 8px;
+  background: transparent; color: var(--lt-text); text-align: left; cursor: pointer;
+}
+.settingsPage.settingsPageV027 .settingsControlResult:hover,
+.settingsPage.settingsPageV027 .settingsControlResult:focus-visible { background: var(--lt-fill-hover); }
+.settingsPage.settingsPageV027 .settingsControlResult > span { display: grid; min-width: 0; gap: 2px; }
+.settingsPage.settingsPageV027 .settingsControlResult strong { font-size: 12px; font-weight: 620; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.settingsPage.settingsPageV027 .settingsControlResult small { font-size: 10px; color: var(--lt-muted); }
+.settingsPage.settingsPageV027 .settingsControlResult > svg { flex: none; color: var(--lt-muted); }
+.settingsPage.settingsPageV027 :is(.settingsPanelCard,.settingGroup,[id^="settings-"]):focus-within { scroll-margin-top: 18px; }
+@media (max-width: 940px) {
+  .settingsPage.settingsPageV027 .settingsControlResults { padding: 8px 0; }
+  .settingsPage.settingsPageV027 .settingsControlResult { min-width: min(200px,100%); }
+}

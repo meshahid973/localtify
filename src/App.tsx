@@ -103,7 +103,6 @@ import {
 } from "./features/search";
 import {
   normalizeSettingsSearch,
-  resolveSettingsCategoryFromSearch,
   settingsTabMatchesSearch
 } from "./features/settings/settings.search";
 import {
@@ -375,11 +374,6 @@ function MainModeApp() {
 
   function handleSettingsSearchInput(value: string) {
     setSettingsSearch(value);
-
-    const nextCategory = resolveSettingsCategoryFromSearch(value);
-    if (nextCategory && nextCategory !== settingsCategory) {
-      setSettingsCategory(nextCategory);
-    }
   }
 
   function openSettingsPanel(category: SettingsCategory = "appearance") {

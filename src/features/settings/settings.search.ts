@@ -19,3 +19,46 @@ export function resolveSettingsCategoryFromSearch(value: string): SettingsCatego
   if (exactMatch) return exactMatch.id;
   return settingsCategoryTabs.find((tab) => settingsTabMatchesSearch(tab, query))?.id ?? null;
 }
+
+export type SettingsControlLink = {
+  id: string;
+  label: string;
+  description: string;
+  category: SettingsCategory;
+  target: string;
+  keywords: string;
+};
+
+export const SETTINGS_CONTROL_LINKS: readonly SettingsControlLink[] = [
+  { id: "theme", label: "Light or dark theme", description: "Appearance", category: "appearance", target: "settings-appearance-theme", keywords: "colors dark light palette" },
+  { id: "ambience", label: "Artwork ambience", description: "Appearance", category: "appearance", target: "settings-appearance-ambience", keywords: "blur background cover gradient strength" },
+  { id: "home", label: "Home layout and cards", description: "Appearance", category: "appearance", target: "settings-appearance-home", keywords: "banner hero artwork card size density" },
+  { id: "player-background", label: "Player background", description: "Appearance", category: "appearance", target: "settings-appearance-player", keywords: "fullscreen oled blur flat" },
+  { id: "sidebar", label: "Sidebar layout and tabs", description: "Appearance", category: "appearance", target: "settings-appearance-sidebar", keywords: "hide reorder compact tabs navigation" },
+  { id: "motion", label: "Motion and animations", description: "Appearance", category: "appearance", target: "settings-appearance-layout", keywords: "reduce glow gif visuals floating notes" },
+  { id: "crossfade", label: "Crossfade and gapless", description: "Playback", category: "playback", target: "settings-playback-transitions", keywords: "transition gap fade between tracks" },
+  { id: "playback", label: "Speed and volume", description: "Playback", category: "playback", target: "settings-playback-listening", keywords: "normalization resume autoplay remember volume speed" },
+  { id: "effects", label: "Audio effects", description: "Playback", category: "playback", target: "settings-playback-effects", keywords: "nightcore daycore slowed reverb pitch strength" },
+  { id: "lyrics", label: "Lyrics and online lookup", description: "Lyrics & tags", category: "lyrics", target: "settings-lyrics-display", keywords: "lrclib karaoke synced cache song lyrics" },
+  { id: "tagging", label: "MusicBrainz tag editor", description: "Lyrics & tags", category: "lyrics", target: "settings-lyrics-tagging", keywords: "id3 metadata album cover write file" },
+  { id: "folders", label: "Watched music folders", description: "Library", category: "library", target: "settings-library-folders", keywords: "import auto scan sync files" },
+  { id: "cleanup", label: "Clean and repair metadata", description: "Library", category: "library", target: "settings-library-cleanup", keywords: "broken songs missing relink rename rebuild index" },
+  { id: "quality", label: "Download quality and format", description: "Downloads", category: "downloads", target: "settings-downloads-quality", keywords: "bitrate mp3 flac wav original opus m4a" },
+  { id: "download-folder", label: "Download location", description: "Downloads", category: "downloads", target: "settings-downloads-folder", keywords: "folder location save auto add filenames clean" },
+  { id: "lastfm", label: "Last.fm connection", description: "Discover", category: "discover", target: "settings-discover-lastfm", keywords: "provider api key test network discovery" },
+  { id: "discord", label: "Discord presence and privacy", description: "Discord", category: "discord", target: "settings-discord-privacy", keywords: "rpc status artwork activity buttons hide" },
+  { id: "analysis", label: "Audio similarity model", description: "Audio analysis", category: "experimental", target: "settings-analysis-model", keywords: "local ai inference embeddings battery" },
+  { id: "history", label: "Listening history", description: "Audio analysis", category: "experimental", target: "settings-analysis-history", keywords: "privacy delete listen scrobble record" },
+  { id: "updates", label: "Automatic updates", description: "Updates", category: "updates", target: "settings-updates", keywords: "check restart install version" },
+  { id: "reset", label: "Reset settings", description: "Advanced", category: "advanced", target: "settings-advanced-reset", keywords: "defaults factory restore appearance player discord" }
+];
+
+export function matchSettingsControls(query: string, allowed: readonly SettingsCategory[]) {
+  const words = normalizeSettingsSearch(query).split(" ").filter(Boolean);
+  if (!words.length) return [];
+  const available = new Set(allowed);
+  return SETTINGS_CONTROL_LINKS.filter(link =>
+    available.has(link.category) &&
+    words.every(word => normalizeSettingsSearch(`${link.label} ${link.description} ${link.keywords}`).includes(word))
+  );
+}
