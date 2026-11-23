@@ -39,6 +39,9 @@ export default function SettingsRail({
       const element = document.getElementById(target);
       if (!element && attempts++ < 18) { window.setTimeout(reveal, 75); return; }
       if (!element) return;
+      if (element instanceof HTMLDetailsElement) element.open = true;
+      const disclosure = element.closest("details");
+      if (disclosure) disclosure.open = true;
       element.scrollIntoView({ block: "start", behavior: "auto" });
       const control = element.querySelector<HTMLElement>("button:not(:disabled), input:not(:disabled), select:not(:disabled), summary");
       control?.focus({ preventScroll: true });
