@@ -8,7 +8,7 @@ const SEARCH_SELECTOR = ".content :is(.librarySearch, .pageHeaderSearch:not(.pla
 
 export type AppMenuActions = {
   changeView: (view: View) => void;
-  nav: Pick<NavigationHistory, "gesture">;
+  nav: Pick<NavigationHistory, "gesture" | "go">;
   openSettings: () => void;
   importSongs: () => unknown;
   importAlbumFolder: () => unknown;
@@ -57,7 +57,7 @@ export function useAppMenuCommands(actions: AppMenuActions) {
         void current.importSongs();
         break;
       case "import-album-folder":
-        current.changeView("albums");
+        current.nav.go("albums");
         void current.importAlbumFolder();
         break;
       case "new-playlist":
