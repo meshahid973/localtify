@@ -259,7 +259,7 @@ test("page search, settings controls and sidebar use the shared token and icon s
   assert.match(page, /\.pageHeaderSearch:focus-visible/);
   assert.match(page, /outline: 2px solid var\(--lt-accent\)/);
   assert.doesNotMatch(settings.slice(settings.indexOf(".settingsPage.settingsPageV027 {"),settings.indexOf("}",settings.indexOf(".settingsPage.settingsPageV027 {"))), /--settings-text:/);
-  assert.match(sidebar, /className="navLucideIcon" size=\{20\} strokeWidth=\{2\}/);
+  assert.match(sidebar, /className="navSolidIcon" name=\{item.icon\} size=\{20\}/);
 });
 
 
