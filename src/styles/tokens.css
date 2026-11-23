@@ -31,6 +31,11 @@
   --lt-success-rgb: 122, 242, 173;
   --button-text-on-accent: #000000;
   --lt-overlay-scrim: rgba(0, 0, 0, .60);
+  --lt-oled-bg: #000000;
+  --lt-oled-text: #ffffff;
+  --lt-oled-muted: #b9b9b9;
+  --lt-oled-surface: #111111;
+  --lt-oled-border: #292929;
 
   --lt-radius-sm: 12px;
   --lt-radius-md: 18px;

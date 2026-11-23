@@ -33,11 +33,11 @@
   background: var(--lt-bg);
 }
 .immersivePlayer[data-background="oledBlack"]{
-  --lt-bg: #000;
-  --lt-text: #f7f7f7;
-  --lt-muted: #b9b9b9;
-  --lt-surface: #111;
-  --lt-border: #292929;
+  --lt-bg: var(--lt-oled-bg);
+  --lt-text: var(--lt-oled-text);
+  --lt-muted: var(--lt-oled-muted);
+  --lt-surface: var(--lt-oled-surface);
+  --lt-border: var(--lt-oled-border);
   --muted: var(--lt-muted);
 }
 .immersiveTop{
@@ -171,7 +171,7 @@
   height: 54px;
   border-radius: 50%;
   background: var(--lt-accent);
-  color: var(--accent-contrast, #07110b);
+  color: var(--button-text-on-accent);
 }
 .immersivePlay svg{ width: 28px; height: 28px; }
 .immersivePlayer :is(button,input):focus-visible{
