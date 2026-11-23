@@ -249,7 +249,8 @@ test("media play overlay remains visible on touch and focusable on keyboard", ()
   const css = read("src/shared/ui/media-card.css");
   assert.match(css, /@media \(hover: none\), \(pointer: coarse\)/);
   assert.match(css, /\.mediaCardPlay:focus-visible/);
-  assert.match(css, /color: var\(--button-text-on-accent\)/);
+  assert.match(css, /color: var\(--lt-text\)/);
+  assert.match(css, /background: var\(--lt-surface-raised\)/);
 });
 
 test("page search, settings controls and sidebar use the shared token and icon system", () => {
