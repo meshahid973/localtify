@@ -47,7 +47,7 @@ export default function ExperimentalSettings({ settings, songs, updateSetting }:
     } finally { requestVersion.current += 1; if (mounted.current) setBusy(false); }
   }
 
-  if (!status) return <section className="settingsCategoryPage" aria-label="Experimental features"><h4>Experimental features</h4><p role="status">{error || "Loading experimental features…"}</p></section>;
+  if (!status) return <section className="settingsCategoryPage" aria-label="Experimental features"><h4>Audio analysis</h4><p role="status">{error || "Loading experimental features…"}</p></section>;
   const downloading = status.download.state === "downloading";
   const ready = status.download.state === "ready";
 
@@ -55,8 +55,8 @@ export default function ExperimentalSettings({ settings, songs, updateSetting }:
   const batteryBlocked = status.onBattery && !status.allowOnBattery;
 
   return <section className="settingsCategoryPage settingsDeclutterPageV491" aria-label="Experimental features">
-    <div className="settingsCategoryHeader settingsCategoryHeaderCleanV491"><div><h4>Music analysis</h4></div></div>
-    <div className="settingsPanelCard settingsFocusPanelV491">
+    <div className="settingsCategoryHeader settingsCategoryHeaderCleanV491"><div><h4>Audio analysis</h4></div></div>
+    <div id="settings-analysis-model" className="settingsPanelCard settingsFocusPanelV491">
       <div className="settingsPanelHeader"><div><strong>Audio similarity analysis</strong><span>Find similar songs using on-device analysis.</span></div></div>
       <fieldset disabled={busy || !status.supported} className="experimentalControls">
         <ToggleRow label="Enable music analysis" help="Off by default. Enabling does not download a model or start scanning your library." checked={status.enabled} onChange={(value) => void run(async () => {
@@ -92,7 +92,7 @@ export default function ExperimentalSettings({ settings, songs, updateSetting }:
       </div>
       {status.error ? <p role="alert">{status.error}</p> : null}
     </div>
-    <div className="settingsPanelCard settingsFocusPanelV491">
+    <div id="settings-analysis-history" className="settingsPanelCard settingsFocusPanelV491">
       <div className="settingsPanelHeader"><div><strong>Local listening history</strong><span>Listening time and playback outcomes can help future recommendations. Stored only in your local library database.</span></div></div>
       <fieldset disabled={busy} className="experimentalControls"><ToggleRow label="Save listening history" help="Turning this off stops new history writes. Existing history stays until cleared." checked={status.historyEnabled} onChange={(value) => void run(() => window.localitfy.setListeningHistoryEnabled(value))} /></fieldset>
       <div className="settingsActionRow settingsActionRowCleanV491"><button type="button" className="settingsActionButton" disabled={busy} onClick={() => setClearTarget("history")}>Clear listening history</button></div>
