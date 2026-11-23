@@ -32,7 +32,7 @@
 .albumsActionBarV318, .albumFolderImportActionsV309, .albumFolderImportFooterV309 { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
 .albumsPageV318 :is(input:not([type="file"]):not(.pageHeaderSearch), select:not(.albumsSortV318)) {
   min-width: 0; min-height: 40px; padding: 9px 12px; border: 1px solid rgba(var(--lt-accent-rgb), .17);
-  border-radius: 9px; background: var(--lt-surface-soft); color: var(--albums-text); font: inherit; font-size: 13px; outline: none;
+  border-radius: 9px; background: var(--lt-surface-soft); color: var(--albums-text); font: inherit; font-size: 13px;
 }
 .albumsPageV318 input::placeholder { color: var(--lt-faint); }
 

@@ -52,7 +52,7 @@ export default function AlbumsView(props: AlbumsViewProps) {
     closeAlbumBuilder,
     commitAlbumFolderImportPreview,
     currentSong,
-    deleteManualAlbum,
+    deleteEditingManualAlbum,
     handleAlbumCoverFile,
     localAlbums,
     manualAlbumEntries,
@@ -278,7 +278,7 @@ export default function AlbumsView(props: AlbumsViewProps) {
                           {albumDraftSearchResults.map((song) => {
                             const selected = albumDraftSongIds.includes(song.id);
                             return (
-                              <button key={song.id} type="button" className={selected ? "selected" : ""} onClick={() => toggleAlbumDraftSong(song.id)}>
+                              <button key={song.id} type="button" className={selected ? "selected" : ""} aria-pressed={selected} onClick={() => toggleAlbumDraftSong(song.id)}>
                                 <Cover song={song} className="albumBuilderSongCoverV318" />
                                 <span>
                                   <strong>{prettyTitle(song.title, 8)}</strong>
@@ -297,7 +297,7 @@ export default function AlbumsView(props: AlbumsViewProps) {
                           <span>{albumDraftSongIds.length ? `${albumDraftSongIds.length} selected cover fits square` : "choose songs for this album"}</span>
                         </div>
                         <div className="albumBuilderActionsV318">
-                          {albumBuilderMode === "edit" && selectedAlbumIsManual ? <button className="heroGhost danger" type="button" onClick={() => deleteManualAlbum(selectedAlbum)}><ActionLabel icon={Trash2}>delete</ActionLabel></button> : null}
+                          {albumBuilderMode === "edit" ? <button className="heroGhost danger" type="button" onClick={deleteEditingManualAlbum}><ActionLabel icon={Trash2}>delete</ActionLabel></button> : null}
                           <button className="mainAction" type="button" onClick={saveManualAlbumFromDraft} disabled={!albumDraftSongIds.length}><ActionLabel icon={Check}>{albumBuilderMode === "edit" ? "save album" : "create album"}</ActionLabel></button>
                         </div>
                       </div>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import type { Song } from "../library/song.types";
 import type { LocalAlbumEntry, ManualLocalAlbum } from "./album.types";
 import {
@@ -56,6 +56,7 @@ export function useAlbumsController({
   const [albumFolderImportMessage, setAlbumFolderImportMessage] = useState("");
   const [albumFolderImportProgress, setAlbumFolderImportProgress] = useState<any | null>(null);
   const albumCoverInputRef = useRef<HTMLInputElement | null>(null);
+  const albumCoverRequestRef = useRef(0);
 
   useEffect(() => {
     writeLocalJson(MANUAL_LOCAL_ALBUMS_STORAGE_KEY, manualAlbums);
@@ -125,6 +126,7 @@ export function useAlbumsController({
   }
 
   function resetAlbumBuilderDraft() {
+    albumCoverRequestRef.current += 1;
     setAlbumBuilderMode("create");
     setAlbumEditingManualId("");
     setAlbumDraftTitle("");
@@ -324,6 +326,7 @@ export function useAlbumsController({
 
 
   function openCreateAlbumBuilder(seedSong?: Song | null) {
+    albumCoverRequestRef.current += 1;
     setAlbumBuilderMode("create");
     setAlbumEditingManualId("");
     setAlbumDraftTitle(seedSong?.album && isUsefulAlbumName(seedSong.album) ? normalizeAlbumValue(seedSong.album) : "");
@@ -343,6 +346,7 @@ export function useAlbumsController({
     const manual = manualAlbums.find((item) => item.id === manualId);
     if (!manual) return;
 
+    albumCoverRequestRef.current += 1;
     setAlbumBuilderMode("edit");
     setAlbumEditingManualId(manual.id);
     setAlbumDraftTitle(manual.title);
@@ -350,7 +354,7 @@ export function useAlbumsController({
     setAlbumDraftYear(manual.year || "");
     setAlbumDraftCoverUrl(getRendererSafeImageUrl(manual.coverUrl));
     setAlbumDraftSearch("");
-    setAlbumDraftSongIds(uniquePlayableSongIds(manual.songIds, songsById));
+    setAlbumDraftSongIds([...new Set(manual.songIds)]);
     setAlbumBuilderOpen(true);
     setStatusText?.("album editor opened");
     scrollAlbumBuilderIntoView();
@@ -369,32 +373,37 @@ export function useAlbumsController({
     albumCoverInputRef.current?.click();
   }
 
-  async function handleAlbumCoverFile(event: any) {
+  async function handleAlbumCoverFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.currentTarget.files?.[0] || null;
     event.currentTarget.value = "";
     if (!file) return;
+    const request = ++albumCoverRequestRef.current;
 
     try {
       setStatusText?.("preparing album cover...");
       const coverUrl = await resizeAlbumCoverFile(file);
+      if (request !== albumCoverRequestRef.current) return;
       setAlbumDraftCoverUrl(coverUrl);
       setStatusText?.("album cover selected");
     } catch (error) {
+      if (request !== albumCoverRequestRef.current) return;
       console.error("[localitfy album cover picker]", error);
       setStatusText?.("album cover failed");
     }
   }
 
   function clearAlbumDraftCover() {
+    albumCoverRequestRef.current += 1;
     setAlbumDraftCoverUrl("");
     setStatusText?.("album cover reset");
   }
 
   function saveManualAlbumFromDraft() {
-    const songIds = uniquePlayableSongIds(albumDraftSongIds, songsById);
-    if (!songIds.length) return;
+    const playableSongIds = uniquePlayableSongIds(albumDraftSongIds, songsById);
+    const songIds = albumBuilderMode === "edit" ? [...new Set(albumDraftSongIds)] : playableSongIds;
+    if (!songIds.length || (albumBuilderMode !== "edit" && !playableSongIds.length)) return;
 
-    const firstSong = songsById.get(songIds[0]);
+    const firstSong = songsById.get(playableSongIds[0]);
     const title = cleanManualAlbumTitle(albumDraftTitle || firstSong?.album || firstSong?.title || "new album") || "new album";
     const artist = cleanManualAlbumArtist(albumDraftArtist || albumDraftArtistSuggestion || firstSong?.artist || "local album") || "local album";
     const year = cleanManualAlbumYear(albumDraftYear);
@@ -420,8 +429,14 @@ export function useAlbumsController({
     const manualId = String((album as any).manualAlbumId || "");
     if (!manualId) return;
     setManualAlbums((items) => items.filter((item) => item.id !== manualId));
-    setSelectedAlbumId("");
+    setSelectedAlbumId((current) => current === `manual_${manualId}` ? "" : current);
     if (albumEditingManualId === manualId) closeAlbumBuilder();
+  }
+
+  function deleteEditingManualAlbum() {
+    if (!albumEditingManualId) return;
+    const album = manualAlbumEntries.find((entry) => entry.id === `manual_${albumEditingManualId}`) || null;
+    if (album) deleteManualAlbum(album);
   }
 
   async function clearAlbumTagFromSongs(targetSongs: Song[], label = "album") {
@@ -455,8 +470,9 @@ export function useAlbumsController({
       return;
     }
 
+    const deletedAlbumId = selectedAlbum.id;
     await clearAlbumTagFromSongs(selectedAlbum.songs || [], selectedAlbum.title || "album");
-    setSelectedAlbumId("");
+    setSelectedAlbumId((current) => current === deletedAlbumId ? "" : current);
   }
 
   /** After duplicates merge, album entries point at the copies that were kept. */
@@ -488,6 +504,6 @@ export function useAlbumsController({
     scanAlbumFolderImport, cancelAlbumFolderImportPreview, commitAlbumFolderImportPreview,
     openCreateAlbumBuilder, openEditAlbumBuilder, closeAlbumBuilder, toggleAlbumDraftSong,
     openAlbumCoverPicker, handleAlbumCoverFile, clearAlbumDraftCover, saveManualAlbumFromDraft,
-    deleteManualAlbum, deleteSelectedAlbum, remapAlbumSongs
+    deleteManualAlbum, deleteEditingManualAlbum, deleteSelectedAlbum, remapAlbumSongs
   };
 }
