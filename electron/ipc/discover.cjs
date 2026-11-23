@@ -203,7 +203,15 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
           if (searchYouTubeMusic) {
             const direct = await searchYouTubeMusic(kind, term).catch(() => []);
             if (getSettings().discoverEnabled !== true) return [];
-            if (direct.length) return direct;
+            if (Array.isArray(direct) && direct.length) {
+              const normalize = value => String(value || "").normalize("NFKC").toLowerCase()
+                .replace(/[^\p{L}\p{N}\p{M}]+/gu, " ").trim();
+              const query = normalize(term);
+              const relevant = kind === "recording"
+                ? rankCatalog(term, direct)
+                : direct.filter(item => normalize(item.title) === query || normalize(item.title).startsWith(query + " "));
+              if (relevant.length) return relevant;
+            }
           }
           // Artist searches retain the structured catalog; song searches combine
           // exact-title MusicBrainz matches, store metadata and listening popularity.

@@ -453,6 +453,36 @@ test("direct music catalog is explicit, preferred, and falls back after provider
 });
 
 
+test("irrelevant direct catalog hits fall back to structured MusicBrainz search", async () => {
+  const handlers = new Map();
+  const settings = { discoverEnabled: true };
+  const calls = [];
+  const direct = [{ id: "ytmusic:abcdefghijk", title: "Other Track", artist: "Unrelated", url: "https://www.youtube.com/watch?v=abcdefghijk" }];
+  registerDiscoverIpc({ handle: (name, handler) => handlers.set(name, handler) }, {
+    getSongs: () => [],
+    getSettings: () => settings,
+    searchYouTubeMusic: async (kind, term) => { calls.push(["direct", kind, term]); return direct; },
+    musicBrainzClient: {
+      searchCatalog: async (kind, term) => {
+        calls.push(["fallback", kind, term]);
+        return kind === "recording"
+          ? [{ id: "12345678-1234-1234-1234-123456789abc", title: "Track", "artist-credit": [{ name: "Artist" }] }]
+          : [{ id: "22345678-1234-1234-1234-123456789abc", name: "Artist" }];
+      }
+    }
+  });
+  const get = catalog => handlers.get("discover:get")({}, { catalog });
+  const recording = await get({ kind: "recording", term: "Track" });
+  assert.equal(recording.status, "catalog");
+  assert.deepEqual(recording.items.map(item => item.title), ["Track"]);
+  const artist = await get({ kind: "artist", term: "Artist" });
+  assert.deepEqual(artist.items.map(item => item.title), ["Artist"]);
+  assert.deepEqual(calls, [
+    ["direct", "recording", "Track"], ["fallback", "recording", "Track"],
+    ["direct", "artist", "Artist"], ["fallback", "artist", "Artist"]
+  ]);
+});
+
 test("related music uses an explicit validated seed and observes discovery opt-out",async()=>{
  const handlers=new Map(),settings={discoverEnabled:false};let calls=0;
  registerDiscoverIpc({handle:(channel,handler)=>handlers.set(channel,handler)},{getSongs:()=>[],getSettings:()=>settings,musicBrainzClient:{},searchYouTubeMusicRadio:async seed=>{calls++;assert.equal(seed,"abcdefghijk");return [];}});
