@@ -38,6 +38,12 @@
   --lt-muted: var(--lt-oled-muted);
   --lt-surface: var(--lt-oled-surface);
   --lt-border: var(--lt-oled-border);
+  --lt-border-strong: var(--lt-oled-border);
+  --lt-accent: var(--lt-oled-text);
+  --lt-accent-rgb: var(--lt-oled-rgb);
+  --accent: var(--lt-oled-text);
+  --accent-rgb: var(--lt-oled-rgb);
+  --button-text-on-accent: var(--lt-oled-bg);
   --muted: var(--lt-muted);
 }
 .immersiveTop{

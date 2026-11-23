@@ -1,5 +1,6 @@
 :root{
   --lt-bg: #000000;
+  --lt-bg-rgb: 0, 0, 0;
   --lt-bg-elevated: #111214;
 
   --lt-surface: #151518;
@@ -50,6 +51,7 @@
   --lt-update-ready-from: #16658a;
   --lt-update-ready-to: #1786a3;
   --lt-oled-bg: #000000;
+  --lt-oled-rgb: 255, 255, 255;
   --lt-oled-text: #ffffff;
   --lt-oled-muted: #b9b9b9;
   --lt-oled-surface: #111111;
