@@ -145,3 +145,10 @@
   .settingsPage.settingsPageV027 .settingsControlResults { padding: 8px 0; }
   .settingsPage.settingsPageV027 .settingsControlResult { min-width: min(200px,100%); }
 }
+
+.settingsPage.settingsPageV027 .settingsChoiceGroup { display: grid; gap: 9px; min-width: 0; }
+.settingsPage.settingsPageV027 .settingsChoiceGroupLabel {
+  font-size: 12px; font-weight: 610; color: var(--lt-muted);
+}
+.settingsPage.settingsPageV027 .settingsChoiceGroup .settingsChoiceRowV491 { min-width: 0; }
+.settingsPage.settingsPageV027 .settingsChoiceGroup :is(button:disabled) { opacity: .48; cursor: not-allowed; }

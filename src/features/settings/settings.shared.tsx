@@ -108,12 +108,15 @@ export function SettingsChoiceGroup<T extends string>({ label, value, options, o
   label: string; value: T; options: readonly SettingsOption<T>[];
   onChange: (value: T) => void; disabled?: boolean; compact?: boolean; id?: string;
 }) {
-  return <div id={id} className="settingsChoiceRowV491" role="group" aria-label={label}>
-    {options.map(option => <button key={option.value} type="button"
-      className={`${compact ? "settingsChoicePillV491" : "settingsChoice"} ${value === option.value ? "active" : ""}`.trim()}
-      aria-pressed={value === option.value} disabled={disabled} onClick={() => onChange(option.value)}>
-      <strong>{option.label}</strong>
-      {option.description ? <small>{option.description}</small> : null}
-    </button>)}
+  return <div id={id} className="settingsChoiceGroup" role="group" aria-label={label}>
+    <span className="settingsChoiceGroupLabel">{label}</span>
+    <div className="settingsChoiceRowV491">
+      {options.map(option => <button key={option.value} type="button"
+        className={`${compact ? "settingsChoicePillV491" : "settingsChoice"} ${value === option.value ? "active" : ""}`.trim()}
+        aria-pressed={value === option.value} disabled={disabled} onClick={() => onChange(option.value)}>
+        <strong>{option.label}</strong>
+        {option.description ? <small>{option.description}</small> : null}
+      </button>)}
+    </div>
   </div>;
 }
