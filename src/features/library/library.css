@@ -413,3 +413,27 @@
  .app[data-library-row-style] .libraryPage .songArt { width: 42px; height: 42px; }
  .libraryPage .pageHeaderSearch { width: 100%; }
 }
+
+.libraryPage .songRow { position: relative; }
+.libraryPage .songRowDragHandle { display: none; }
+@media (pointer: coarse) {
+  .libraryPage .songRow:not(.selected) { padding-inline-start: 24px !important; }
+  .libraryPage .songRowDragHandle {
+    display: grid;
+    place-items: center;
+    position: absolute;
+    inset-inline-start: 3px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 44px;
+    z-index: 2;
+    border-radius: var(--lt-radius-item);
+    color: var(--lt-muted);
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .libraryPage .songRowDragHandle:active { color: var(--lt-accent); cursor: grabbing; }
+}
