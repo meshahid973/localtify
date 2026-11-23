@@ -184,7 +184,7 @@ main.app.app > .appShell > .sidebar :is(.navIcon, .navIconMotionV468) {
   transform: none !important;
   filter: none !important;
 }
-main.app.app > .appShell > .sidebar .navLucideIcon {
+main.app.app > .appShell > .sidebar .navSolidIcon {
   display: block !important;
   width: 20px !important;
   height: 20px !important;
