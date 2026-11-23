@@ -136,3 +136,32 @@ test("non-Latin album titles have distinct stable identities", () => {
   assert.equal(albums.length, 2);
   assert.notEqual(albums[0].id, albums[1].id);
 });
+
+test("Unicode marks keep distinct albums and POSIX paths keep their case", () => {
+  assert.notEqual(exports.albumKeyPart("दिन"), exports.albumKeyPart("दीन"));
+  const albums = exports.buildLocalAlbumEntries([
+    song(1, { artist: "Artist", album: "दिन" }),
+    song(2, { artist: "Artist", album: "दीन" })
+  ]);
+  assert.equal(albums.length, 2);
+  assert.notEqual(exports.normalizeFolderAlbumPathKey("/music/Record"), exports.normalizeFolderAlbumPathKey("/music/record"));
+  assert.equal(exports.normalizeFolderAlbumPathKey("C:\\Music\\Record"), exports.normalizeFolderAlbumPathKey("c:\\music\\record"));
+});
+
+test("custom album artwork takes priority over embedded track artwork", () => {
+  const track = song(1, { coverSource: "embedded", coverPath: "/music/embedded.png" });
+  const selected = "https://example.com/custom.png";
+  const cover = exports.pickManualAlbumCoverSong({
+    id: "manual", title: "Album", artist: "Artist", songIds: [track.id],
+    coverUrl: selected, coverPath: "/music/embedded.png", sourceType: "manual"
+  }, [track]);
+  assert.equal(cover.coverUrl, selected);
+});
+
+test("album edit preserves missing IDs and ignores stale cover picks", () => {
+  const controller = read("src/features/albums/useAlbumsController.ts");
+  assert.match(controller, /setAlbumDraftSongIds\(\[\.\.\.new Set\(manual\.songIds\)\]\)/);
+  assert.match(controller, /albumBuilderMode === "edit" \? \[\.\.\.new Set\(albumDraftSongIds\)\] : playableSongIds/);
+  assert.match(controller, /if \(request !== albumCoverRequestRef\.current\) return/);
+  assert.match(controller, /function deleteEditingManualAlbum\(\)/);
+});
