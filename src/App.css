@@ -1083,7 +1083,6 @@ body{
 }
 
 
-
 .app{
   --control-circle: 42px;
   --control-circle-main: 48px;
@@ -1804,7 +1803,6 @@ button {
   border: 0 !important;
   box-shadow: none !important;
 }
-
 
 
 .titleLogoImage{
@@ -2701,12 +2699,6 @@ body.isResizingPlayer .app *{
 .app .sidebar .navItem.active .navText small{
   color: var(--lt-muted) !important;
 }
-
-
-
-
-
-
 
 
 @media (prefers-reduced-motion: reduce){
