@@ -210,7 +210,7 @@
   background:
     radial-gradient(circle at 50% 30%, rgba(var(--lt-accent-rgb), 0.13), transparent 34%),
     radial-gradient(circle at 18% 88%, rgba(var(--accent-2-rgb), 0.10), transparent 30%),
-    rgba(0, 0, 0, 0.50);
+    var(--lt-overlay-scrim-soft);
   backdrop-filter: blur(18px) saturate(1.08);
   animation: localitfyImportOverlayIn 260ms var(--cinematic-ease) both;
 }
@@ -786,10 +786,10 @@ body.isResizingSidebar{
 .panel{
   border-color: var(--shell-border) !important;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.052), rgba(255, 255, 255, 0.022)),
+    linear-gradient(180deg, color-mix(in srgb, var(--lt-text) 5.2%, transparent), color-mix(in srgb, var(--lt-text) 2.2%, transparent)),
     var(--lt-fill-subtle) !important;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.055),
+    inset 0 1px 0 color-mix(in srgb, var(--lt-text) 5.5%, transparent),
     0 18px 48px rgba(0, 0, 0, 0.18) !important;
   backdrop-filter: blur(18px) saturate(135%) !important;
   -webkit-backdrop-filter: blur(18px) saturate(135%) !important;
@@ -821,7 +821,7 @@ body.isResizingSidebar{
   display: block !important;
   background:
     radial-gradient(circle at var(--glow-x, 78%) var(--glow-y, 44%), rgba(var(--lt-accent-rgb), 0.115), transparent 36%),
-    linear-gradient(90deg, rgba(0, 0, 0, 0.84), rgba(0, 0, 0, 0.58) 52%, rgba(0, 0, 0, 0.36)) !important;
+    linear-gradient(90deg, color-mix(in srgb, var(--lt-bg) 84%, transparent), color-mix(in srgb, var(--lt-bg) 58%, transparent) 52%, color-mix(in srgb, var(--lt-bg) 36%, transparent)) !important;
   transition:
     opacity 360ms ease,
     background 520ms ease !important;
@@ -1104,7 +1104,7 @@ body{
 
 .softButton{
   border-radius: 999px;
-  border: 1px solid color-mix(in oklab, var(--lt-accent) 22%, rgba(255,255,255,.08));
+  border: 1px solid color-mix(in oklab, var(--lt-accent) 22%, var(--lt-border));
   background: color-mix(in oklab, var(--surface) 70%, transparent);
   color: var(--lt-text);
 }
@@ -1124,7 +1124,7 @@ body{
   place-items: center !important;
   border-radius: 999px !important;
   background: color-mix(in oklab, var(--surface) 58%, transparent) !important;
-  border: 1px solid color-mix(in oklab, var(--lt-accent) 22%, rgba(255,255,255,.12)) !important;
+  border: 1px solid color-mix(in oklab, var(--lt-accent) 22%, var(--lt-border)) !important;
   color: color-mix(in oklab, var(--lt-text) 88%, var(--lt-accent) 12%) !important;
   box-shadow: none !important;
   transform: none;
@@ -1137,7 +1137,7 @@ body{
   min-height: var(--control-circle-main) !important;
   background: var(--lt-accent) !important;
   color: var(--button-text-on-accent) !important;
-  border-color: color-mix(in oklab, var(--lt-accent) 65%, white 10%) !important;
+  border-color: color-mix(in oklab, var(--lt-accent) 65%, var(--lt-border) 35%) !important;
 }
 
 .app{
