@@ -84,12 +84,9 @@ function cleanPartialPublication(job) {
   if (!stat.isFile() || stat.ino !== pending.ino || stat.dev !== pending.dev || stat.birthtimeMs !== pending.birthtimeMs || stat.size >= job.sizeBytes) return false;
   const key = filePathKey(filename);
   pendingPublications.add(key);
-  try {
-    fs.unlinkSync(filename);
-    return true;
-  } finally {
-    pendingPublications.delete(key);
-  }
+  fs.unlinkSync(filename);
+  pendingPublications.delete(key);
+  return true;
 }
 
 function publicationTemporaryPath(directory, id) {

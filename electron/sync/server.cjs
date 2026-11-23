@@ -151,6 +151,7 @@ function createSyncServer({ repositories, coverPath, statePath, serverName = "co
   // A bounded batch avoids tens of thousands of simultaneous stat operations.
   async function snapshotAsync() {
     const source = repositories.songs.list();
+    const playlists = repositories.playlists.get();
     const songs = [];
     for (let offset = 0; offset < source.length; offset += 32) {
       const chunk = await Promise.all(source.slice(offset, offset + 32).map(async (song) => {
@@ -166,7 +167,7 @@ function createSyncServer({ repositories, coverPath, statePath, serverName = "co
     return {
       protocol: PROTOCOL, live: LIVE_VERSION, platform, serverTime: now(),
       features: Object.fromEntries(FEATURE_SETTINGS.filter(key => settings[key] !== undefined).map(key => [key, settings[key]])),
-      songs, playlists: repositories.playlists.get()
+      songs, playlists
     };
   }
 
