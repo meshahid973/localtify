@@ -1,5 +1,6 @@
 import { useLayoutEffect, useMemo, useRef } from "react";
 import { IconButton } from "../../shared/ui/IconButton";
+import { SolidIcon } from "../../shared/ui/SolidIcon";
 import { Search, X, ChevronRight } from "lucide-react";
 import { matchSettingsControls } from "./settings.search";
 import { settingsCategoryTabs } from "./settings.constants";
@@ -80,13 +81,12 @@ export default function SettingsRail({
           return <div className="settingsNavGroup" key={group.label}>
             <h3 className="settingsNavCaption">{group.label}</h3>
             {items.map((tab) => {
-              const Icon = tab.icon;
               const selected = activeCategory === tab.id;
               return <button key={tab.id} ref={selected ? selectedRef : undefined} className={`settingsCategoryButton ${selected ? "active" : ""}`}
                 type="button" onClick={() => onCategoryChange(tab.id)} title={tab.description}
                 aria-current={selected ? "page" : undefined}>
                 <span className="settingsCategoryIcon" aria-hidden="true">
-                  <Icon className="settingsLucideIcon" size={20} strokeWidth={1.9} />
+                  <SolidIcon className="settingsSolidIcon" name={tab.icon} size={20} />
                 </span>
                 <span className="settingsCategoryCopy"><strong>{tab.label}</strong></span>
               </button>;
