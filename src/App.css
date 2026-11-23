@@ -1779,9 +1779,7 @@ button {
 }
 
 .navIcon {
-  transform-origin: center;
   transition: transform 260ms cubic-bezier(.22,.9,.28,1), color 220ms ease, opacity 220ms ease, filter 220ms ease;
-
 }
 
 .app,
