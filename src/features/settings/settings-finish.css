@@ -152,3 +152,15 @@
 }
 .settingsPage.settingsPageV027 .settingsChoiceGroup .settingsChoiceRowV491 { min-width: 0; }
 .settingsPage.settingsPageV027 .settingsChoiceGroup :is(button:disabled) { opacity: .48; cursor: not-allowed; }
+
+.settingsPage.settingsPageV027 :is(.settingsCategoryButton,.settingsControlResult,.settingsChoice,.settingsChoicePillV491,.settingsActionButton,.settingsTinyButton,.settingsResetButton):focus-visible {
+  outline: 2px solid var(--lt-accent);
+  outline-offset: 2px;
+}
+.settingsPage.settingsPageV027 .settingsCategoryRail { overscroll-behavior: contain; }
+.settingsPage.settingsPageV027 .settingsControlResult { scroll-margin-block: 12px; }
+.settingsPage.settingsPageV027 .settingsCategoryPage :is(.settingsTwoColumn,.settingsGrid.twoCols) { min-width: 0; }
+@media (max-width: 600px) {
+  .settingsPage.settingsPageV027 .settingsChoiceRowV491 { gap: 6px; }
+  .settingsPage.settingsPageV027 :is(.settingsChoice,.settingsChoicePillV491) { min-width: 0; }
+}

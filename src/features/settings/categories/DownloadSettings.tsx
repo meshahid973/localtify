@@ -14,7 +14,7 @@ export default function DownloadSettings({ settings, updateSetting, downloadFold
     <div id="settings-downloads-quality" className="settingsGrid twoCols downloadSettingsGridV031">
       <SettingSection title="Audio quality" description="Output bitrate when conversion is enabled."
         className="settingsFocusPanelV491">
-        <SettingsChoiceGroup label="Audio quality" value={settings.downloadQuality}
+        <SettingsChoiceGroup<Settings["downloadQuality"]> label="Audio quality" value={settings.downloadQuality}
           disabled={settings.downloadKeepOriginal}
           options={[
             { value: "best", label: "Best", description: "Highest available" },
@@ -26,7 +26,7 @@ export default function DownloadSettings({ settings, updateSetting, downloadFold
       </SettingSection>
       <SettingSection title="Output format" description="Converting can't restore quality missing from the source."
         className="settingsFocusPanelV491">
-        <SettingsChoiceGroup label="Download format" value={settings.downloadFormat}
+        <SettingsChoiceGroup<Settings["downloadFormat"]> label="Download format" value={settings.downloadFormat}
           disabled={settings.downloadKeepOriginal}
           options={[
             { value: "mp3", label: "MP3", description: "Compatible" },
