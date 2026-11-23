@@ -352,7 +352,7 @@
   box-shadow: none !important;
   transform: none !important;
 }
-.app .homeListenRow.active { background: color-mix(in srgb, var(--lt-accent) 7%, transparent); box-shadow: inset 2px 0 0 var(--lt-accent); }
+.app .homeListenRow.active { background: color-mix(in srgb, var(--lt-accent) 3%, transparent); }
 
 .homeListenCover,
 .homeListenCover .coverImage {

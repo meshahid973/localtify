@@ -213,9 +213,9 @@
   background: color-mix(in srgb, var(--lt-text) 5%, transparent) !important;
 }
 .app .libraryPage .songRow.active:not(.songDragging):not(.songDropTarget) {
-  background: color-mix(in srgb, var(--lt-accent) 7%, transparent) !important;
+  background: color-mix(in srgb, var(--lt-accent) 3%, transparent) !important;
   border-color: transparent !important;
-  box-shadow: inset 3px 0 0 var(--lt-accent) !important;
+  box-shadow: none !important;
 }
 
 .libraryPage .songButton {

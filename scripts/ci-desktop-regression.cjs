@@ -579,6 +579,16 @@ server.listen(5173,async()=>{
       await win.webContents.executeJavaScript("document.querySelector('.settingsCategoryButton[title*=\"Lyrics\"]')?.click()");
       await until(()=>win.webContents.executeJavaScript("!!document.querySelector('[data-settings-category=lyrics] #settings-lyrics-display')").catch(()=>false),"independent lyrics settings");
       await screenshot(win,"settings-lyrics");
+      for (const [category, marker] of [
+        ["Playback", "#settings-playback-transitions"],
+        ["Discord", "#settings-discord-privacy"],
+        ["Library", "#settings-library-folders"]
+      ]) {
+        const selected = await win.webContents.executeJavaScript(`(()=>{const button=[...document.querySelectorAll('.settingsCategoryButton')].find(button=>button.textContent.trim()===${JSON.stringify(category)});if(!button)return false;button.click();return true;})()`);
+        assert.ok(selected, category + " settings remain reachable");
+        await until(()=>win.webContents.executeJavaScript(`!!document.querySelector('[data-settings-category=${category.toLowerCase()}] ${marker}')`).catch(()=>false),category+" Settings "+mode,5000);
+        await screenshot(win,"settings-"+category.toLowerCase()+"-"+mode);
+      }
        const appearanceForNextTheme = await win.webContents.executeJavaScript("(()=>{const button=[...document.querySelectorAll('.settingsCategoryButton')].find(item=>item.textContent.includes('Appearance'));if(!button)return false;button.click();return true;})()");
        assert.equal(appearanceForNextTheme,true,"Appearance must be accessible after Lyrics");
        await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('.settingsModeButton').length===2").catch(()=>false),"restore Appearance for next theme");
