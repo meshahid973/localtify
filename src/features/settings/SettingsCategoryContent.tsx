@@ -1,4 +1,9 @@
 import { memo, useMemo } from "react";
+import type { SettingsCategory } from "./settings.types";
+import type { AppearanceSettingsProps } from "./categories/AppearanceSettings";
+import type { DiscordSettingsProps } from "./categories/DiscordSettings";
+import type { LibrarySettingsProps } from "./categories/LibrarySettings";
+import type { AdvancedSettingsProps } from "./categories/AdvancedSettings";
 import AppearanceSettings from "./categories/AppearanceSettings";
 import PlaybackSettings from "./categories/PlaybackSettings";
 import DiscordSettings from "./categories/DiscordSettings";
@@ -13,11 +18,41 @@ import AdvancedSettings from "./categories/AdvancedSettings";
 import { detectSettingsPlatform } from "./settings.shared";
 import type { PlatformInfoLike } from "./settings.shared";
 
-// Temporary flat-prop adapter for App.tsx. Feature components below receive only
-// the data they own; this adapter disappears when App becomes composition-only.
-type LegacySettingsAdapterProps = { settingsCategory: string; setSettingsCategory?: (value: string) => void; [key: string]: any };
+type SettingsCategoryContentProps =
+  Pick<LibrarySettingsProps,
+    "settings" | "updateSetting" | "songs" | "libraryScanBusy" |
+    "cleanLibraryMetadataAction" | "repairMovedSongsAction" | "metadataCleanPreview" |
+    "applyMetadataCleanPreviewAction" | "cancelMetadataCleanPreviewAction" |
+    "undoLastMetadataCleanAction" | "metadataUndoCount" | "rebuildSearchIndexAction" |
+    "libraryScanMessage" | "pixelArtBusy" | "randomizeAllCovers"
+  > &
+  Pick<AdvancedSettingsProps,
+    "diagnosticsInfo" | "diagnosticsCopied" | "copyDiagnosticsInfo" | "updatePrompt" |
+    "manualUpdateCheck" | "askUpdaterToInstall" | "libraryRenderLimitRef" |
+    "setLibraryRenderLimit" | "platformInfo" | "resetDiscordSettings" |
+    "resetAppearanceSettings" | "resetPlayerLayoutSettings" |
+    "resetLibraryLayoutSettings" | "resetAllSettingsSafely"
+  > & {
+    settingsCategory: SettingsCategory;
+    setSettingsCategory?: (category: SettingsCategory) => void;
+    APP_VERSION: string;
+    INITIAL_LIBRARY_RENDER_LIMIT: number;
+    coverColorSyncOptions: AppearanceSettingsProps["coverColorSyncOptions"];
+    selectedCoverColorSyncMode: AppearanceSettingsProps["selectedCoverColorSyncMode"];
+    updateCoverColorSyncMode: AppearanceSettingsProps["updateCoverColorSyncMode"];
+    discordPreview: DiscordSettingsProps["discordPreview"];
+    discordStyleOptions: DiscordSettingsProps["discordStyleOptions"];
+    discordSecondLineOptions: DiscordSettingsProps["discordSecondLineOptions"];
+    discordArtModeOptions: DiscordSettingsProps["discordArtModeOptions"];
+    discordCleanupOptions: LibrarySettingsProps["cleanupOptions"];
+    downloadFolderLabel: string;
+    chooseDownloadFolder: () => void | Promise<void>;
+    askUpdaterToDownload: () => unknown;
+    openUpdateChangelog: () => unknown;
+    lastUpdateCheckedLabel: string;
+  };
 
-const SettingsCategoryContent = memo(function SettingsCategoryContent(p: LegacySettingsAdapterProps) {
+const SettingsCategoryContent = memo(function SettingsCategoryContent(p: SettingsCategoryContentProps) {
   const fallbackPlatform = useMemo(() => detectSettingsPlatform(), []);
   const platformInfo = { ...fallbackPlatform, ...(p.platformInfo || {}) } as Required<PlatformInfoLike>;
 

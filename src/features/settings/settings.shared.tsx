@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
+import type { Settings } from "./settings.types";
 import { Slider } from "../../shared/ui/Slider";
 import { Surface } from "../../shared/ui/Surface";
 
@@ -96,7 +97,7 @@ export type ChoiceOption = { id: string; label?: string; name?: string; note?: s
 export type SongLike = { id?: string; title?: string; artist?: string; album?: string; [key: string]: unknown };
 export type PlatformInfoLike = Partial<LocaltifyPlatformInfo>;
 export type DiagnosticsInfo = { items: Array<{ label: string; value: string | number }>; copyText: string };
-export type UpdateSetting = (key: string, value: unknown) => void | Promise<void>;
+export type UpdateSetting = <K extends keyof Settings>(key: K, value: Settings[K]) => void | Promise<void>;
 
 export function detectSettingsPlatform(): Required<PlatformInfoLike> {
   return getLocaltifyPlatformInfo();

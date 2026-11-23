@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Compass, ExternalLink, KeyRound, RefreshCw } from "lucide-react";
 import type { Settings } from "../settings.types";
 import { ToggleRow, SettingSection } from "../settings.shared";
@@ -18,42 +18,49 @@ export default function DiscoverSettings({ settings, updateSetting }: Props) {
   const [saving, setSaving] = useState(false);
   const [checking, setChecking] = useState(false);
   const [lastfmCheck, setLastfmCheck] = useState<string | null>(null);
+  const requestVersion = useRef(0);
 
   useEffect(() => {
+    const version = ++requestVersion.current;
+    let cancelled = false;
     setKeyDraft(settings.lastfmApiKey || "");
     setLastfmCheck(null);
+    setChecking(false);
+    setSource("checking");
+    void window.localitfy.getDiscoveries({ configuration: true })
+      .then(response => {
+        if (!cancelled && requestVersion.current === version)
+          setSource(response.status === "configuration" ? response.lastfmSource : "error");
+      })
+      .catch(() => {
+        if (!cancelled && requestVersion.current === version) setSource("error");
+      });
+    return () => { cancelled = true; };
   }, [settings.lastfmApiKey]);
   async function refreshProviderStatus() {
     if (checking) return;
+    const version = ++requestVersion.current;
     setChecking(true);
     setLastfmCheck(null);
     try {
       const response = await window.localitfy.getDiscoveries({ configuration: true, verify: true });
+      if (requestVersion.current !== version) return;
       setSource(response.status === "configuration" ? response.lastfmSource : "error");
       setLastfmCheck(response.status === "configuration" ? response.lastfmCheck || null : "error");
     } catch {
-      setSource("error");
-      setLastfmCheck("network");
+      if (requestVersion.current === version) {
+        setSource("error");
+        setLastfmCheck("network");
+      }
     } finally {
-      setChecking(false);
+      if (requestVersion.current === version) setChecking(false);
     }
   }
-  useEffect(() => {
-    let cancelled = false;
-    void window.localitfy.getDiscoveries({ configuration: true })
-      .then(response => {
-        if (!cancelled) setSource(response.status === "configuration" ? response.lastfmSource : "error");
-      })
-      .catch(() => { if (!cancelled) setSource("error"); });
-    return () => { cancelled = true; };
-  }, []);
-
   async function saveOverride(value: string) {
     if (saving || (value && !VALID_KEY.test(value))) return;
     setSaving(true);
     try {
       await updateSetting("lastfmApiKey", value);
-      await refreshProviderStatus();
       setEditingKey(false);
     } finally {
       setSaving(false);
@@ -87,6 +94,7 @@ export default function DiscoverSettings({ settings, updateSetting }: Props) {
       <div className="discoverProviderStatus" role="status">
         <span className={`discoverProviderDot ${lastfmCheck === "ok" ? "ready" : ""}`} aria-hidden="true" />
         <span>{sourceLabel}</span>
+        {source === "error" ? <Button variant="secondary" size="sm" type="button" disabled={checking} onClick={() => void refreshProviderStatus()}>Retry status check</Button> : null}
         {source === "default" || source === "override" ? <Button variant="secondary" size="sm" className="settingsActionButton discoverProviderTestButton" type="button" disabled={checking} onClick={() => void refreshProviderStatus()}><RefreshCw size={14} aria-hidden="true" /> {checking ? "Testing…" : "Test connection"}</Button> : null}
       </div>
       {checking ? <p className="settingsHintText" role="status">Checking Last.fm…</p> : null}
