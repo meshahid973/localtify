@@ -16,14 +16,26 @@ export default function DiscoverSettings({ settings, updateSetting }: Props) {
   const [keyDraft, setKeyDraft] = useState(settings.lastfmApiKey || "");
   const [editingKey, setEditingKey] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [lastfmCheck, setLastfmCheck] = useState<string | null>(null);
 
-  useEffect(() => setKeyDraft(settings.lastfmApiKey || ""), [settings.lastfmApiKey]);
+  useEffect(() => {
+    setKeyDraft(settings.lastfmApiKey || "");
+    setLastfmCheck(null);
+  }, [settings.lastfmApiKey]);
   async function refreshProviderStatus() {
+    if (checking) return;
+    setChecking(true);
+    setLastfmCheck(null);
     try {
-      const response = await window.localitfy.getDiscoveries({ configuration: true });
+      const response = await window.localitfy.getDiscoveries({ configuration: true, verify: true });
       setSource(response.status === "configuration" ? response.lastfmSource : "error");
+      setLastfmCheck(response.status === "configuration" ? response.lastfmCheck || null : "error");
     } catch {
       setSource("error");
+      setLastfmCheck("network");
+    } finally {
+      setChecking(false);
     }
   }
   useEffect(() => {
@@ -52,6 +64,13 @@ export default function DiscoverSettings({ settings, updateSetting }: Props) {
     : source === "override" ? "Custom key is active"
     : source === "missing" ? "No Last.fm key configured"
     : source === "checking" ? "Checking the desktop provider" : "Provider status unavailable";
+  const connectionLabel = lastfmCheck === "ok" ? "Last.fm connection verified."
+    : lastfmCheck === "no-match" ? "Last.fm responded, but the sample track was not found."
+    : lastfmCheck === "bad-key" ? "Last.fm rejected this key. Check the configured API key."
+    : lastfmCheck === "rate-limited" ? "Last.fm is rate-limiting requests. Try again later."
+    : lastfmCheck === "network" ? "Could not reach Last.fm from this device."
+    : lastfmCheck === "http" ? "Last.fm returned an HTTP error."
+    : lastfmCheck ? "Last.fm validation could not complete." : "";
 
   return <section className="settingsCategoryPage discoverProviderSettings" aria-label="Discover and providers">
     <div className="settingsCategoryHeader">
@@ -66,10 +85,12 @@ export default function DiscoverSettings({ settings, updateSetting }: Props) {
 
     <SettingSection title="Last.fm recommendations" description="Optional personal API key." icon={<KeyRound size={20} aria-hidden="true" />}>
       <div className="discoverProviderStatus" role="status">
-        <span className={`discoverProviderDot ${source === "default" || source === "override" ? "ready" : ""}`} aria-hidden="true" />
+        <span className={`discoverProviderDot ${lastfmCheck === "ok" ? "ready" : ""}`} aria-hidden="true" />
         <span>{sourceLabel}</span>
-        <Button variant="secondary" size="icon" className="settingsTinyButton" type="button" onClick={() => void refreshProviderStatus()} aria-label="Refresh provider status"><RefreshCw size={14} /></Button>
+        <Button variant="secondary" size="icon" className="settingsTinyButton" type="button" disabled={checking} onClick={() => void refreshProviderStatus()} aria-label="Test Last.fm connection" title="Test Last.fm connection"><RefreshCw size={14} /></Button>
       </div>
+      {checking ? <p className="settingsHintText" role="status">Checking Last.fm…</p> : null}
+      {connectionLabel ? <p className="settingsHintText" role="status">{connectionLabel}</p> : null}
       {source === "missing" ? <p className="settingsHintText">The application has no configured default key. Your copy can still search public music, but personalized Last.fm recommendations need an application key.</p> : null}
       <details className="settingsDisclosure discoverProviderAdvanced" open={editingKey} onToggle={event => setEditingKey(event.currentTarget.open)}>
         <summary>Advanced · use a personal Last.fm key</summary>

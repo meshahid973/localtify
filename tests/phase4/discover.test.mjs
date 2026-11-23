@@ -42,6 +42,26 @@ test("the Last.fm client sends names only, caches answers on disk and spaces its
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
+test("provider status distinguishes configured credentials from a real Last.fm check", async () => {
+  const handlers = new Map();
+  const settings = { discoverEnabled: true, lastfmApiKey: KEY };
+  let calls = 0;
+  registerDiscoverIpc({ handle: (name, handler) => handlers.set(name, handler) }, {
+    getSongs: () => [], getSettings: () => settings,
+    fetch: async () => { calls++; return { ok: true, status: 200, json: async () => ({ track: { name: "One More Time" } }) }; }
+  });
+  const get = payload => handlers.get("discover:get")({}, payload);
+  assert.deepEqual(await get({ configuration: true }), { status: "configuration", lastfmSource: "override" });
+  assert.equal(calls, 0, "opening Settings must not contact Last.fm");
+  assert.deepEqual(await get({ configuration: true, verify: true }),
+    { status: "configuration", lastfmSource: "override", lastfmCheck: "ok" });
+  assert.equal(calls, 1);
+  settings.lastfmApiKey = "";
+  const missing = await get({ configuration: true, verify: true });
+  assert.deepEqual(missing, { status: "configuration", lastfmSource: "missing" });
+  assert.equal(calls, 1);
+});
+
 test("a rejected key and rate limiting become readable errors", async () => {
   for (const [code, expected] of [[10, "bad-key"], [29, "rate-limited"]]) {
     const { fetch } = fakeFetch(() => ({ error: code, message: "nope" }));

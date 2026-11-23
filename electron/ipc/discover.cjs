@@ -145,7 +145,17 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
     if (payload?.configuration === true) {
       const override = /^[0-9a-f]{32}$/i.test(String(settings.lastfmApiKey || "").trim());
       const defaultKey = /^[0-9a-f]{32}$/i.test(String(process.env.LOCALTIFY_LASTFM_API_KEY || "").trim());
-      return { status: "configuration", lastfmSource: override ? "override" : defaultKey ? "default" : "missing" };
+      const configuration = { status: "configuration", lastfmSource: override ? "override" : defaultKey ? "default" : "missing" };
+      if (payload.verify !== true || configuration.lastfmSource === "missing") return configuration;
+      try {
+        const client = createLastfmClient({ apiKey: apiKeyFor(settings), fetch, now });
+        const track = await client.trackInfo("One More Time", "Daft Punk");
+        return { ...configuration, lastfmCheck: track ? "ok" : "no-match" };
+      } catch (error) {
+        const code = error?.code;
+        const lastfmCheck = ["bad-key", "rate-limited", "network", "http"].includes(code) ? code : "error";
+        return { ...configuration, lastfmCheck };
+      }
     }
     if (settings.discoverEnabled !== true) return { status: "off" };
     if (payload?.artwork !== undefined) {
