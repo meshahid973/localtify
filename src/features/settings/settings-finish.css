@@ -45,19 +45,19 @@
   border: 1px solid var(--lt-border); border-radius: 8px;
 }
 .settingsPage.settingsPageV027 .settingsCategoryContent { min-width: 0; max-width: 100%; }
-.settingsPage.settingsPageV027 :is(.settingsCategoryPage,.settingsContentBlock) { gap: 6px; }
+.settingsPage.settingsPageV027 .settingsCategoryPage { gap: 6px; }
 .settingsPage.settingsPageV027 .settingsCategoryHeader {
   min-height: 48px; padding: 0 0 14px; margin: 0 0 4px;
   align-items: center; border-bottom: 1px solid var(--lt-border);
 }
 .settingsPage.settingsPageV027 .settingsCategoryHeader h4 { font-size: 22px; line-height: 1.25; font-weight: 660; }
-.settingsPage.settingsPageV027 :is(.settingsPanelCard,.settingGroup,.settingsCardStack) {
+.settingsPage.settingsPageV027 .settingsPanelCard {
   min-width: 0; display: grid; gap: 13px;
   padding: 18px 0 20px; margin: 0;
   border: 0; border-bottom: 1px solid var(--lt-border);
   border-radius: 0; background: transparent; box-shadow: none;
 }
-.settingsPage.settingsPageV027 :is(.settingsPanelCard,.settingGroup):last-child { border-bottom-color: transparent; }
+.settingsPage.settingsPageV027 .settingsPanelCard:last-child { border-bottom-color: transparent; }
 .settingsPage.settingsPageV027 .settingsPanelHeader { align-items: start; gap: 12px; }
 .settingsPage.settingsPageV027 .settingsPanelHeader > svg { color: var(--lt-muted); opacity: .8; }
 .settingsPage.settingsPageV027 .settingsPanelHeader strong { font-size: 14px; font-weight: 650; }
@@ -140,7 +140,7 @@
 .settingsPage.settingsPageV027 .settingsControlResult strong { font-size: 12px; font-weight: 620; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .settingsPage.settingsPageV027 .settingsControlResult small { font-size: 10px; color: var(--lt-muted); }
 .settingsPage.settingsPageV027 .settingsControlResult > svg { flex: none; color: var(--lt-muted); }
-.settingsPage.settingsPageV027 :is(.settingsPanelCard,.settingGroup,[id^="settings-"]):focus-within { scroll-margin-top: 18px; }
+.settingsPage.settingsPageV027 :is(.settingsPanelCard,[id^="settings-"]):focus-within { scroll-margin-top: 18px; }
 @media (max-width: 940px) {
   .settingsPage.settingsPageV027 .settingsControlResults { padding: 8px 0; }
   .settingsPage.settingsPageV027 .settingsControlResult { min-width: min(200px,100%); }

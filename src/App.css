@@ -2241,7 +2241,6 @@ body.localtifyBackgroundMode .ambientSurface,
 }
 
 .settingsSection,
-.settingsCard,
 .songListPanel {
   content-visibility: auto;
   contain-intrinsic-size: 320px;

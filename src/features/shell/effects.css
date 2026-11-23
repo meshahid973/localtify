@@ -669,7 +669,7 @@
   color: var(--lt-text) !important;
 }
 
-.app[data-platform="linux"] :is(.content, .sidebar, .pageTransition, .songList, .settingsContent){
+.app[data-platform="linux"] :is(.content, .sidebar, .pageTransition, .songList){
   scrollbar-width: thin;
   scrollbar-color: rgba(var(--lt-accent-rgb), .34) color-mix(in srgb, var(--lt-text) 5.5%, transparent);
 }
