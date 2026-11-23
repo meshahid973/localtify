@@ -3,7 +3,7 @@ import type { ReactNode, SVGProps } from "react";
 export type SolidIconName =
   | "home" | "library" | "album" | "discover" | "analytics" | "download"
   | "settings" | "palette" | "playback" | "lyrics" | "discord" | "analysis"
-  | "updates" | "advanced" | "about" | "play" | "pause" | "equalizer" | "heart";
+  | "updates" | "advanced" | "about" | "play" | "pause" | "equalizer" | "heart" | "add";
 
 type Props = Omit<SVGProps<SVGSVGElement>, "children"> & {
   name: SolidIconName;
@@ -27,6 +27,7 @@ const icons: Record<SolidIconName, ReactNode> = {
   advanced: <><rect x="3" y="5" width="18" height="3" rx="1.5" /><rect x="3" y="11" width="18" height="3" rx="1.5" /><rect x="3" y="17" width="18" height="3" rx="1.5" /><circle cx="8" cy="6.5" r="2.5" fill="var(--lt-bg)" /><circle cx="16" cy="12.5" r="2.5" fill="var(--lt-bg)" /><circle cx="10" cy="18.5" r="2.5" fill="var(--lt-bg)" /></>,
   about: <><circle cx="12" cy="12" r="10" /><circle cx="12" cy="7" r="1.5" fill="var(--lt-bg)" /><path d="M11 11h2v7h-2z" fill="var(--lt-bg)" /></>,
   play: <path d="M8 4.6a1.6 1.6 0 0 0-2.4 1.4v12a1.6 1.6 0 0 0 2.4 1.4l10.2-6a1.6 1.6 0 0 0 0-2.8Z" />,
+  add: <path d="M10.5 3h3v7.5H21v3h-7.5V21h-3v-7.5H3v-3h7.5z" />,
   pause: <><rect x="5" y="4" width="5" height="16" rx="1.3" /><rect x="14" y="4" width="5" height="16" rx="1.3" /></>,
   equalizer: <><rect x="3" y="9" width="3" height="6" rx="1.5" /><rect x="8" y="5" width="3" height="14" rx="1.5" /><rect x="13" y="7" width="3" height="10" rx="1.5" /><rect x="18" y="10" width="3" height="4" rx="1.5" /></>,
   heart: <path d="M12 21s-9.5-5.8-9.5-12A5.5 5.5 0 0 1 12 5.2 5.5 5.5 0 0 1 21.5 9C21.5 15.2 12 21 12 21Z" />
