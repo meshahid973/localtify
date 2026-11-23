@@ -4,7 +4,6 @@ import { Search, X, ChevronRight } from "lucide-react";
 import { matchSettingsControls } from "./settings.search";
 import { settingsCategoryTabs } from "./settings.constants";
 import type { SettingsCategory } from "./settings.types";
-import type { settingsCategoryTabs } from "./settings.constants";
 
 export type SettingsRailProps = {
   tabs: ReadonlyArray<(typeof settingsCategoryTabs)[number]>;
