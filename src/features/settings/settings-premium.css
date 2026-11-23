@@ -417,7 +417,14 @@
   outline: 2px solid var(--lt-accent);
   outline-offset: 2px;
 }
-.settingsPage.settingsPageV027 .settingsCategoryRail { overscroll-behavior: contain; }
+.settingsPage.settingsPageV027 .settingsCategoryRail { overscroll-behavior: contain; scrollbar-color: var(--lt-border-strong) transparent; }
+.settingsPage.settingsPageV027 :is(.settingsCategoryRail,.settingsControlResults)::-webkit-scrollbar { width: 6px; height: 6px; }
+.settingsPage.settingsPageV027 :is(.settingsCategoryRail,.settingsControlResults)::-webkit-scrollbar-track { background: transparent !important; }
+.settingsPage.settingsPageV027 :is(.settingsCategoryRail,.settingsControlResults)::-webkit-scrollbar-thumb {
+  background: var(--lt-border-strong) !important;
+  border: 0 !important;
+  border-radius: 999px;
+}
 .settingsPage.settingsPageV027 .settingsControlResult { scroll-margin-block: 12px; }
 .settingsPage.settingsPageV027 .settingsCategoryPage :is(.settingsTwoColumn,.settingsGrid.twoCols) { min-width: 0; }
 @media (max-width: 600px) {
