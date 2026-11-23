@@ -75,9 +75,11 @@ test("Feedback transport and UI are absent; performance diagnostics remain", () 
   const app = read("src/App.tsx");
   const main = read("electron/main.cjs");
   const preload = read("electron/preload.cjs");
+  const menu = read("electron/runtime/app-menu.cjs");
   assert.doesNotMatch(app, /FeedbackPrompt|openFeedback|feedbackConfigStatus/);
   assert.doesNotMatch(main, /feedback:send|feedback:status|sendLocaltifyFeedback/);
   assert.doesNotMatch(preload, /feedback:send|feedback:status/);
+  assert.doesNotMatch(menu, /Report an Issue|sendLocaltifyFeedback|feedback:send/);
   assert.match(app, /useDiagnosticsInfo/);
 });
 

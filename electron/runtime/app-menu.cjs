@@ -101,8 +101,7 @@ function createAppMenuRuntime({ Menu, shell, appName = "localtify", isDev = fals
       {
         role: "help",
         submenu: [
-          { label: `${appName} on GitHub`, click: () => void shell.openExternal(REPOSITORY_URL) },
-          { label: "Report an Issue", click: () => void shell.openExternal(`${REPOSITORY_URL}/issues`) }
+          { label: `${appName} on GitHub`, click: () => void shell.openExternal(REPOSITORY_URL) }
         ]
       }
     ];

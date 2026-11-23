@@ -1,5 +1,6 @@
 import type { SettingsCategory } from "./settings.types";
 import { settingsCategoryTabs } from "./settings.constants";
+import { isAndroidApp } from "../../app/platform";
 
 export function normalizeSettingsSearch(value: string) {
   return value.normalize("NFKD").replace(/\p{M}/gu, "").trim().toLowerCase().replace(/\s+/g, " ");
@@ -19,6 +20,7 @@ export type SettingsControlLink = {
   category: SettingsCategory;
   target: string;
   keywords: string;
+  desktopOnly?: boolean;
 };
 
 export const SETTINGS_CONTROL_LINKS: readonly SettingsControlLink[] = [
@@ -26,11 +28,13 @@ export const SETTINGS_CONTROL_LINKS: readonly SettingsControlLink[] = [
   { id: "ambience", label: "Artwork ambience", description: "Appearance", category: "appearance", target: "settings-appearance-ambience", keywords: "blur background cover gradient strength" },
   { id: "home", label: "Home layout and cards", description: "Appearance", category: "appearance", target: "settings-appearance-home", keywords: "banner hero artwork card size density" },
   { id: "player-background", label: "Player background", description: "Appearance", category: "appearance", target: "settings-appearance-player", keywords: "fullscreen oled blur flat" },
-  { id: "sidebar", label: "Sidebar layout and tabs", description: "Appearance", category: "appearance", target: "settings-appearance-sidebar", keywords: "hide reorder compact tabs navigation" },
+  { id: "sidebar", label: "Sidebar layout", description: "Appearance", category: "appearance", target: "settings-appearance-sidebar", keywords: "collapsed expanded compact hover navigation", desktopOnly: true },
+  { id: "tabs", label: "Arrange navigation tabs", description: "Appearance", category: "appearance", target: "settings-appearance-tabs", keywords: "hide show reorder sidebar bottom bar navigation tabs" },
   { id: "motion", label: "Motion and animations", description: "Appearance", category: "appearance", target: "settings-appearance-layout", keywords: "reduce glow gif visuals floating notes" },
   { id: "crossfade", label: "Crossfade and gapless", description: "Playback", category: "playback", target: "settings-playback-transitions", keywords: "transition gap fade between tracks" },
   { id: "playback", label: "Speed and volume", description: "Playback", category: "playback", target: "settings-playback-listening", keywords: "normalization resume autoplay remember volume speed" },
   { id: "effects", label: "Audio effects", description: "Playback", category: "playback", target: "settings-playback-effects", keywords: "nightcore daycore slowed reverb pitch strength" },
+  { id: "sleep", label: "Queue and sleep timer", description: "Playback", category: "playback", target: "settings-playback-sleep", keywords: "song radio autoplay sleep timer stop queue" },
   { id: "lyrics", label: "Lyrics and online lookup", description: "Lyrics & tags", category: "lyrics", target: "settings-lyrics-display", keywords: "lrclib karaoke synced cache song lyrics" },
   { id: "tagging", label: "MusicBrainz tag editor", description: "Lyrics & tags", category: "lyrics", target: "settings-lyrics-tagging", keywords: "id3 metadata album cover write file" },
   { id: "folders", label: "Watched music folders", description: "Library", category: "library", target: "settings-library-folders", keywords: "import auto scan sync files" },
@@ -50,7 +54,7 @@ export function matchSettingsControls(query: string, allowed: readonly SettingsC
   if (!words.length) return [];
   const available = new Set(allowed);
   return SETTINGS_CONTROL_LINKS.filter(link =>
-    available.has(link.category) &&
+    available.has(link.category) && (!link.desktopOnly || !isAndroidApp()) &&
     words.every(word => normalizeSettingsSearch(`${link.label} ${link.description} ${link.keywords}`).includes(word))
   );
 }

@@ -102,6 +102,7 @@ import {
   sanitizeSongList
 } from "./features/search";
 import {
+  matchSettingsControls,
   normalizeSettingsSearch,
   settingsTabMatchesSearch
 } from "./features/settings/settings.search";
@@ -363,7 +364,13 @@ function MainModeApp() {
 
   const visibleSettingsTabs = useMemo(() => {
     if (!settingsSearchQuery) return settingsCategoryTabs;
-    return settingsCategoryTabs.filter((tab) => settingsTabMatchesSearch(tab, settingsSearchQuery));
+    const controlCategories = new Set(
+      matchSettingsControls(settingsSearchQuery, settingsCategoryTabs.map(tab => tab.id))
+        .map(result => result.category)
+    );
+    return settingsCategoryTabs.filter(tab =>
+      settingsTabMatchesSearch(tab, settingsSearchQuery) || controlCategories.has(tab.id)
+    );
   }, [settingsSearchQuery]);
 
   const settingsSearchResultLabel = settingsSearchQuery
@@ -5136,8 +5143,6 @@ function MainModeApp() {
         metadataUndoCount={metadataUndoItems.length}
         rebuildSearchIndexAction={rebuildSearchIndexAction}
         libraryScanMessage={libraryScanMessage}
-        changeView={changeView}
-        pixelArtAssets={pixelArtAssets}
         pixelArtBusy={pixelArtBusy}
         randomizeAllCovers={randomizeAllCovers}
         downloadFolderLabel={downloadFolderLabel}

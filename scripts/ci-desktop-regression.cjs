@@ -579,6 +579,9 @@ server.listen(5173,async()=>{
       await win.webContents.executeJavaScript("document.querySelector('.settingsCategoryButton[title*=\"Lyrics\"]')?.click()");
       await until(()=>win.webContents.executeJavaScript("!!document.querySelector('[data-settings-category=lyrics] #settings-lyrics-display')").catch(()=>false),"independent lyrics settings");
       await screenshot(win,"settings-lyrics");
+       const appearanceForNextTheme = await win.webContents.executeJavaScript("(()=>{const button=[...document.querySelectorAll('.settingsCategoryButton')].find(item=>item.textContent.includes('Appearance'));if(!button)return false;button.click();return true;})()");
+       assert.equal(appearanceForNextTheme,true,"Appearance must be accessible after Lyrics");
+       await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('.settingsModeButton').length===2").catch(()=>false),"restore Appearance for next theme");
 
     }
     // Render the actual title-bar update banner and remote What's New flow without installing a fake package.
