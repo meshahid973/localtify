@@ -23,6 +23,14 @@
   --lt-accent-rgb: 255, 255, 255;
   --lt-accent-soft: rgba(var(--lt-accent-rgb), 0.14);
   --lt-danger: #ff6b8a;
+  --lt-danger-rgb: 255, 107, 138;
+  --lt-on-danger: #ffffff;
+  --lt-warning: #e8b258;
+  --lt-warning-rgb: 232, 178, 88;
+  --lt-success: #7af2ad;
+  --lt-success-rgb: 122, 242, 173;
+  --button-text-on-accent: #000000;
+  --lt-overlay-scrim: rgba(0, 0, 0, .60);
 
   --lt-radius-sm: 12px;
   --lt-radius-md: 18px;
