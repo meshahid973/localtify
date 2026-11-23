@@ -29,7 +29,7 @@ export function albumKeyPart(value: unknown) {
     .normalize("NFKC")
     .toLowerCase()
     .replace(/&/g, "and")
-    .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .replace(/[^\p{L}\p{N}\p{M}]+/gu, "-")
     .replace(/^-+|-+$/g, "") || "unknown";
 }
 
@@ -79,10 +79,13 @@ export function makeAlbumCoverSong(coverUrl: string, title: string, artist: stri
 }
 
 export function normalizeStoredPathForCompare(value: unknown) {
-  return String(value || "").trim().replace(/\\/g, "/").toLowerCase();
+  return normalizeFolderAlbumPathKey(value);
 }
 
 export function pickManualAlbumCoverSong(album: ManualLocalAlbum, albumSongs: Song[]) {
+  const safeCoverUrl = getRendererSafeImageUrl(album.coverUrl);
+  if (safeCoverUrl) return makeAlbumCoverSong(safeCoverUrl, album.title, album.artist, albumSongs[0] || null);
+
   const storedCoverPath = normalizeStoredPathForCompare(album.coverPath || album.folderCoverPath || album.embeddedCoverPath || "");
   const preferredByPath = storedCoverPath
     ? albumSongs.find((song) => normalizeStoredPathForCompare(song.coverPath) === storedCoverPath)
@@ -96,9 +99,6 @@ export function pickManualAlbumCoverSong(album: ManualLocalAlbum, albumSongs: So
   );
 
   if (preferredBySource) return preferredBySource;
-
-  const safeCoverUrl = getRendererSafeImageUrl(album.coverUrl);
-  if (safeCoverUrl) return makeAlbumCoverSong(safeCoverUrl, album.title, album.artist, albumSongs[0] || null);
 
   return pickAlbumCoverSong(albumSongs);
 }
@@ -317,12 +317,9 @@ export function normalizeManualLocalAlbums(value: unknown): ManualLocalAlbum[] {
 }
 
 export function normalizeFolderAlbumPathKey(value: unknown) {
-  return String(value || "")
-    .replace(/\\+/g, "/")
-    .replace(/\/+/g, "/")
-    .replace(/\/$/, "")
-    .trim()
-    .toLowerCase();
+  const raw = String(value || "").trim();
+  const normalized = raw.replace(/\\+/g, "/").replace(/\/+/g, "/").replace(/\/$/, "");
+  return /^[A-Za-z]:\//.test(normalized) || /^\\\\/.test(raw) ? normalized.toLowerCase() : normalized;
 }
 
 export function folderAlbumPathContains(parentPath: unknown, childPath: unknown) {

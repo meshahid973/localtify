@@ -1840,6 +1840,12 @@ body.localitfyThemePainting .app .volumeWrap input[type="range"],
   outline: 0 !important;
   box-shadow: none !important;
 }
+@media (forced-colors: active) {
+  .playerBar .volumeWrap input[type="range"]:focus-visible {
+    outline: 2px solid Highlight !important;
+    outline-offset: 2px !important;
+  }
+}
 .playerBar .volumeWrap input[type="range"]:focus-visible::-webkit-slider-thumb {
   box-shadow: 0 0 0 3px var(--lt-bg), 0 0 0 5px var(--lt-accent) !important;
 }

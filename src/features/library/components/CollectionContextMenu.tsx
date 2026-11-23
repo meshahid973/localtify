@@ -1,5 +1,6 @@
 import { Disc3, ListEnd, ListMusic, ListPlus, Pencil, Play, Radio, Shuffle, Tags, UserRound } from "lucide-react";
 import { Cover } from "../../covers/Cover";
+import { isAndroidApp } from "../../../app/platform";
 import { ContextMenuLayer } from "../../../shared/ui/ContextMenuLayer";
 import { prettyMeta, prettyTitle } from "../../search/search.utils";
 import { splitArtistCredits } from "../../artists/artistCredits";
@@ -68,7 +69,7 @@ export default function CollectionContextMenu({
           {artists.map(name => <button key={name} type="button" role="menuitem" onClick={run(() => goToArtist?.(name))}>
             <span className="songContextMenuIcon"><UserRound size={13}/></span> go to {artists.length > 1 ? prettyMeta(name) : "artist"}
           </button>)}
-          {editable && editAlbum ? <button type="button" role="menuitem" onClick={run(() => editAlbum(album))}>
+          {editable && editAlbum && !isAndroidApp() ? <button type="button" role="menuitem" onClick={run(() => editAlbum(album))}>
             <span className="songContextMenuIcon"><Pencil size={13}/></span> edit album
           </button> : null}
           {completeAlbum ? <button type="button" role="menuitem" onClick={run(() => completeAlbum(album))}>

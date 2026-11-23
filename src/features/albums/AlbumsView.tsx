@@ -61,8 +61,6 @@ export default function AlbumsView(props: AlbumsViewProps) {
     openCreateAlbumBuilder,
     saveManualAlbumFromDraft,
     scanAlbumFolderImport,
-    selectedAlbum,
-    selectedAlbumIsManual,
     songs,
     toggleAlbumDraftSong,
     visibleAlbums
