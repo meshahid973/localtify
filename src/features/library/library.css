@@ -70,9 +70,9 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 13px;
-  border: 1px solid rgba(184, 139, 94, .15);
+  border: 1px solid color-mix(in srgb, var(--lt-warning) 20%, transparent);
   border-radius: 10px;
-  background: rgba(125, 86, 53, .055);
+  background: color-mix(in srgb, var(--lt-warning) 6%, transparent);
 }
 
 .libraryMissingMascot {
@@ -124,8 +124,8 @@
 }
 
 .libraryMissingActions .danger {
-  color: #aa7780;
-  border-color: rgba(170, 91, 107, .14);
+  color: var(--lt-danger);
+  border-color: color-mix(in srgb, var(--lt-danger) 18%, transparent);
 }
 
 .libraryTracks {
