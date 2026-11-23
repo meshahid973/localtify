@@ -36,7 +36,7 @@ export default function DownloadSettings({ settings, updateSetting, downloadFold
           onChange={value => void updateSetting("downloadFormat", value)} />
       </SettingSection>
     </div>
-    <SettingSection title="Import behavior" description="Choose what happens when a download completes."
+    <SettingSection id="settings-downloads-import" title="Import behavior" description="Choose what happens when a download completes."
       className="downloadToggleStackV031 settingsFocusPanelV491">
       <ToggleRow label="Keep original audio" help="Save Opus or M4A without converting. Quality and format options are disabled."
         checked={settings.downloadKeepOriginal} onChange={value => void updateSetting("downloadKeepOriginal", value)} />

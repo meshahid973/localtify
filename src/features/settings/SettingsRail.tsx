@@ -67,7 +67,7 @@ export default function SettingsRail({
       {search.trim() ? <p className="settingsSearchHintV027" role="status">{resultLabel}</p> : null}
       {search.trim() && matches.length ? <div className="settingsControlResults" role="group" aria-label="Matching controls">
         <strong className="settingsControlResultsTitle">Matching controls</strong>
-        {matches.slice(0, 8).map(link => <button key={link.id} type="button" className="settingsControlResult"
+        {matches.map(link => <button key={link.id} type="button" className="settingsControlResult"
           onClick={() => openControl(link.category, link.target)}>
           <span><strong>{link.label}</strong><small>{link.description}</small></span>
           <ChevronRight size={15} aria-hidden="true" />

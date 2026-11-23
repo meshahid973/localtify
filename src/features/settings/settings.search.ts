@@ -39,14 +39,20 @@ export const SETTINGS_CONTROL_LINKS: readonly SettingsControlLink[] = [
   { id: "tagging", label: "MusicBrainz tag editor", description: "Lyrics & tags", category: "lyrics", target: "settings-lyrics-tagging", keywords: "id3 metadata album cover write file" },
   { id: "folders", label: "Watched music folders", description: "Library", category: "library", target: "settings-library-folders", keywords: "import auto scan sync files" },
   { id: "cleanup", label: "Clean and repair metadata", description: "Library", category: "library", target: "settings-library-cleanup", keywords: "broken songs missing relink rename rebuild index" },
+  { id: "artwork", label: "Reroll library artwork", description: "Library", category: "library", target: "settings-library-artwork", keywords: "cover images art random covers library" },
   { id: "quality", label: "Download quality and format", description: "Downloads", category: "downloads", target: "settings-downloads-quality", keywords: "bitrate mp3 flac wav original opus m4a" },
   { id: "download-folder", label: "Download location", description: "Downloads", category: "downloads", target: "settings-downloads-folder", keywords: "folder location save auto add filenames clean" },
+  { id: "download-import", label: "Import completed downloads", description: "Downloads", category: "downloads", target: "settings-downloads-import", keywords: "keep original audio add to library filename clean title import" },
   { id: "lastfm", label: "Last.fm connection", description: "Discover", category: "discover", target: "settings-discover-lastfm", keywords: "provider api key test network discovery" },
-  { id: "discord", label: "Discord presence and privacy", description: "Discord", category: "discord", target: "settings-discord-privacy", keywords: "rpc status artwork activity buttons hide" },
+  { id: "discover-enable", label: "Enable Discover", description: "Discover", category: "discover", target: "settings-discover-enabled", keywords: "activate catalog search privacy external providers" },
+  { id: "discord", label: "Discord presence and privacy", description: "Discord", category: "discord", target: "settings-discord-privacy", keywords: "rpc status activity buttons hide" },
+  { id: "discord-style", label: "Discord status text", description: "Discord", category: "discord", target: "settings-discord-status", keywords: "rich presence status style second line text" },
+  { id: "discord-artwork", label: "Discord artwork", description: "Discord", category: "discord", target: "settings-discord-artwork", keywords: "rpc rich presence cover images pixel art" },
   { id: "analysis", label: "Audio similarity model", description: "Audio analysis", category: "experimental", target: "settings-analysis-model", keywords: "local ai inference embeddings battery" },
   { id: "history", label: "Listening history", description: "Audio analysis", category: "experimental", target: "settings-analysis-history", keywords: "privacy delete listen scrobble record" },
   { id: "updates", label: "Automatic updates", description: "Updates", category: "updates", target: "settings-updates", keywords: "check restart install version" },
-  { id: "reset", label: "Reset settings", description: "Advanced", category: "advanced", target: "settings-advanced-reset", keywords: "defaults factory restore appearance player discord" }
+  { id: "reset", label: "Reset settings", description: "Advanced", category: "advanced", target: "settings-advanced-reset", keywords: "defaults factory restore appearance player discord" },
+  { id: "diagnostics", label: "Copy diagnostics", description: "Advanced", category: "advanced", target: "settings-advanced-diagnostics", keywords: "technical system app info debugging log platform" }
 ];
 
 export function matchSettingsControls(query: string, allowed: readonly SettingsCategory[]) {

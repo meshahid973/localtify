@@ -1,21 +1,8 @@
 .settingsPage.settingsPageV027 {
 
-
-
-
   color: var(--settings-text);
 }
-.settingsPage.settingsPageV027 .settingsLayout {
 
-
-
-}
-.settingsPage.settingsPageV027 .settingsCategoryRail {
-
-
-
-
-}
 .settingsPage.settingsPageV027 .settingsSearchBoxV027 { display: grid;   }
 .settingsPageV027 .settingsSearchBoxV027 > label,
 .settingsPageV027 .settingsNavCaption { color: var(--settings-muted); font-size: 11px; font-weight: 650; letter-spacing: .065em; text-transform: uppercase; }
@@ -37,25 +24,14 @@
 .settingsPageV027 .settingsSearchClear { position: absolute; right: 3px; display: grid; place-items: center; width: 31px; height: 31px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--settings-muted); cursor: pointer; }
 .settingsPageV027 .settingsSearchClear:hover { background: var(--settings-elevated); color: var(--settings-text); }
 .settingsPage.settingsPageV027 .settingsSearchHintV027 { margin: 0 4px; color: var(--settings-muted); font-size: 11px; }
-.settingsPage.settingsPageV027 .settingsCategoryRail nav {    }
+
 .settingsPage.settingsPageV027 .settingsCategoryButton {
-
-
-
 
   transition: background-color var(--lt-control-motion) ease, color var(--lt-control-motion) ease;
 }
-.settingsPage.settingsPageV027 .settingsCategoryButton:hover {   }
-.settingsPage.settingsPageV027 .settingsCategoryButton[aria-current="page"] {
 
-
-
-}
-.settingsPage.settingsPageV027 .settingsCategoryIcon {     }
-.settingsPage.settingsPageV027 .settingsCategoryButton[aria-current="page"] .settingsCategoryIcon {  }
 .settingsPageV027 .settingsCategoryIcon svg { width: 19px; height: 19px; }
-.settingsPage.settingsPageV027 .settingsCategoryCopy strong {   }
-.settingsPage.settingsPageV027 .settingsCategoryPage {  }
+
 .settingsPage.settingsPageV027 .settingsCategoryHeader {
     gap: 14px;
 
@@ -63,13 +39,7 @@
 .settingsPage.settingsPageV027 .settingsCategoryHeader h4 { margin: 2px 0 0;   color: var(--settings-text);  }
 .settingsPage.settingsPageV027 .settingsCategoryHeader .eyebrow { margin: 0; color: var(--settings-accent); font-size: 12px; letter-spacing: .08em; }
 .settingsPage.settingsPageV027 .settingsCategoryHeader > span { color: var(--settings-muted); font-size: 12px; }
-.settingsPage.settingsPageV027 .settingsPanelCard {
 
-
-
-
-}
-.settingsPage.settingsPageV027 .settingsPanelHeader {   }
 .settingsPage.settingsPageV027 .settingsPanelHeader > div { gap: 4px; }
 .settingsPage.settingsPageV027 .settingsPanelHeader strong { color: var(--settings-text);  }
 .settingsPage.settingsPageV027 .settingsPanelHeader span,
@@ -80,11 +50,7 @@
 .settingsPage.settingsPageV027 .settingsAudioEffectsPanel { grid-column: 1 / -1; }
 .settingsPage.settingsPageV027 .settingsAudioEffectsPanel .settingsSelectField { max-width: 540px; }
 .settingsPage.settingsPageV027 .settingsLayoutControls .settingsMiniGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.settingsPage.settingsPageV027 :is(.toggleRow,.rangeRow) {
 
-
-}
-.settingsPage.settingsPageV027 :is(.toggleRow,.rangeRow):last-child {  }
 .settingsPage.settingsPageV027 :is(.toggleRow,.rangeRow) strong { color: var(--settings-text);  }
 .settingsPage.settingsPageV027 :is(.toggleRow,.rangeRow) small { color: var(--settings-muted); font-size: 12px; }
 .settingsPage.settingsPageV027 .toggleRow input[type="checkbox"] {
@@ -109,21 +75,18 @@
 }
 .settingsPage.settingsPageV027 :is(.settingsActionButton,.settingsTinyButton) {
 
-
-
     cursor: pointer;
 }
-.settingsPage.settingsPageV027 :is(.settingsActionButton,.settingsTinyButton):hover:not(:disabled) {  }
+
 .settingsPage.settingsPageV027 :is(.settingsActionButton,.settingsTinyButton):disabled { opacity: .45; cursor: not-allowed; }
-.settingsPage.settingsPageV027 .settingsPrimaryAction {   }
+
 .settingsPage.settingsPageV027 :is(.settingsChoicePillV491,.settingsChoice,.cleanerOptionV440) {
 
     border-color: var(--settings-edge);
 
 }
-.settingsPage.settingsPageV027 :is(.settingsChoicePillV491,.settingsChoice,.cleanerOptionV440).active {   }
-.settingsPage.settingsPageV027 .settingsChoiceRowV491 { gap: 7px; }
 
+.settingsPage.settingsPageV027 .settingsChoiceRowV491 { gap: 7px; }
 
 .settingsPage.settingsPageV027 .settingsDisclosure { min-width: 0;    }
 
@@ -138,10 +101,8 @@
 .settingsPage.settingsPageV027 .settingsDisclosure > summary > span { margin-left: auto; font-size: 10px; font-weight: 450; color: var(--settings-muted); }
 .settingsPage.settingsPageV027 .settingsDisclosureBody { display: grid; gap: 11px; padding: 13px 16px 16px; border-top: 1px solid var(--settings-edge); }
 
-
 .settingsPage.settingsPageV027 .settingsSidebarDisclosure .sidebarTabsSettings { border: 0; padding: 0; background: transparent; }
 .settingsPage.settingsPageV027 .settingsSidebarDisclosure .sidebarTabsGroups { gap: 12px; }
-
 
 .settingsPage.settingsPageV027 .settingsCategoryContent,
 .settingsPage.settingsPageV027 .settingsCategoryMotion { min-width: 0; }
@@ -462,4 +423,11 @@
 @media (max-width: 600px) {
   .settingsPage.settingsPageV027 .settingsChoiceRowV491 { gap: 6px; }
   .settingsPage.settingsPageV027 :is(.settingsChoice,.settingsChoicePillV491) { min-width: 0; }
+}
+
+.settingsPage.settingsPageV027 .settingsControlResults {
+  max-height: min(40vh, 360px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
 }

@@ -49,7 +49,7 @@ export default function DiscordSettings({
       </div>
     </SettingSection>
     <div className="settingsTwoColumn discordSettingsGrid">
-      <SettingSection title="Status style" description="How your listening activity is described.">
+      <SettingSection id="settings-discord-status" title="Status style" description="How your listening activity is described.">
         <SettingsChoiceGroup label="Discord status style" value={settings.discordActivityStyle}
           options={discordStyleOptions.map(option => ({
             value: option.id as Settings["discordActivityStyle"], label: option.name || option.label || option.id, description: option.note
@@ -62,7 +62,7 @@ export default function DiscordSettings({
           }))} onChange={value => void updateSetting("discordSecondLine", value)} />
       </SettingSection>
     </div>
-    <SettingSection title="Artwork" description="The cover displayed with your Discord presence."
+    <SettingSection id="settings-discord-artwork" title="Artwork" description="The cover displayed with your Discord presence."
       className="discordArtworkCard">
       <SettingsChoiceGroup label="Discord artwork mode" value={settings.discordArtMode}
         options={discordArtModeOptions.map(option => ({
