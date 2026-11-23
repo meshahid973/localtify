@@ -477,7 +477,7 @@ test("irrelevant direct catalog hits fall back to structured MusicBrainz search"
   const handlers = new Map();
   const settings = { discoverEnabled: true };
   const calls = [];
-  const direct = [{ id: "ytmusic:abcdefghijk", title: "Other Track", artist: "Unrelated", url: "https://www.youtube.com/watch?v=abcdefghijk" }];
+  const direct = [{ id: "ytmusic:abcdefghijk", title: "Unrelated Tune", artist: "Unrelated", url: "https://www.youtube.com/watch?v=abcdefghijk" }];
   registerDiscoverIpc({ handle: (name, handler) => handlers.set(name, handler) }, {
     getSongs: () => [],
     getSettings: () => settings,
