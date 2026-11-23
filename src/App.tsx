@@ -5276,7 +5276,7 @@ function MainModeApp() {
   const playerUpdateVolume = useStableCallback((key: "volume", value: number, persist?: boolean) => updateSetting(key, value, persist));
   const playerQueueItem = useStableCallback(playQueueItem);
   const playerLyricsSeek = useStableCallback((seconds: number) => handleSeek((seconds / (durationRef.current || currentDuration || currentSong?.duration || 1)) * 100));
-  const playerLyricsSettings = useStableCallback(() => { setLyricsOpen(false); setSettingsSearch(""); setSettingsCategory("experimental"); changeView("settings"); });
+  const playerLyricsSettings = useStableCallback(() => { setLyricsOpen(false); setSettingsSearch(""); setSettingsCategory("lyrics"); changeView("settings"); });
 
   const libraryAreaDragOver = useStableCallback(handleLibraryAreaDragOver);
   const libraryAreaDragLeave = useStableCallback(handleLibraryAreaDragLeave);

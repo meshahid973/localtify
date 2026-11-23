@@ -29,13 +29,14 @@ export function ToggleRow({ label, help, checked, onChange, disabled }: {
   );
 }
 
-export function RangeRow({ label, value, min, max, step, suffix, onChange }: {
+export function RangeRow({ label, value, min, max, step, suffix, disabled, onChange }: {
   label: string;
   value: number;
   min: number;
   max: number;
   step: number;
   suffix?: string;
+  disabled?: boolean;
   onChange: (value: number) => void;
 }) {
   const [draftValue, setDraftValue] = useState(value);
@@ -62,6 +63,7 @@ export function RangeRow({ label, value, min, max, step, suffix, onChange }: {
       <Slider
         aria-label={label}
         aria-valuetext={shownValue}
+        disabled={disabled}
         min={min}
         max={max}
         step={step}
@@ -81,10 +83,10 @@ export function RangeRow({ label, value, min, max, step, suffix, onChange }: {
   );
 }
 
-export function SettingSection({ title, description, icon, className = "", children }: {
-  title: string; description?: string; icon?: ReactNode; className?: string; children: ReactNode;
+export function SettingSection({ title, description, icon, id, className = "", children }: {
+  title: string; description?: string; icon?: ReactNode; id?: string; className?: string; children: ReactNode;
 }) {
-  return <Surface as="div" className={`settingsPanelCard ${className}`.trim()}>
+  return <Surface as="div" id={id} className={`settingsPanelCard ${className}`.trim()}>
     <div className="settingsPanelHeader"><div><strong>{title}</strong>{description ? <span>{description}</span> : null}</div>{icon}</div>
     {children}
   </Surface>;
@@ -98,4 +100,20 @@ export type UpdateSetting = (key: string, value: unknown) => void | Promise<void
 
 export function detectSettingsPlatform(): Required<PlatformInfoLike> {
   return getLocaltifyPlatformInfo();
+}
+
+export type SettingsOption<T extends string> = { value: T; label: string; description?: string };
+
+export function SettingsChoiceGroup<T extends string>({ label, value, options, onChange, disabled, compact = false, id }: {
+  label: string; value: T; options: readonly SettingsOption<T>[];
+  onChange: (value: T) => void; disabled?: boolean; compact?: boolean; id?: string;
+}) {
+  return <div id={id} className="settingsChoiceRowV491" role="group" aria-label={label}>
+    {options.map(option => <button key={option.value} type="button"
+      className={`${compact ? "settingsChoicePillV491" : "settingsChoice"} ${value === option.value ? "active" : ""}`.trim()}
+      aria-pressed={value === option.value} disabled={disabled} onClick={() => onChange(option.value)}>
+      <strong>{option.label}</strong>
+      {option.description ? <small>{option.description}</small> : null}
+    </button>)}
+  </div>;
 }
