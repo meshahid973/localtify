@@ -70,12 +70,14 @@ test("Home, Library/Liked and shell use active theme tokens", () => {
   assert.doesNotMatch(library, /#06131a|#79a7c4/);
 });
 
-test("User feedback remains available manually without automatic nag prompts", () => {
+test("Feedback transport and UI are absent; performance diagnostics remain", () => {
   const app = read("src/App.tsx");
-  const toast = read("src/features/shell/useAppToast.ts");
-  assert.doesNotMatch(app, /FEEDBACK_PROMPT_DELAY_MS|feedbackPromptBlockersRef/);
-  assert.match(app, /localtify:open-feedback/);
-  assert.match(toast, /kind !== "error"/);
+  const main = read("electron/main.cjs");
+  const preload = read("electron/preload.cjs");
+  assert.doesNotMatch(app, /FeedbackPrompt|openFeedback|feedbackConfigStatus/);
+  assert.doesNotMatch(main, /feedback:send|feedback:status|sendLocaltifyFeedback/);
+  assert.doesNotMatch(preload, /feedback:send|feedback:status/);
+  assert.match(app, /useDiagnosticsInfo/);
 });
 
 test("Settings use a readable width and grouped navigation", () => {
@@ -169,15 +171,10 @@ test("Library and Liked use the shared content gutter and meaningful empty state
 });
 
 
-test("Advanced reset mascot and feedback card stay contained and theme-aware", () => {
+test("Advanced reset controls remain theme-aware without feedback cards", () => {
   const advanced = read("src/features/settings/categories/AdvancedSettings.tsx");
-  const app = read("src/App.tsx");
   assert.match(advanced, /settingsDangerMascotV501/);
-  assert.match(skin, /\.settingsPage\.settingsPageV027 \.settingsDangerMascotV501 \{/);
-  assert.match(skin, /max-height: 96px/);
-  assert.match(skin, /\.settingsPage\.settingsPageV027 \.settingsDangerPanelV491 \.settingsResetGrid/);
-  for (const selector of ["feedbackSettingsCardV331", "feedbackSettingsHeaderV331", "feedbackWebhookStatusV337", "feedbackSettingsButtonV331"]) {
-    assert.ok(app.includes(selector), "Feedback markup missing " + selector);
-    assert.ok(skin.includes("." + selector), "Feedback styles missing " + selector);
-  }
+  assert.match(skin, /settingsDangerMascotV501/);
+  assert.match(skin, /settingsDangerPanelV491/);
+  assert.doesNotMatch(skin, /feedbackSettingsCardV331|feedbackWebhookStatusV337/);
 });
