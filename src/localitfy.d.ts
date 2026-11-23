@@ -9,16 +9,6 @@ import type { ScrobbleAnswer, ScrobbleService, ScrobbleStatus } from "./features
 
 export {};
 
-type LocalitfyFeedbackStatus = {
-  ok: boolean;
-  configured: boolean;
-  valid: boolean;
-  envName?: string;
-  status?: "ready" | "invalid" | "not_configured" | string;
-  label?: string;
-  message?: string;
-};
-
 type LocalitfyPhoneSyncStatus = {
   enabled: boolean;
   running: boolean;
@@ -272,7 +262,7 @@ declare global {
   };
 
   type LocalitfyAppMenuCommand = {
-    type: "navigate" | "back" | "forward" | "settings" | "import-music" | "import-album-folder" | "new-playlist" | "select-all" | "find" | "feedback" | "check-updates";
+    type: "navigate" | "back" | "forward" | "settings" | "import-music" | "import-album-folder" | "new-playlist" | "select-all" | "find" | "check-updates";
     view?: string;
   };
 
@@ -311,22 +301,6 @@ declare global {
     backupPath?: string;
     libraryBackedUp?: boolean;
     releaseNotes?: string;
-  };
-
-  type LocalitfyFeedbackPayload = {
-    category: "bug" | "ui" | "feature" | "other";
-    message: string;
-    appVersion?: string;
-    platform?: string;
-    diagnostics?: Record<string, unknown>;
-  };
-
-  type LocalitfyFeedbackResult = {
-    ok: boolean;
-    code?: string;
-    statusCode?: number;
-    envName?: string;
-    error?: string;
   };
 
   type LocalitfyVolumeAnalysisResult = {
@@ -647,8 +621,7 @@ declare global {
         window?: Record<string, unknown>;
       }>;
       getGpuStatus?: () => Promise<unknown>;
-      sendFeedback?: (payload: LocalitfyFeedbackPayload) => Promise<LocalitfyFeedbackResult>;
-      getFeedbackStatus?: () => Promise<LocalitfyFeedbackStatus>;
+
       openExternal?: (url: string) => Promise<{ ok: boolean; reason?: string }>;
 
       spotifyCheck?: () => Promise<LocalitfySpotifyStatus>;

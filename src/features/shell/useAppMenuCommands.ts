@@ -12,7 +12,6 @@ export type AppMenuActions = {
   openSettings: () => void;
   importSongs: () => unknown;
   importAlbumFolder: () => unknown;
-  openFeedback: () => void;
   checkForUpdates: () => unknown;
 };
 
@@ -71,9 +70,6 @@ export function useAppMenuCommands(actions: AppMenuActions) {
       case "find":
         if (!document.querySelector(SEARCH_SELECTOR)) current.changeView("library");
         focusWhenReady(SEARCH_SELECTOR);
-        break;
-      case "feedback":
-        current.openFeedback();
         break;
       case "check-updates":
         void current.checkForUpdates();
