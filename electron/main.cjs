@@ -358,7 +358,17 @@ function cleanupNativeWindowsMedia() {
   }
 }
 
-async function confirmSettingsFlush(win) {
+const flushConfirmations = new WeakMap();
+function confirmSettingsFlush(win) {
+  if (!win || win.isDestroyed()) return Promise.resolve(true);
+  const existing = flushConfirmations.get(win);
+  if (existing) return existing;
+  const confirmation = confirmPendingSettings(win).finally(() => flushConfirmations.delete(win));
+  flushConfirmations.set(win, confirmation);
+  return confirmation;
+}
+
+async function confirmPendingSettings(win) {
   if (!win || win.isDestroyed() || await settingsFlush.request(win.webContents)) return true;
   if (win.isDestroyed()) return true;
   try {

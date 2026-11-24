@@ -56,15 +56,10 @@ import {
   shouldOpenOnboardingForThisRelease
 } from "./features/onboarding/onboardingRelease";
 import {
-  INITIAL_LIBRARY_RENDER_LIMIT,
-  LIBRARY_RENDER_BATCH_SIZE,
   START_WITH_WINDOWS_DEFAULT_KEY,
   V013_DEFAULTS_KEY,
   screensaverImage
 } from "./core/app.constants";
-import {
-  CODERPIXEL_ARTIST_EASTER_EGG
-} from "./features/library/library.constants";
 import {
   V013_RELEASE_DEFAULTS,
   coverColorSyncOptions,
@@ -92,7 +87,6 @@ import {
   createImportAnimationState,
   getSongPlaybackSourceKey,
   isPlayableSong,
-  maybeApplyCoderpixelArtist,
   reorderSongList,
   saveLibraryOrder,
   stableSongSourceKey
@@ -149,7 +143,7 @@ function MainModeApp() {
   const {
     listeningHistoryRef, audioRef, playerEngineRef, playerControllerRef, playbackTransitionRef,
     crossfadeIntervalRef, crossfadeAutoStartedRef, crossfadeAutoTargetRef, crossfadeMainPauseGuardRef,
-    crossfadeLastStartAtRef, crossfadeHandoffClearTimerRef, crossfadeRecoveryTimerRef, crossfadeHandoffRef, fadeIntervalRef,
+    crossfadeLastStartAtRef, crossfadeHandoffClearTimerRef, crossfadeRecoveryTimerRef, crossfadeHandoffRef,
     animationFrameRef, progressLoopTimeoutRef,
     pendingPlayRef, countPlayRef, playCountSongIdRef, playCountListenedRef, playCountLastTimeRef,
     positionSaveRef, nextAudioRef, playbackUrlCacheRef, playbackUrlPendingRef,
@@ -184,11 +178,9 @@ function MainModeApp() {
   const scrollIdleTimerRef = useRef<number | null>(null);
   const rendererQuietUntilRef = useRef(0);
   const dragPreviewRef = useRef<HTMLDivElement | null>(null);
-  const viewSwitchTimerRef = useRef<number | null>(null);
   const heroReflowTimerRef = useRef<number | null>(null);
   const heroCoverMotionTimerRef = useRef<number | null>(null);
   const appRootRef = useRef<HTMLElement | null>(null);
-  const activeViewRef = useRef<View>("home");
   const libraryOrderSaveTimerRef = useRef<number | null>(null);
   const lastSavedOrderRef = useRef<string[]>([]);
   const selectSongBurstTimerRef = useRef<number | null>(null);
@@ -225,7 +217,6 @@ function MainModeApp() {
   const isAppBackgroundedRef = useRef(isAppBackgrounded);
   const [diagnosticsCopied, setDiagnosticsCopied] = useState(false);
   const [performanceStatus, setPerformanceStatus] = useState<{ok?:boolean;electronVersion?:string;chromeVersion?:string}|null>(null);
-  const [isViewSwitching, setIsViewSwitching] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(() => shouldOpenOnboardingForThisRelease());
   const {
     editorSong, setEditorSong,
@@ -237,8 +228,6 @@ function MainModeApp() {
     query, setQuery, deferredQuery,
     libraryFilterMode, setLibraryFilterMode,
     librarySortMode, setLibrarySortMode,
-    libraryRenderLimit, setLibraryRenderLimit,
-    libraryRenderLimitRef, libraryListLengthRef,
     songContextMenu, setSongContextMenu,
     libraryScanBusy, setLibraryScanBusy,
     libraryScanMessage, setLibraryScanMessage,
@@ -255,7 +244,7 @@ function MainModeApp() {
   } = useLibraryController();
 
   const { libraryIndex, mostPlayed, missingSongsForLibrary, visibleSongs, libraryOrderLocked, songsById, songIndexById, playableSongs } = useLibraryDerivedState({
-    songs, deferredQuery, view, libraryFilterMode, librarySortMode, libraryRenderLimit, libraryListLengthRef, libraryRenderLimitRef
+    songs, deferredQuery, view, libraryFilterMode, librarySortMode
   });
 
   const albumsController = useAlbumsController({
@@ -411,44 +400,16 @@ function MainModeApp() {
     setLyricsOpen(false);
     if (nextView === "covers") nextView = "library";
 
-    if (viewSwitchTimerRef.current !== null) {
-      window.clearTimeout(viewSwitchTimerRef.current);
-      viewSwitchTimerRef.current = null;
-    }
-
-    // v0.2.8: switching sections should feel instant. The old viewSwitching
-    // timer forced extra renders and briefly paused the app ambience, which made
-    // every page feel like it was loading. Keep the page change low-priority,
-    // but do not add the extra visual shutdown state.
-    setIsViewSwitching(false);
-
     startTransition(() => {
       setView(nextView);
     });
   }
 
   useEffect(() => {
-    if (view !== "library" && view !== "liked") return;
-    if (libraryRenderLimitRef.current === INITIAL_LIBRARY_RENDER_LIMIT) return;
-
-    libraryRenderLimitRef.current = INITIAL_LIBRARY_RENDER_LIMIT;
-    setLibraryRenderLimit(INITIAL_LIBRARY_RENDER_LIMIT);
-  }, [view, deferredQuery, settings.denseList]);
-
-  useEffect(() => {
-    activeViewRef.current = view;
-  }, [view]);
-
-  useEffect(() => {
     return () => {
       if (selectSongBurstTimerRef.current !== null) {
         window.clearTimeout(selectSongBurstTimerRef.current);
         selectSongBurstTimerRef.current = null;
-      }
-
-      if (viewSwitchTimerRef.current !== null) {
-        window.clearTimeout(viewSwitchTimerRef.current);
-        viewSwitchTimerRef.current = null;
       }
 
       if (heroReflowTimerRef.current !== null) {
@@ -689,18 +650,6 @@ function MainModeApp() {
       rendererQuietUntilRef.current = performance.now() + 900;
       appRootRef.current?.classList.add("isScrolling");
 
-      const nearBottom = node.scrollTop + node.clientHeight >= node.scrollHeight - 680;
-      const activeView = activeViewRef.current;
-      const shouldLoadMore = nearBottom && (activeView === "library" || activeView === "liked" || activeView === "home");
-
-      if (shouldLoadMore && libraryRenderLimitRef.current < libraryListLengthRef.current) {
-        setLibraryRenderLimit((limit) => {
-          const nextLimit = Math.min(libraryListLengthRef.current, limit + LIBRARY_RENDER_BATCH_SIZE);
-          libraryRenderLimitRef.current = nextLimit;
-          return nextLimit;
-        });
-      }
-
       if (scrollIdleTimerRef.current !== null) {
         window.clearTimeout(scrollIdleTimerRef.current);
       }
@@ -846,8 +795,8 @@ function MainModeApp() {
     settings.coverColorSyncMode ?? (settings.showAmbientGradient ? "normal" : "off")
   );
   const effectiveCoverColorSyncMode: CoverColorSyncMode = selectedCoverColorSyncMode;
-  const effectiveAmbient = !isViewSwitching && effectiveCoverColorSyncMode !== "off";
-  const effectiveNotes = !isViewSwitching && (settings.showFloatingNotes || isThreeAm);
+  const effectiveAmbient = effectiveCoverColorSyncMode !== "off";
+  const effectiveNotes = (settings.showFloatingNotes || isThreeAm);
   function beginFastThemePaint() {
 
     document.body.classList.add("localitfyThemePainting");
@@ -1454,7 +1403,7 @@ function MainModeApp() {
     return () => {
       clearBeatTimers();
     };
-  }, [ready, isPlaying, currentSong?.id, isAppBackgrounded, settings.animatedGlow, settings.reducedMotion, settings.volume, settings.playbackSpeed, settings.audioEffectMode, settings.audioEffectAmount, settings.audioReverbAmount, view, settingsCategory, isViewSwitching, isSeeking, isVolumeDragging]);
+  }, [ready, isPlaying, currentSong?.id, isAppBackgrounded, settings.animatedGlow, settings.reducedMotion, settings.volume, settings.playbackSpeed, settings.audioEffectMode, settings.audioEffectAmount, settings.audioReverbAmount, view, settingsCategory, isSeeking, isVolumeDragging]);
 
 
   function resetPlayCountTracker(outcome: Exclude<ListeningOutcome, "active"> = "interrupted") {
@@ -2886,11 +2835,6 @@ function MainModeApp() {
   }
 
   function stopFade() {
-    if (fadeIntervalRef.current !== null) {
-      window.clearInterval(fadeIntervalRef.current);
-      fadeIntervalRef.current = null;
-    }
-
     if (fadeFrameRef.current !== null) {
       window.cancelAnimationFrame(fadeFrameRef.current);
       fadeFrameRef.current = null;
@@ -3390,25 +3334,12 @@ function MainModeApp() {
         })
       );
 
-      const rawImported = applyLibraryOrder(sanitizeSongList(await window.localitfy.importSongs()));
-      const { songs: imported, changedSongs } = maybeApplyCoderpixelArtist(
-        rawImported,
-        previousSongIds,
-        previousSongSources
-      );
+      const imported = applyLibraryOrder(sanitizeSongList(await window.localitfy.importSongs()));
 
       playbackUrlCacheRef.current.clear();
       playbackUrlPendingRef.current.clear();
       setSongs(imported);
       setLibraryScanMessage(`indexed ${imported.length} tracks • search, folders, and metadata ready`);
-
-      if (changedSongs.length > 0) {
-        void Promise.allSettled(
-          changedSongs.map((song) =>
-            window.localitfy.patchSong(song.id, { artist: CODERPIXEL_ARTIST_EASTER_EGG })
-          )
-        ).catch(() => undefined);
-      }
 
       const pickedSong =
         imported.find((song) => song.id === currentId) ||
@@ -3818,15 +3749,10 @@ function MainModeApp() {
 
     if (blockedDragOrigin) return;
 
-    const originIndex = songs.findIndex((song) => song.id === songId);
-    if (originIndex < 0) return;
+    if (!songsById.has(songId)) return;
 
     pointerLibraryDragRef.current = {
       songId,
-      originIndex,
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
       active: false,
       latestTargetId: null,
       latestSide: "after",
@@ -3862,6 +3788,7 @@ function MainModeApp() {
       finish: (apply, x, y) => {
         const runtime = pointerLibraryDragRef.current;
         if (runtime && apply) {
+          runtime.active = true;
           const target = findPointerLibraryTarget(x, y, runtime.songId);
           runtime.latestTargetId = target?.songId ?? null;
           if (target) runtime.latestSide = target.side;
@@ -4887,17 +4814,11 @@ function MainModeApp() {
     requestLibraryGridSongSelect(songId, shouldPlay);
   });
 
-  const togglePlayCardAction = useStableCallback(() => {
-    togglePlay();
-  });
 
   const toggleLikeCardAction = useStableCallback((songId: string) => {
     toggleLike(songId);
   });
 
-  const openEditorCardAction = useStableCallback((song: Song) => {
-    openEditor(song);
-  });
 
   const openPlaylistPickerCardAction = useStableCallback((song: Song) => {
     openPlaylistPicker(song);
@@ -5242,16 +5163,16 @@ function MainModeApp() {
   const libraryRows = useMemo<Omit<VirtualSongRowsProps, "list" | "className">>(() => ({
     currentId, isPlaying, draggedSongId, libraryDragOverSongId, libraryDropSide, draggedSongTitle,
     onAreaDragOver: libraryAreaDragOver, onAreaDragLeave: libraryAreaDragLeave, onAreaDrop: libraryAreaDrop,
-    onSelectSong: selectSongCardAction, onTogglePlay: togglePlayCardAction, onToggleLike: toggleLikeCardAction,
-    onOpenEditor: openEditorCardAction, onOpenPlaylistPicker: openPlaylistPickerCardAction,
+    onSelectSong: selectSongCardAction, onToggleLike: toggleLikeCardAction,
+    onOpenPlaylistPicker: openPlaylistPickerCardAction,
     onOpenSongContextMenu: openSongContextMenuCardAction, onStartSongDrag: startSongDragCardAction,
     onPointerStartSongDrag: libraryOrderLocked ? undefined : startPointerSongDragCardAction, registerLibrarySongElement,
     onMoveSong: libraryOrderLocked ? undefined : moveLibraryRow,
     onDragOverSong: dragOverSongCardAction, onDragLeaveSong: dragLeaveSongCardAction,
     onDropSong: dropSongCardAction, onDragEnd: endSongDragCardAction
   }), [currentId, isPlaying, draggedSongId, libraryDragOverSongId, libraryDropSide, draggedSongTitle,
-    libraryAreaDragOver, libraryAreaDragLeave, libraryAreaDrop, selectSongCardAction, togglePlayCardAction,
-    toggleLikeCardAction, openEditorCardAction, openPlaylistPickerCardAction, openSongContextMenuCardAction,
+    libraryAreaDragOver, libraryAreaDragLeave, libraryAreaDrop, selectSongCardAction,
+    toggleLikeCardAction, openPlaylistPickerCardAction, openSongContextMenuCardAction,
     startSongDragCardAction, startPointerSongDragCardAction, libraryOrderLocked, moveLibraryRow, registerLibrarySongElement, dragOverSongCardAction,
     dragLeaveSongCardAction, dropSongCardAction, endSongDragCardAction]);
 
@@ -5263,7 +5184,6 @@ function MainModeApp() {
       closeWindowSafely,
       themeMotionReady,
       showTopUpdateRibbon,
-      isViewSwitching,
       heroMotion,
       heroMotionAppClass,
       homeEntranceSettledClass,

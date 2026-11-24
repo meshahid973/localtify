@@ -1744,14 +1744,6 @@ button {
   display: none !important;
 }
 
-.app.viewSwitching .ambientSurface::before,
-.app.viewSwitching .ambientSurface::after,
-.app.viewSwitching .coverAura,
-.app.viewSwitching .albumAura {
-  animation-play-state: paused !important;
-  opacity: .28 !important;
-  filter: none !important;
-}
 
 .titleLogoImage,
 .buttonInlineIcon{
@@ -1809,17 +1801,7 @@ button {
   object-fit: contain !important;
 }
 
-.app.viewSwitching .ambientSurface {
-  transition-duration: 90ms;
-}
 
-.app.viewSwitching .ambientSurface::before,
-.app.viewSwitching .ambientSurface::after,
-.app.viewSwitching .coverAura {
-  animation-play-state: paused;
-  filter: none;
-  opacity: .18;
-}
 .app .appToast{
   top: 58px !important;
   right: 22px !important;
@@ -1945,13 +1927,6 @@ body.localtifyIdle .app:not(.songDragActive) .secretLayer{
   background-image: none !important;
 }
 
-.app.viewSwitching,
-.app.viewSwitching .pageTransition,
-.app.viewSwitching .ambientSurface,
-.app.viewSwitching .coverAura{
-  filter: none !important;
-  opacity: 1 !important;
-}
 
 .pageTransition,
 .pageTransition > *{
@@ -2056,10 +2031,6 @@ body::after,
   transform: translate3d(0,0,0);
 }
 
-.app.viewSwitching .pageTransition {
-  opacity: 1 !important;
-  transform: translate3d(0,0,0) !important;
-}
 
 .app .sidebarNav button{
   transform: translate3d(0,0,0) !important;

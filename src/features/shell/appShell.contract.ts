@@ -36,7 +36,7 @@ export type AppShellPlatformInfo = { id: "windows" | "linux" | "mac" | "unknown"
 export type ShellFrameContract = {
   appRootRef: RefObject<HTMLElement | null>; settings: Settings; platformInfo: AppShellPlatformInfo;
   closeWindowSafely: () => unknown;
-  themeMotionReady: boolean; showTopUpdateRibbon: boolean; isViewSwitching: boolean;
+  themeMotionReady: boolean; showTopUpdateRibbon: boolean;
   heroMotion: "idle" | "expanding" | "compacting"; heroMotionAppClass: string; homeEntranceSettledClass: string;
   isAppBackgrounded: boolean; scrollBusyRef: RefObject<boolean>; themeSettling: boolean;
   effectiveTheme: string; effectiveAmbient: boolean; effectiveCoverColorSyncMode: CoverColorSyncMode;

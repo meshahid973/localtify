@@ -25,7 +25,7 @@ export default function PhoneSyncSettings() {
   useEffect(() => {
     let active = true;
     const version = revision.current;
-    const unsubscribe = window.localitfy.onPhoneSyncStatus(next => { revision.current++; if (active) setStatus(next); });
+    const unsubscribe = window.localitfy.onPhoneSyncStatus(next => { revision.current++; if (active) { setStatus(next); setError(""); } });
     void window.localitfy.getPhoneSyncStatus().then(next => { if (active && version === revision.current) setStatus(next); }).catch(() => { if (active && version === revision.current) setError("Could not load phone sync status."); });
     return () => { active = false; unsubscribe(); };
   }, []);

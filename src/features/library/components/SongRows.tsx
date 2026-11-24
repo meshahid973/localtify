@@ -11,9 +11,7 @@ import { TrackMetadata } from "../TrackMetadata";
 
 export type SongInteractionHandlers = {
   onSelectSong: (songId: string, shouldPlay?: boolean) => void;
-  onTogglePlay: () => void;
   onToggleLike: (songId: string) => void;
-  onOpenEditor?: (song: Song) => void;
   onOpenPlaylistPicker: (song: Song) => void;
   onOpenSongContextMenu?: (event: ReactMouseEvent<HTMLElement>, song: Song) => void;
   onStartSongDrag: (event: DragEvent<HTMLElement>, songId: string) => void;
@@ -84,7 +82,7 @@ export const SongRowItem = memo(function SongRowItem({
         onPointerStartSongDrag?.(event, song.id);
       }}
       onKeyDown={event => {
-        if (!moveAdjacent || onToggleSelection || !event.altKey || !["ArrowUp", "ArrowDown"].includes(event.key)) return;
+        if (!moveAdjacent || onToggleSelection || !event.altKey || event.ctrlKey || event.metaKey || !["ArrowUp", "ArrowDown"].includes(event.key)) return;
         event.preventDefault(); event.stopPropagation();
         moveAdjacent(event.key === "ArrowUp" ? -1 : 1);
       }}
@@ -146,7 +144,6 @@ export const VirtualSongRows = memo(function VirtualSongRows({
   onAreaDragLeave,
   onAreaDrop,
   onSelectSong,
-  onTogglePlay,
   onToggleLike,
   onOpenPlaylistPicker,
   onOpenSongContextMenu,
@@ -230,7 +227,6 @@ export const VirtualSongRows = memo(function VirtualSongRows({
                 libraryDropSide={libraryDropSide}
                 draggedSongTitle={draggedSongTitle}
                 onSelectSong={onSelectSong}
-                onTogglePlay={onTogglePlay}
                 onToggleLike={onToggleLike}
                 onOpenPlaylistPicker={onOpenPlaylistPicker}
                 onOpenSongContextMenu={onOpenSongContextMenu}
