@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, DragEvent, MouseEvent as ReactMouseEvent, PointerEvent } from "react";
 import { usePageVirtualizer } from "../../../shared/hooks/usePageVirtualizer";
 import { GripVertical, X } from "lucide-react";
@@ -59,13 +59,15 @@ export const VirtualPlaylistTrackList = memo(function VirtualPlaylistTrackList({
   const songIds = useMemo(() => new Set(list.map(song => song.id)), [list]);
   const [dropTarget, setDropTarget] = useState<{ songId: string; side: LibraryDropSide } | null>(null);
   const [pointerSong, setPointerSong] = useState("");
-  const pointer = useRef<{ id: number; songId: string; x: number; y: number } | null>(null);
+  const pointer = useRef<{ id: number; songId: string; playlistId: string; x: number; y: number } | null>(null);
   const { listRef, virtualizer: rowVirtualizer, scrollMargin } = usePageVirtualizer<HTMLDivElement>({
     count: list.length,
     estimateSize: () => 72,
     overscan: 5,
     getItemKey: (index) => `${selectedPlaylistId}-${list[index]?.id || index}`
   });
+
+  useEffect(() => { pointer.current = null; setPointerSong(""); setDropTarget(null); }, [selectedPlaylistId, reorderable]);
 
   function pointerTarget(event: PointerEvent<HTMLElement>, source: string) {
     const row = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>(".playlistTrackRow[data-track-id]");
@@ -79,7 +81,7 @@ export const VirtualPlaylistTrackList = memo(function VirtualPlaylistTrackList({
     const drag = pointer.current;
     if (!drag || drag.id !== event.pointerId) return;
     pointer.current = null;
-    const target = apply && reorderable && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) >= 7 ? pointerTarget(event, drag.songId) : null;
+    const target = apply && reorderable && drag.playlistId === selectedPlaylistId && songIds.has(drag.songId) && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) >= 7 ? pointerTarget(event, drag.songId) : null;
     if (target) onDropSong(selectedPlaylistId, drag.songId, target.songId, target.side);
     setPointerSong("");
     setDropTarget(null);
@@ -197,7 +199,7 @@ export const VirtualPlaylistTrackList = memo(function VirtualPlaylistTrackList({
                 onPointerDown={event => {
                   if (!reorderable || !["touch", "pen"].includes(event.pointerType) || pointer.current) return;
                   event.preventDefault(); event.stopPropagation();
-                  pointer.current = { id: event.pointerId, songId: song.id, x: event.clientX, y: event.clientY };
+                  pointer.current = { id: event.pointerId, songId: song.id, playlistId: selectedPlaylistId, x: event.clientX, y: event.clientY };
                   event.currentTarget.setPointerCapture(event.pointerId);
                   setPointerSong(song.id);
                 }}

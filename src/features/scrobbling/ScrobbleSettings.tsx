@@ -16,7 +16,7 @@ export default function ScrobbleSettings({ lastfmApiKey, saveLastfmApiKey }: Scr
   const [apiKey, setApiKey] = useState(lastfmApiKey || "");
   const [secret, setSecret] = useState("");
   const [token, setToken] = useState("");
-  const [busy, setBusy] = useState<"" | ScrobbleService | "send" | `history-${ScrobbleService}`>("");
+  const [busy, setBusy] = useState<"" | ScrobbleService | "send" | "cancel" | `history-${ScrobbleService}`>("");
   const [error, setError] = useState("");
 
   const pendingStatusRef = useRef(false);
@@ -74,7 +74,7 @@ export default function ScrobbleSettings({ lastfmApiKey, saveLastfmApiKey }: Scr
     const operation = ++operationRef.current;
     statusGenerationRef.current++;
     busyRef.current = true;
-    setBusy("lastfm");
+    setBusy("cancel");
     setError("");
     try { const next = await window.localitfy.cancelScrobbleConnect(); if (operation === operationRef.current) setStatus(next); }
     catch { if (operation === operationRef.current) setError("Could not cancel the connection. Try again."); }
@@ -98,9 +98,9 @@ export default function ScrobbleSettings({ lastfmApiKey, saveLastfmApiKey }: Scr
         {status.lastfm.connected ? <span>Connected as <b>{status.lastfm.username}</b></span> : null}</div>
       {status.lastfm.connected ? (
         <>{history("lastfm")}<button type="button" className="settingsActionButton" disabled={Boolean(busy)} onClick={() => void disconnect("lastfm")}>Disconnect</button></>
-      ) : status.connecting === "lastfm" || busy === "lastfm" ? (
+      ) : status.connecting === "lastfm" || busy === "lastfm" || busy === "cancel" ? (
         <div className="scrobbleRow"><span role="status">Approve localtify on the Last.fm page that just opened in your browser…</span>
-          <button type="button" className="settingsActionButton" onClick={() => void cancelConnect()}>Cancel</button></div>
+          <button type="button" className="settingsActionButton" disabled={busy === "cancel"} onClick={() => void cancelConnect()}>Cancel</button></div>
       ) : (
         <div className="scrobbleRow">
           <input className="scrobbleInput" value={apiKey} onChange={(event) => setApiKey(event.currentTarget.value)} placeholder="API key"

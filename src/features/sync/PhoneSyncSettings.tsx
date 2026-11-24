@@ -33,10 +33,10 @@ export default function PhoneSyncSettings() {
   async function run(action: () => Promise<PhoneSyncStatus>) {
     if (pending.current) return;
     pending.current = true;
-    revision.current++;
+    const version = ++revision.current;
     setBusy(true);
     setError("");
-    try { setStatus(await action()); } catch { setError("Phone sync request failed. Refresh status and try again."); }
+    try { const next = await action(); if (version === revision.current) setStatus(next); } catch { setError("Phone sync request failed. Refresh status and try again."); }
     finally { pending.current = false; setBusy(false); }
   }
 
@@ -44,23 +44,23 @@ export default function PhoneSyncSettings() {
   return <div className="settingsPanelCard settingsFocusPanelV491">
     <div className="settingsPanelHeader"><div><strong>Phone sync</strong><span>Sync your phone over local Wi-Fi.</span></div></div>
     <div className="settingsActionRow settingsActionRowCleanV491">
-      <button type="button" className={`settingsActionButton ${status?.enabled ? "" : "settingsPrimaryAction"}`} disabled={busy || !status}
+      <button type="button" className={`settingsActionButton ${status?.enabled ? "" : "settingsPrimaryAction"}`} disabled={busy || !status || Boolean(error)}
         onClick={() => void run(() => window.localitfy.setPhoneSyncEnabled(!status?.enabled))}>{status?.enabled ? "Turn off" : "Turn on"}</button>
-      {status?.enabled ? <button type="button" className="settingsActionButton settingsPrimaryAction" disabled={busy}
+      {status?.enabled ? <button type="button" className="settingsActionButton settingsPrimaryAction" disabled={busy || Boolean(error)}
         onClick={() => void run(window.localitfy.newPhoneSyncCode)}><Smartphone size={14} /> Pair a phone</button> : null}
     </div>
     {!status && !error ? <p role="status">Loading phone sync…</p> : null}
     {error ? <div role="alert" className="settingsHintText phoneSyncError">{error} <button type="button" className="settingsActionButton" disabled={busy} onClick={() => void run(() => window.localitfy.getPhoneSyncStatus())}>Retry</button></div> : null}
     {status?.error ? <p className="settingsHintText phoneSyncError" role="alert">{status.error}</p> : null}
-    {status?.pairing ? <div className="phoneSyncPairing" role="status">
+    {!error && status?.pairing ? <div className="phoneSyncPairing" role="status">
       <span>In the phone app, open Settings → Library and enter this address and code</span>
       <strong className="phoneSyncCode">{status.pairing.code}</strong>
       <small>{status.name}{address ? ` · ${address}` : ""} · code expires in 10 minutes</small>
-    </div> : status?.enabled && status.running ? <p className="settingsHintText">On · {status.name}{address ? ` · ${address}` : ""}</p> : null}
+    </div> : !error && status?.enabled && status.running ? <p className="settingsHintText">On · {status.name}{address ? ` · ${address}` : ""}</p> : null}
     {status?.devices.length ? <ul className="watchedFolderList" aria-label="Paired phones">
       {status.devices.map((device) => <li key={device.id}>
         <span><strong>{device.name}</strong><small>{ago(device.lastSyncAt)}</small></span>
-        <button type="button" className="settingsTinyButton" disabled={busy} aria-label={`Forget ${device.name}`}
+        <button type="button" className="settingsTinyButton" disabled={busy || Boolean(error)} aria-label={`Forget ${device.name}`}
           onClick={() => void run(() => window.localitfy.forgetPhoneSyncDevice(device.id))}><X size={13} /></button>
       </li>)}
     </ul> : null}
