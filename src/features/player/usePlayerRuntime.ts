@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import { useStableCallback } from "../../shared/hooks/useStableCallback";
-import { ListeningHistory } from "./listeningHistory";
+import { ListeningHistory, createListeningEventWriter, type PlayEvent } from "./listeningHistory";
 import { AudioEffectRuntime } from "./audio/audioEffectRuntime";
 import { PlaybackTransitionCoordinator } from "./engine/playbackTransitionCoordinator";
 import { PlaybackUrlCache } from "./playbackUrlCache";
@@ -10,31 +10,43 @@ import type { PlayerController } from "./engine/playerController";
 import type { PlaybackUrlResult, Song } from "../library/song.types";
 import type { QueueHistoryItem, RepeatMode } from "./player.types";
 import { QUEUE_HISTORY_STORAGE_KEY, QUEUE_STORAGE_KEY, REPEAT_PLAYLIST_STORAGE_KEY, SHUFFLE_STORAGE_KEY, REPEAT_MODE_STORAGE_KEY } from "../library/library.constants";
+import { clamp } from "../../shared/utils/format";
 import { readLocalJson, writeLocalJson } from "../../shared/storage/localStorage";
 
 export type UsePlayerRuntimeOptions = {
   defaultVolume: number;
+  setAudioElementVolume: (audio: HTMLAudioElement | null | undefined, volume: number) => void;
 };
 
-export function usePlayerRuntime({ defaultVolume }: UsePlayerRuntimeOptions) {
+export function usePlayerRuntime({ defaultVolume, setAudioElementVolume }: UsePlayerRuntimeOptions) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playbackTransition] = useState(() => new PlaybackTransitionCoordinator());
   const playbackTransitionRef = useRef(playbackTransition);
+  const [listeningWriter] = useState(() => createListeningEventWriter(
+    event => window.localitfy.recordPlayEvent(event),
+    pending => writeLocalJson("localitfy.pending-listening-events-v1", pending),
+    readLocalJson<PlayEvent[]>("localitfy.pending-listening-events-v1", [])
+  ));
   const listeningHistoryRef = useRef<ListeningHistory | null>(null);
   if (!listeningHistoryRef.current) {
     listeningHistoryRef.current = new ListeningHistory((event) => {
-      void window.localitfy.recordPlayEvent(event).catch(() => undefined);
+      listeningWriter.enqueue(event);
     });
   }
 
   useEffect(() => {
     const finish = () => listeningHistoryRef.current?.finish("interrupted");
+    const retry = () => { void listeningWriter.flush(); };
+    retry();
+    window.addEventListener("focus", retry);
     window.addEventListener("pagehide", finish);
     return () => {
+      window.removeEventListener("focus", retry);
       window.removeEventListener("pagehide", finish);
       finish();
     };
-  }, []);
+  }, [listeningWriter]);
+  const flushListeningEvents = useCallback(() => listeningWriter.flush(), [listeningWriter]);
 
   const playerEngineRef = useRef<HtmlAudioEngine | null>(null);
   const playerControllerRef = useRef<PlayerController | null>(null);
@@ -172,8 +184,104 @@ export function usePlayerRuntime({ defaultVolume }: UsePlayerRuntimeOptions) {
     };
   }, []);
 
+  function stopFade() {
+    if (fadeFrameRef.current !== null) {
+      window.cancelAnimationFrame(fadeFrameRef.current);
+      fadeFrameRef.current = null;
+    }
+  }
+
+  function fadeAudio(target: number, duration: number, onDone?: () => void) {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    stopFade();
+
+    const safeTarget = clamp(Number(target) || 0, 0, 1);
+    const safeDuration = Math.max(0, Number(duration) || 0);
+    const startVolume = clamp(Number(audio.volume) || 0, 0, 1);
+    const delta = safeTarget - startVolume;
+
+    // No animation frames while hidden
+    if (safeDuration <= 0 || Math.abs(delta) < 0.002 || document.hidden) {
+      setAudioElementVolume(audio, safeTarget);
+      effectiveVolumeRef.current = safeTarget;
+      if (onDone) onDone();
+      return;
+    }
+
+    const startTime = performance.now();
+
+    const step = () => {
+      const progressValue = clamp((performance.now() - startTime) / safeDuration, 0, 1);
+      const eased = 1 - Math.pow(1 - progressValue, 2.2);
+      const nextVolume = clamp(startVolume + delta * eased, 0, 1);
+
+      setAudioElementVolume(audio, nextVolume);
+      effectiveVolumeRef.current = nextVolume;
+
+      if (progressValue >= 1) {
+        fadeFrameRef.current = null;
+        if (onDone) onDone();
+        return;
+      }
+
+      fadeFrameRef.current = window.requestAnimationFrame(step);
+    };
+
+    fadeFrameRef.current = window.requestAnimationFrame(step);
+  }
+
+  function clearCrossfadeHandoffSoon(songId: string, delayMs = 1400) {
+    if (crossfadeHandoffClearTimerRef.current !== null) {
+      window.clearTimeout(crossfadeHandoffClearTimerRef.current);
+      crossfadeHandoffClearTimerRef.current = null;
+    }
+
+    crossfadeHandoffClearTimerRef.current = window.setTimeout(() => {
+      if (crossfadeHandoffRef.current?.songId === songId) {
+        crossfadeHandoffRef.current = null;
+      }
+
+      crossfadeHandoffClearTimerRef.current = null;
+    }, delayMs);
+  }
+
+  function stopCrossfadeAuto() {
+    playbackTransitionRef.current.crossfadeCancelled();
+    if (crossfadeIntervalRef.current !== null) {
+      window.clearInterval(crossfadeIntervalRef.current);
+      crossfadeIntervalRef.current = null;
+    }
+
+    if (crossfadeHandoffClearTimerRef.current !== null) {
+      window.clearTimeout(crossfadeHandoffClearTimerRef.current);
+      crossfadeHandoffClearTimerRef.current = null;
+    }
+
+    if (crossfadeRecoveryTimerRef.current !== null) {
+      window.clearTimeout(crossfadeRecoveryTimerRef.current);
+      crossfadeRecoveryTimerRef.current = null;
+    }
+    crossfadeAutoStartedRef.current = false;
+    crossfadeAutoTargetRef.current = "";
+    crossfadeMainPauseGuardRef.current = false;
+    crossfadeHandoffRef.current = null;
+    setCrossfadePreviewSongId("");
+
+    const nextAudio = nextAudioRef.current;
+    if (nextAudio) {
+      try {
+        nextAudio.pause();
+        nextAudio.currentTime = 0;
+        setAudioElementVolume(nextAudio, 0);
+      } catch {
+      }
+    }
+  }
+
   return {
-    listeningHistoryRef, audioRef, playerEngineRef, playerControllerRef, playbackTransitionRef,
+    flushListeningEvents, listeningHistoryRef, audioRef, playerEngineRef, playerControllerRef, playbackTransitionRef,
     crossfadeIntervalRef, crossfadeAutoStartedRef, crossfadeAutoTargetRef, crossfadeMainPauseGuardRef,
     crossfadeLastStartAtRef, crossfadeHandoffClearTimerRef, crossfadeRecoveryTimerRef, crossfadeHandoffRef,
     animationFrameRef, progressLoopTimeoutRef,
@@ -183,7 +291,8 @@ export function usePlayerRuntime({ defaultVolume }: UsePlayerRuntimeOptions) {
     volumeRef, effectiveVolumeRef, lastNonZeroVolumeRef, beatFrameRef, beatFrameTimerRef,
     audioEffectRuntimeRef, beatSmoothRef, beatReactiveTargetCacheRef, beatLastPaintSignatureRef,
     progressDomSignatureRef, isVolumeDragging, setIsVolumeDragging, volumeDraft, setVolumeDraft,
-    volumeDraftRef, volumeDraftFrameRef, liveVolumeFrameRef, liveVolumePendingPercentRef, fadeFrameRef,
+    volumeDraftRef, volumeDraftFrameRef, liveVolumeFrameRef, liveVolumePendingPercentRef,
+    stopFade, fadeAudio, stopCrossfadeAuto, clearCrossfadeHandoffSoon,
     currentId, setCurrentId, isPlaying, setIsPlaying, isShuffle, setIsShuffle,
     repeatMode, setRepeatMode, currentTime, setCurrentTime, currentDuration, setCurrentDuration,
     isSeeking, setIsSeeking, seekDraftPercent, setSeekDraftPercent, seekDraftPercentRef,

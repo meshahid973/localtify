@@ -136,7 +136,7 @@ function MainModeApp() {
   const songContextAnchorRef = useRef<HTMLElement | null>(null);
 
   const {
-    listeningHistoryRef, audioRef, playerEngineRef, playerControllerRef, playbackTransitionRef,
+    flushListeningEvents, listeningHistoryRef, audioRef, playerEngineRef, playerControllerRef, playbackTransitionRef,
     crossfadeIntervalRef, crossfadeAutoStartedRef, crossfadeAutoTargetRef, crossfadeMainPauseGuardRef,
     crossfadeLastStartAtRef, crossfadeHandoffClearTimerRef, crossfadeRecoveryTimerRef, crossfadeHandoffRef,
     animationFrameRef, progressLoopTimeoutRef,
@@ -146,7 +146,8 @@ function MainModeApp() {
     beatFrameRef, beatFrameTimerRef, audioEffectRuntimeRef,
     beatSmoothRef, beatReactiveTargetCacheRef, beatLastPaintSignatureRef,
     progressDomSignatureRef, isVolumeDragging, setIsVolumeDragging, volumeDraft, setVolumeDraft,
-    volumeDraftRef, volumeDraftFrameRef, liveVolumeFrameRef, liveVolumePendingPercentRef, fadeFrameRef,
+    volumeDraftRef, volumeDraftFrameRef, liveVolumeFrameRef, liveVolumePendingPercentRef,
+    stopFade, fadeAudio, stopCrossfadeAuto, clearCrossfadeHandoffSoon,
     currentId, setCurrentId, isPlaying, setIsPlaying, isShuffle, setIsShuffle, repeatMode, setRepeatMode,
     currentTime, setCurrentTime, currentDuration, setCurrentDuration, isSeeking, setIsSeeking,
     seekDraftPercent, setSeekDraftPercent, seekDraftPercentRef, isSeekingRef, seekDraftFrameRef,
@@ -155,7 +156,7 @@ function MainModeApp() {
     crossfadePreviewSongId, setCrossfadePreviewSongId, nowPlayingTransitionKey, setNowPlayingTransitionKey,
     playQueue, setPlayQueue, setQueueHistory, repeatPlaylist,
     queueDropHot, setQueueDropHot, queueDropHotRef
-  } = usePlayerRuntime({ defaultVolume: defaultSettings.volume });
+  } = usePlayerRuntime({ defaultVolume: defaultSettings.volume, setAudioElementVolume });
 
   const startupResumePositionRef = useRef<{ songId: string; time: number } | null>(null);
   const bootedRef = useRef(false);
@@ -202,7 +203,7 @@ function MainModeApp() {
   } = useSettingsController({
     initialSettings: () => applyVisualCustomizationDefaults(defaultSettings as Settings),
     bootedRef, volumeDraftRef, setStatusText, showAppToast,
-    flushExtra: () => flushPlaylistsRef.current(),
+    flushExtra: async () => (await Promise.all([flushPlaylistsRef.current(), flushListeningEvents()])).every(Boolean),
     applyLiveVolumePercent, kickThemeSettle
   });
   const [heroMotion, setHeroMotion] = useState<"idle" | "expanding" | "compacting">("idle");
@@ -273,8 +274,8 @@ function MainModeApp() {
     setStatusText,
     showAppToast
   });
-  const askUpdaterToInstall = useStableCallback(async () => { if (await flushSettings() && await flushPlaylistsRef.current()) await installUpdate(); });
-  const closeWindowSafely = useStableCallback(async () => { if (await flushSettings() && await flushPlaylistsRef.current()) await window.localitfy.closeWindow(); });
+  const askUpdaterToInstall = useStableCallback(async () => { if (await flushSettings() && await flushPlaylistsRef.current() && await flushListeningEvents()) await installUpdate(); });
+  const closeWindowSafely = useStableCallback(async () => { if (await flushSettings() && await flushPlaylistsRef.current() && await flushListeningEvents()) await window.localitfy.closeWindow(); });
   const {
     isThreeAm,
     screensaverVisible, setScreensaverVisible,
@@ -1779,10 +1780,7 @@ function MainModeApp() {
         liveVolumeFrameRef.current = null;
       }
 
-      if (fadeFrameRef.current !== null) {
-        window.cancelAnimationFrame(fadeFrameRef.current);
-        fadeFrameRef.current = null;
-      }
+      stopFade();
 
       releaseStandbyAudio();
       window.localitfy.clearDiscordActivity().catch(() => undefined);
@@ -2365,54 +2363,6 @@ function MainModeApp() {
     return clamp(Math.max(3, Number(settings.crossfadeSeconds || 3)), 3, 6);
   }
 
-  function clearCrossfadeHandoffSoon(songId: string, delayMs = 1400) {
-    if (crossfadeHandoffClearTimerRef.current !== null) {
-      window.clearTimeout(crossfadeHandoffClearTimerRef.current);
-      crossfadeHandoffClearTimerRef.current = null;
-    }
-
-    crossfadeHandoffClearTimerRef.current = window.setTimeout(() => {
-      if (crossfadeHandoffRef.current?.songId === songId) {
-        crossfadeHandoffRef.current = null;
-      }
-
-      crossfadeHandoffClearTimerRef.current = null;
-    }, delayMs);
-  }
-
-  function stopCrossfadeAuto() {
-    playbackTransitionRef.current.crossfadeCancelled();
-    if (crossfadeIntervalRef.current !== null) {
-      window.clearInterval(crossfadeIntervalRef.current);
-      crossfadeIntervalRef.current = null;
-    }
-
-    if (crossfadeHandoffClearTimerRef.current !== null) {
-      window.clearTimeout(crossfadeHandoffClearTimerRef.current);
-      crossfadeHandoffClearTimerRef.current = null;
-    }
-
-    if (crossfadeRecoveryTimerRef.current !== null) {
-      window.clearTimeout(crossfadeRecoveryTimerRef.current);
-      crossfadeRecoveryTimerRef.current = null;
-    }
-    crossfadeAutoStartedRef.current = false;
-    crossfadeAutoTargetRef.current = "";
-    crossfadeMainPauseGuardRef.current = false;
-    crossfadeHandoffRef.current = null;
-    setCrossfadePreviewSongId("");
-
-    const nextAudio = nextAudioRef.current;
-    if (nextAudio) {
-      try {
-        nextAudio.pause();
-        nextAudio.currentTime = 0;
-        setAudioElementVolume(nextAudio, 0);
-      } catch {
-      }
-    }
-  }
-
   function getAutoTransitionTarget() {
     return resolveAutoTransitionTarget({
       playableSongs, currentSong, repeatMode, playQueue, songsById,
@@ -2744,13 +2694,6 @@ function MainModeApp() {
     playNext(true, "auto");
   }
 
-  function stopFade() {
-    if (fadeFrameRef.current !== null) {
-      window.cancelAnimationFrame(fadeFrameRef.current);
-      fadeFrameRef.current = null;
-    }
-  }
-
   function stopProgressLoop() {
     if (animationFrameRef.current !== null) {
       window.cancelAnimationFrame(animationFrameRef.current);
@@ -2761,47 +2704,6 @@ function MainModeApp() {
       window.clearTimeout(progressLoopTimeoutRef.current);
       progressLoopTimeoutRef.current = null;
     }
-  }
-
-  function fadeAudio(target: number, duration: number, onDone?: () => void) {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    stopFade();
-
-    const safeTarget = clamp(Number(target) || 0, 0, 1);
-    const safeDuration = Math.max(0, Number(duration) || 0);
-    const startVolume = clamp(Number(audio.volume) || 0, 0, 1);
-    const delta = safeTarget - startVolume;
-
-    // No animation frames while hidden
-    if (safeDuration <= 0 || Math.abs(delta) < 0.002 || document.hidden) {
-      setAudioElementVolume(audio, safeTarget);
-      effectiveVolumeRef.current = safeTarget;
-      if (onDone) onDone();
-      return;
-    }
-
-    const startTime = performance.now();
-
-    const step = () => {
-      const progressValue = clamp((performance.now() - startTime) / safeDuration, 0, 1);
-      const eased = 1 - Math.pow(1 - progressValue, 2.2);
-      const nextVolume = clamp(startVolume + delta * eased, 0, 1);
-
-      setAudioElementVolume(audio, nextVolume);
-      effectiveVolumeRef.current = nextVolume;
-
-      if (progressValue >= 1) {
-        fadeFrameRef.current = null;
-        if (onDone) onDone();
-        return;
-      }
-
-      fadeFrameRef.current = window.requestAnimationFrame(step);
-    };
-
-    fadeFrameRef.current = window.requestAnimationFrame(step);
   }
 
   function getAudioErrorText(audio: HTMLAudioElement | null) {
