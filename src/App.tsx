@@ -201,7 +201,7 @@ function MainModeApp() {
   const [songs, setSongs] = useState<Song[]>([]);
   const { appToast, showAppToast } = useAppToast();
   const {
-    settings, setSettings, settingsRef,
+    settings, setSettings, settingsRef, settingsSaveError, retrySettingsSave,
     settingsCategory, setSettingsCategory,
     settingsSearch, setSettingsSearch, deferredSettingsSearch,
     themeSettling,
@@ -5468,6 +5468,7 @@ function MainModeApp() {
     },
     settingsView: {
       renderSettingsCategoryContent,
+      settingsSaveError, retrySettingsSave,
       settingsRail: {
         tabs: visibleSettingsTabs,
         analysisSupported,

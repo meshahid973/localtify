@@ -11,10 +11,12 @@ export type SettingsViewProps = {
   renderSettingsCategoryContent: () => ReactNode;
   settingsRail: SettingsRailProps;
   settingsCategory: SettingsCategory;
+  settingsSaveError?: boolean;
+  retrySettingsSave?: () => Promise<boolean>;
 };
 
 export default function SettingsView({
-  renderSettingsCategoryContent, settingsRail, settingsCategory
+  renderSettingsCategoryContent, settingsRail, settingsCategory, settingsSaveError, retrySettingsSave
 }: SettingsViewProps) {
   const selectedTab = settingsRail.tabs.find(tab => tab.id === settingsCategory) ?? settingsCategoryTabs.find(tab => tab.id === settingsCategory);
   const pageRef = useRef<HTMLElement>(null);
@@ -29,6 +31,7 @@ export default function SettingsView({
   return (
     <section ref={pageRef} data-page-section="settings" className="settingsPage settingsPageV027">
       <PageHeader title="Settings" />
+      {settingsSaveError ? <div role="alert" className="settingsActionRow"><span>Settings could not be saved.</span><button type="button" className="settingsActionButton" onClick={() => void retrySettingsSave?.()}>Retry</button></div> : null}
       <div className="settingsLayout settingsPageLayoutV027">
         <SettingsRail {...settingsRail} />
         <div className="settingsCategoryContent settingsCategoryContentV027" role="region" aria-label={`${selectedTab?.label || "Application"} settings`}>

@@ -22,6 +22,7 @@ export function useSettingsController({ initialSettings, bootedRef, volumeDraftR
   const [settings, setSettings] = useState<Settings>(initialSettings);
   const settingsRef = useRef(settings);
   const settingsSaveFailedRef = useRef(false);
+  const [settingsSaveError, setSettingsSaveError] = useState(false);
   const [writeSettings] = useState(() => createSettingsWriter<Settings>(next => window.localitfy.saveSettings(next)));
   const [settingsCategory, setSettingsCategory] = useState<SettingsCategory>("appearance");
   const [settingsSearch, setSettingsSearch] = useState("");
@@ -39,7 +40,7 @@ export function useSettingsController({ initialSettings, bootedRef, volumeDraftR
       if (saveSettingsTimerRef.current === null) return;
       window.clearTimeout(saveSettingsTimerRef.current);
       saveSettingsTimerRef.current = null;
-      void writeSettings(settingsRef.current).catch(error => console.warn("[localtify settings flush]", error));
+      void writeSettings(settingsRef.current).then(() => { settingsSaveFailedRef.current = false; setSettingsSaveError(false); }).catch(error => { settingsSaveFailedRef.current = true; setSettingsSaveError(true); console.warn("[localtify settings flush]", error); });
     };
     const onVisibility = () => { if (document.hidden) flush(); };
     window.addEventListener("pagehide", flush);
@@ -92,8 +93,8 @@ export function useSettingsController({ initialSettings, bootedRef, volumeDraftR
     }
 
     const save = async (snapshot: Settings) => {
-      try { await writeSettings(snapshot); settingsSaveFailedRef.current = false; return true; }
-      catch { settingsSaveFailedRef.current = true; showAppToast("Could not save settings. Try again.", "error"); return false; }
+      try { await writeSettings(snapshot); settingsSaveFailedRef.current = false; setSettingsSaveError(false); return true; }
+      catch { settingsSaveFailedRef.current = true; setSettingsSaveError(true); showAppToast("Could not save settings. Try again.", "error"); return false; }
     };
     const runSave = () => save(settingsRef.current);
 
@@ -329,7 +330,8 @@ export function useSettingsController({ initialSettings, bootedRef, volumeDraftR
 
   return {
     saveSettingsSafely, persistSettings, updateSetting, updateSettingsPatch, resetDiscordSettings, resetAppearanceSettings, resetPlayerLayoutSettings, resetLibraryLayoutSettings, resetAllSettingsSafely, updateCoverColorSyncMode,
-    settings, setSettings, settingsRef,
+    settings, setSettings, settingsRef, settingsSaveError,
+    retrySettingsSave: () => saveSettingsSafely(settingsRef.current),
     settingsCategory, setSettingsCategory,
     settingsSearch, setSettingsSearch, deferredSettingsSearch,
     themeSettling, setThemeSettling,

@@ -417,7 +417,7 @@
 .libraryPage .songRow { position: relative; }
 .libraryPage .songRowDragHandle { display: none; }
 @media (pointer: coarse) {
-  .libraryPage .songRow:not(.selected) { padding-inline-start: 24px !important; }
+  .libraryPage .songRow:has(.songRowDragHandle) { padding-inline-start: 24px !important; }
   .libraryPage .songRowDragHandle {
     display: grid;
     place-items: center;
