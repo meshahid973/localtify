@@ -17,17 +17,19 @@ export default function ExperimentalSettings({ settings, songs, updateSetting }:
   const [clearTarget, setClearTarget] = useState<"history" | "analysis" | null>(null);
   const mounted = useRef(true);
   const requestVersion = useRef(0);
+  const actionPending = useRef(false);
 
   useEffect(() => {
     mounted.current = true;
     let stopped = false;
     let timer: number;
     const poll = async () => {
+      if (actionPending.current) { if (!stopped) timer = window.setTimeout(poll, 1500); return; }
       const version = requestVersion.current;
       try {
         const next = await window.localitfy.getAnalysisStatus();
         if (!stopped && version === requestVersion.current) { setStatus(next); setError(""); }
-      } catch { if (!stopped) setError("Could not load audio analysis status. Please reopen this section."); }
+      } catch { if (!stopped && version === requestVersion.current) setError("Could not load audio analysis status. Retrying…"); }
       if (!stopped) timer = window.setTimeout(poll, 1500);
     };
     void poll();
@@ -35,6 +37,8 @@ export default function ExperimentalSettings({ settings, songs, updateSetting }:
   }, []);
 
   async function run(action: () => Promise<AnalysisStatus>, success = "") {
+    if (actionPending.current) return;
+    actionPending.current = true;
     requestVersion.current += 1;
     setBusy(true);
     setError("");
@@ -44,7 +48,7 @@ export default function ExperimentalSettings({ settings, songs, updateSetting }:
       if (mounted.current) { setStatus(next); setMessage(success); }
     } catch (reason) {
       if (mounted.current) setError(reason instanceof Error ? reason.message : "The action failed. Please try again.");
-    } finally { requestVersion.current += 1; if (mounted.current) setBusy(false); }
+    } finally { requestVersion.current += 1; actionPending.current = false; if (mounted.current) setBusy(false); }
   }
 
   if (!status) return <section className="settingsCategoryPage" aria-label="Listening history and analysis"><h4>Listening history</h4><p role="status">{error || "Loading settings…"}</p></section>;

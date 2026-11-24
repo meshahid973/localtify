@@ -1,5 +1,5 @@
 import { computerName } from "../../app/platform";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { RefreshCw, Smartphone } from "lucide-react";
 import { phoneLibrary } from "./library";
 import { forgetMac, getSyncProgress, isSyncing, onSyncProgress, pairWithMac, syncNow, type SyncProgress } from "./sync";
@@ -27,6 +27,7 @@ export default function AndroidSyncSettings() {
   const [code, setCode] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const operation = useRef(false);
 
   const [live, setLive] = useState(getLiveStatus);
 
@@ -34,6 +35,8 @@ export default function AndroidSyncSettings() {
   useEffect(() => onLiveEvent((event) => { if (event.type === "connection") setLive(event.status); }), []);
 
   async function pair() {
+    if (operation.current) return;
+    operation.current = true;
     setBusy(true); setMessage("");
     try {
       await pairWithMac(address, code);
@@ -41,7 +44,16 @@ export default function AndroidSyncSettings() {
       setPaired(true); setCode("");
       void syncNow();
     } catch (error) { setMessage(error instanceof Error ? error.message : "Pairing failed"); }
-    finally { setBusy(false); }
+    finally { operation.current = false; setBusy(false); }
+  }
+
+  async function unpair() {
+    if (operation.current || isSyncing()) return;
+    operation.current = true;
+    setBusy(true); setMessage("");
+    try { await forgetMac(); restartLiveConnection(); setPaired(false); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "Could not unpair"); }
+    finally { operation.current = false; setBusy(false); }
   }
 
   // Re-read on every render: pairing (and the first sync) tells the phone whether it is a Mac or a PC.
@@ -57,15 +69,14 @@ export default function AndroidSyncSettings() {
     {paired ? <>
       <p className="settingsHintText">Paired with <strong>{phoneLibrary.pairing?.name}</strong> · {phoneLibrary.pairing?.url.replace(/^https?:\/\//, "")}</p>
       <div className="settingsActionRow settingsActionRowCleanV491">
-        <button type="button" className="settingsActionButton settingsPrimaryAction" disabled={syncing} onClick={() => void syncNow()}>
+        <button type="button" className="settingsActionButton settingsPrimaryAction" disabled={busy || syncing} onClick={() => { if (!operation.current) void syncNow(); }}>
           <RefreshCw size={14} /> {syncing ? "Syncing…" : "Sync now"}</button>
-        <button type="button" className="settingsActionButton settingsGhostAction" disabled={syncing}
-          onClick={() => void forgetMac().then(() => { restartLiveConnection(); setPaired(false); setMessage(""); })
-            .catch((error) => setMessage(error instanceof Error ? error.message : "Could not unpair"))}>Unpair</button>
+        <button type="button" className="settingsActionButton settingsGhostAction" disabled={busy || syncing} onClick={() => void unpair()}>Unpair</button>
       </div>
       <p className="settingsHintText" role="status" aria-live="polite">
         {syncing ? [progress.message, transfer].filter(Boolean).join(" · ") : last ? `${last.message} · ${ago(last.at)}` : "Not synced yet."}
       </p>
+      {progress.phase === "error" ? <p role="alert" className="settingsHintText phoneSyncError">{progress.message}</p> : null}
       {syncing && progress.phase === "downloading" ? <p className="settingsHintText">Keep the app open until the first sync finishes.</p> : null}
       <p className="settingsHintText">{{
         connected: `Live: connected. Likes, playback and the queue follow along while both apps are open.`,

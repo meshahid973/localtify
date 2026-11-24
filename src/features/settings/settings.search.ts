@@ -38,6 +38,7 @@ export const SETTINGS_CONTROL_LINKS: readonly SettingsControlLink[] = [
   { id: "sleep", label: "Queue and sleep timer", description: "Playback", category: "playback", target: "settings-playback-sleep", keywords: "song radio autoplay sleep timer stop queue" },
   { id: "lyrics", label: "Lyrics and online lookup", description: "Lyrics & tags", category: "lyrics", target: "settings-lyrics-display", keywords: "lrclib karaoke synced cache song lyrics" },
   { id: "tagging", label: "MusicBrainz tag editor", description: "Lyrics & tags", category: "lyrics", target: "settings-lyrics-tagging", keywords: "id3 metadata album cover write file" },
+  { id: "phone-sync", label: "Phone sync", description: "Library", category: "library", target: "settings-library-sync", keywords: "pair computer phone wifi device sync" },
   { id: "folders", label: "Watched music folders", description: "Library", category: "library", target: "settings-library-folders", keywords: "import auto scan sync files", desktopOnly: true },
   { id: "cleanup", label: "Clean and repair metadata", description: "Library", category: "library", target: "settings-library-cleanup", keywords: "broken songs missing relink rename rebuild index", desktopOnly: true },
   { id: "artwork", label: "Reroll library artwork", description: "Library", category: "library", target: "settings-library-artwork", keywords: "cover images art random covers library", desktopOnly: true },

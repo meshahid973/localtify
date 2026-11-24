@@ -37,8 +37,8 @@ export function useSettingsController({ initialSettings, bootedRef, volumeDraftR
 
   useEffect(() => {
     const flush = () => {
-      if (saveSettingsTimerRef.current === null) return;
-      window.clearTimeout(saveSettingsTimerRef.current);
+      if (!bootedRef.current || (saveSettingsTimerRef.current === null && !settingsSaveFailedRef.current)) return;
+      if (saveSettingsTimerRef.current !== null) window.clearTimeout(saveSettingsTimerRef.current);
       saveSettingsTimerRef.current = null;
       void writeSettings(settingsRef.current).then(() => { settingsSaveFailedRef.current = false; setSettingsSaveError(false); }).catch(error => { settingsSaveFailedRef.current = true; setSettingsSaveError(true); console.warn("[localtify settings flush]", error); });
     };
@@ -50,7 +50,7 @@ export function useSettingsController({ initialSettings, bootedRef, volumeDraftR
       document.removeEventListener("visibilitychange", onVisibility);
       flush();
     };
-  }, [writeSettings]);
+  }, [writeSettings, bootedRef]);
 
   useEffect(() => {
     themeSettlingRef.current = themeSettling;
@@ -111,7 +111,7 @@ export function useSettingsController({ initialSettings, bootedRef, volumeDraftR
 
   async function persistSettings(next: Settings, debounce = false, priority: "immediate" | "transition" = "transition") {
     const previous = settingsRef.current;
-    if (settingsAreSame(previous, next)) return settingsSaveFailedRef.current ? saveSettingsSafely(next, debounce) : true;
+    if (settingsAreSame(previous, next)) return settingsSaveFailedRef.current || saveSettingsTimerRef.current !== null ? saveSettingsSafely(next, debounce) : true;
 
     settingsRef.current = next;
 
