@@ -91,3 +91,41 @@ function createWindowCloseRuntime({settingsFlush, dialog, quitApproved, quitPend
   return {confirmSettingsFlush, attachCloseToTray};
 }
 module.exports.createWindowCloseRuntime = createWindowCloseRuntime;
+
+function createAppShutdownRuntime({app, getWindow, settingsFlush, confirm, cleanup}) {
+  let approved = false, pending = false, started = false, allowQuit = false;
+  let startupTimer = null;
+  function approveQuit() { approved = true; allowQuit = true; }
+  function requestQuit() { allowQuit = true; app.quit(); }
+  async function beforeQuit(event) {
+    if (started) return;
+    const win = getWindow();
+    if (!approved && win && !win.isDestroyed() && settingsFlush.hasReady(win.webContents)) {
+      event.preventDefault();
+      if (pending) return;
+      pending = true;
+      let saved = false;
+      try { saved = await confirm(win); } catch {} finally { pending = false; }
+      if (!saved) { allowQuit = false; return; }
+      approveQuit();
+      app.quit();
+      return;
+    }
+    started = true;
+    allowQuit = true;
+    clearTimeout(startupTimer);
+    startupTimer = null;
+    await cleanup();
+  }
+  return {
+    isApproved: () => approved, isPending: () => pending, isStarted: () => started,
+    isQuitAllowed: () => allowQuit, setAllowQuit: value => { allowQuit = Boolean(value); },
+    approveQuit, requestQuit, beforeQuit,
+    scheduleStartup(callback, delay) {
+      clearTimeout(startupTimer);
+      if (started) return;
+      startupTimer = setTimeout(() => { startupTimer = null; if (!started) callback(); }, delay);
+    }
+  };
+}
+module.exports.createAppShutdownRuntime = createAppShutdownRuntime;

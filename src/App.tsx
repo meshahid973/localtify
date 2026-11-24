@@ -1375,7 +1375,7 @@ function MainModeApp() {
 
 
   function markSongCompletedForPlayCount(song: Song | null, outcome: "ended" | "transition" = "ended") {
-    if (!song || !finishCountedPlay(song, outcome)) return false;
+    if (!finishCountedPlay(song, outcome) || !song) return false;
     const latest = getSong(song.id) || song;
     void patchSongLocal(song.id, {
       playCount: Math.max(0, Number(latest.playCount || 0)) + 1,

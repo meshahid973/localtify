@@ -24,9 +24,26 @@ const { uniquePaths, createUserDataRuntime } = require("./runtime/user-data.cjs"
 const { createWindowTranslucencyRuntime } = require("./runtime/translucency.cjs");
 const { createIconRuntime } = require("./runtime/icons.cjs");
 const { createUpdaterRuntime } = require("./runtime/updater.cjs");
-const { createSettingsFlushRuntime, createWindowCloseRuntime } = require("./runtime/settings-flush.cjs");
+const { createSettingsFlushRuntime, createWindowCloseRuntime, createAppShutdownRuntime } = require("./runtime/settings-flush.cjs");
 const settingsFlush = createSettingsFlushRuntime();
-let quitFlushApproved = false, quitFlushPending = false;
+const shutdown = createAppShutdownRuntime({
+  app,
+  getWindow: () => mainWindow,
+  settingsFlush,
+  confirm: win => confirmSettingsFlush(win),
+  cleanup: async () => {
+    discoverCacheLifecycle?.flush();
+    remoteArtworkCache?.close();
+    thumbnailRuntime.stop();
+    libraryWatcher?.dispose();
+    scrobbler?.dispose();
+    if (serviceRuntime) await serviceRuntime.stop("app-before-quit");
+    else {
+      try { cleanupNativeWindowsMedia(); } catch {}
+      try { stopLocaltifyMediaServer(); } catch {}
+    }
+  }
+});
 const { createMediaServerRuntime } = require("./runtime/media-server.cjs");
 const { createThumbnailRuntime } = require("./runtime/thumbnail-runtime.cjs");
 const { createGenreMetadataBackfill } = require("./runtime/genre-backfill.cjs");
@@ -121,7 +138,7 @@ const {
   getMainWindow: () => mainWindow,
   setMainWindow: (win) => { mainWindow = win; },
   createWindow,
-  setAllowQuit: (value) => { allowQuit = Boolean(value); }
+  setAllowQuit: shutdown.setAllowQuit
 });
 
 const PIXEL_ART_CACHE_TTL_MS = 30_000;
@@ -207,7 +224,6 @@ const downloadUpdate = updaterRuntime.downloadUpdate;
 const installUpdate = updaterRuntime.installUpdate;
 
 let tray = null;
-let allowQuit = false;
 let minimizeToTray = false;
 let nativeShortcutsRegistered = false;
 let nativeMediaState = {
@@ -282,7 +298,7 @@ function updateTrayMenu() {
       { label: "Next", enabled: nativeMediaState.hasSong, click: () => sendPlayerCommand({ type: "next" }) },
       { label: nativeMediaState.muted || nativeMediaState.volume <= 0.01 ? "Unmute" : "Mute", enabled: nativeMediaState.hasSong, click: () => sendPlayerCommand({ type: "muteToggle" }) },
       { type: "separator" },
-      { label: "Quit", click: () => { allowQuit = true; app.quit(); } }
+      { label: "Quit", click: () => { shutdown.requestQuit(); } }
     ]));
   } catch (error) {
     console.log("[localitfy tray menu error]", error?.message || error);
@@ -358,8 +374,8 @@ function cleanupNativeWindowsMedia() {
 
 const {confirmSettingsFlush, attachCloseToTray} = createWindowCloseRuntime({
   settingsFlush, dialog,
-  quitApproved: () => quitFlushApproved, quitPending: () => quitFlushPending,
-  shouldHideToTray: () => minimizeToTray && !allowQuit, ensureTray
+  quitApproved: shutdown.isApproved, quitPending: shutdown.isPending,
+  shouldHideToTray: () => minimizeToTray && !shutdown.isQuitAllowed(), ensureTray
 });
 
 function updateNativeMediaState(payload = {}) {
@@ -469,7 +485,7 @@ app.setName(APP_NAME);
 const LOCALTIFY_CHROMIUM_PERFORMANCE = configureLocaltifyChromiumPerformance();
 const appMenu = createAppMenuRuntime({ Menu, shell, appName: APP_NAME, isDev, sendPlayerCommand,
   sendAppCommand: createAppCommandSender({ ipcRouter, showMainWindow, getWindow: () => mainWindow }),
-  requestQuit: () => { allowQuit = true; app.quit(); } });
+  requestQuit: () => { shutdown.requestQuit(); } });
 appMenu.update();
 
 const thumbnailRuntime = createThumbnailRuntime({
@@ -1221,11 +1237,9 @@ function repairMainWindowBounds(win, options = {}) {
 }
 
 let serviceRuntime = null;
-let shutdownStarted = false;
-let startupWindowTimer = null;
 
 app.whenReady().then(async () => {
-  if (shutdownStarted) return;
+  if (shutdown.isStarted()) return;
   registerLocaltifyRendererProtocol();
   registerLocaltifyMediaProtocol();
   serviceRuntime = createElectronServiceRuntime({
@@ -1236,7 +1250,7 @@ app.whenReady().then(async () => {
     cleanupNativeWindowsMedia
   });
   await serviceRuntime.start();
-  if (shutdownStarted) return;
+  if (shutdown.isStarted()) return;
   const databaseRecovery = restoreDatabaseFromOldUserDataIfNeeded();
   initDatabase(databaseRecovery.dbPath || path.join(app.getPath("userData"), userDataRuntime.sqliteFileName));
   try {
@@ -1463,7 +1477,7 @@ app.whenReady().then(async () => {
   ipcRouter.handle("localitfy:install-update", async () => {
     if (!await confirmSettingsFlush(mainWindow)) return false;
     const installed = await installUpdate();
-    if (installed && !updaterRuntime.linuxUpdaterIsManualOnly()) { quitFlushApproved = true; allowQuit = true; }
+    if (installed && !updaterRuntime.linuxUpdaterIsManualOnly()) shutdown.approveQuit();
     return installed;
   });
   ipcRouter.handle("localitfy:open-external", async (_event, url) => {
@@ -1482,42 +1496,12 @@ app.whenReady().then(async () => {
   ipcRouter.handle("window:close", async (event) => { BrowserWindow.fromWebContents(event.sender)?.close(); return true; });
 
   const startupCreateDelayMs = process.platform === "win32" && startupLaunchStatus?.wasOpenedAtLogin ? 1600 : 0;
-  startupWindowTimer = setTimeout(() => {
-    startupWindowTimer = null;
-    if (!shutdownStarted) { createWindow(); setupNativeWindowsMedia(); }
-  }, startupCreateDelayMs);
+  shutdown.scheduleStartup(() => { createWindow(); setupNativeWindowsMedia(); }, startupCreateDelayMs);
   // Renderer owns the update-check schedule so the user's disabled setting is respected.
-  app.on("activate", () => { if (!shutdownStarted && BrowserWindow.getAllWindows().length === 0) createWindow(); });
+  app.on("activate", () => { if (!shutdown.isStarted() && BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 
-app.on("before-quit", async event => {
-  if (shutdownStarted) return;
-  if (!quitFlushApproved && mainWindow && !mainWindow.isDestroyed() && settingsFlush.hasReady(mainWindow.webContents)) {
-    event.preventDefault();
-    if (quitFlushPending) return;
-    quitFlushPending = true;
-    const saved = await confirmSettingsFlush(mainWindow);
-    quitFlushPending = false;
-    if (!saved) { allowQuit = false; return; }
-    quitFlushApproved = true;
-    app.quit();
-    return;
-  }
-  shutdownStarted = true;
-  allowQuit = true;
-  clearTimeout(startupWindowTimer);
-  startupWindowTimer = null;
-  discoverCacheLifecycle?.flush();
-  remoteArtworkCache?.close();
-  thumbnailRuntime.stop();
-  libraryWatcher?.dispose();
-  scrobbler?.dispose();
-  if (serviceRuntime) await serviceRuntime.stop("app-before-quit");
-  else {
-    try { cleanupNativeWindowsMedia(); } catch {}
-    try { stopLocaltifyMediaServer(); } catch {}
-  }
-});
+app.on("before-quit", shutdown.beforeQuit);
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();

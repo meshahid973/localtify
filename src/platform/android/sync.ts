@@ -183,7 +183,12 @@ export async function archivePausedPairing() {
     phoneLibrary.clockOffset = 0;
     phoneLibrary.detachedPairing = null;
     try { await phoneLibrary.save(["recoveryArchives", "detachedPairing", "base", "pendingEvents", "likeClock", "clockOffset"]); }
-    catch (error) { Object.assign(phoneLibrary, previous); throw error; }
+    catch (error) {
+      const laterEvents = phoneLibrary.pendingEvents;
+      Object.assign(phoneLibrary, previous);
+      for (const event of laterEvents) phoneLibrary.recordPlayEvent(event);
+      throw error;
+    }
   } finally { changingPairing = false; }
 }
 
