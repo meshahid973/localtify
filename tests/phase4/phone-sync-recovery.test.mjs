@@ -324,3 +324,25 @@ test("pausing a pairing retains its exact outstanding receipt through a phone re
     assert.deepEqual(f.requests.map(({body})=>body.sequence),[1,1]);
   } finally {await f.close();}
 });
+
+test("desktop edits after the snapshot trigger a safe playlist rebase without replaying counts", async () => {
+  const f = await syncFixture();
+  try {
+    const p = {id:"race",name:"race",songIds:["a"],createdAt:1};
+    f.repositories.playlists.save([p]);
+    await f.sync.syncNow();
+    f.phone.savePlaylists([{...p,name:"phone rename"}]);
+    f.phone.patchSong("a",{playCount:5});
+    f.hooks.beforeRequest = async request => {
+      if (request.url.endsWith("/v1/changes")) {
+        f.hooks.beforeRequest = undefined;
+        f.repositories.playlists.save([{...p,songIds:["a","b"]}]);
+      }
+    };
+    await f.sync.syncNow();
+    assert.equal(f.sync.getSyncProgress().phase,"done");
+    assert.equal(f.repositories.songs.get("a").playCount,5);
+    assert.equal(f.repositories.playlists.get()[0].name,"phone rename");
+    assert.deepEqual(f.repositories.playlists.get()[0].songIds,["a","b"]);
+  } finally {await f.close();}
+});

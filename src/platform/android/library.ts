@@ -104,11 +104,15 @@ export class PhoneLibrary {
   save(keys: Saved[]) {
     const selected = this.checkpointDirty ? [...new Set([...keys, ...this.checkpointKeys])] : keys;
     for (const key of selected) this.dirtyKeys.add(key);
-    const snapshot = [...this.dirtyKeys];
-    this.dirtyKeys.clear();
-    const write = writeValues(Object.fromEntries(snapshot.map(key => [key, this[key]]))).catch(error => {
-      for (const key of snapshot) this.dirtyKeys.add(key);
-      throw error;
+    const write = this.pendingWrite.catch(() => undefined).then(async () => {
+      const snapshot = [...this.dirtyKeys];
+      if (!snapshot.length) return;
+      this.dirtyKeys.clear();
+      try { await writeValues(Object.fromEntries(snapshot.map(key => [key, this[key]]))); }
+      catch (error) {
+        for (const key of snapshot) this.dirtyKeys.add(key);
+        throw error;
+      }
     });
     this.pendingWrite = write;
     void write.catch(() => undefined);

@@ -40,6 +40,7 @@ export function phonePlaylistChanges(base: SyncPlaylist[], mac: SyncPlaylist[], 
     }
     if (!b) {
       if (!m) put.push(p);
+      else if (!samePlaylist(m, p)) put.push({...m, songIds: mergeSongIds([], m.songIds, p.songIds)});
       continue;
     }
     if (samePlaylist(p, b)) continue;

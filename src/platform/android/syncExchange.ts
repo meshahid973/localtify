@@ -11,6 +11,7 @@ export type SyncBatch = {
   playEvents: PlayEvent[];
   sentSongs: SyncSongFields[];
   sentPlaylists: SyncPlaylist[];
+  playlistExpected?: [string, SyncPlaylist | null][];
 };
 
 export const eventVersion = (event: PlayEvent) => JSON.stringify([
