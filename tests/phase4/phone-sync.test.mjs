@@ -215,3 +215,21 @@ test("snapshot captures playlists before file metadata awaits", async () => {
     assert.deepEqual(snapshot.playlists[0].songIds, ["a"], "playlists must share the song snapshot's starting point");
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("playlist persistence rebases a conflicting database write and retains both edits", async () => {
+  const {createPlaylistPersistence} = compile("src/features/playlists/playlistPersistence.ts", {"./playlistMerge":playlistMerge});
+  let remote = [playlist("p", ["1"])];
+  let conflict = true;
+  let shown;
+  let journal;
+  const controller = createPlaylistPersistence({
+    read: async () => plain(remote),
+    save: async (next) => { if (conflict) { conflict = false; remote = [playlist("p", ["1", "3"])]; throw Error("Playlist conflict"); } remote = plain(next); return remote; },
+    publish: next => {shown = plain(next);}, journal: (base,draft) => {journal = [plain(base),plain(draft)];}, failed: error => {throw error;}
+  });
+  controller.initialize(remote);
+  controller.set([playlist("p", ["1","2"])]);
+  assert.equal(await controller.flush(),true);
+  assert.deepEqual([...shown[0].songIds].sort(),["1","2","3"]);
+  assert.deepEqual(journal[0],journal[1]);
+});

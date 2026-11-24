@@ -46,22 +46,21 @@ import { resolveAutoTransitionTarget } from "./features/player/resolveAutoTransi
 import { useNavigationHistory } from "./features/shell/useNavigationHistory";
 import { revealSidebarSettingsPanel } from "./features/shell/sidebarLayout";
 import CatBuddy from "./CatBuddy";
+import { prepareBootstrap } from "./app/runtime/prepareBootstrap";
+import { useOrderedLibrary } from "./features/library/useOrderedLibrary";
 import { runLocaltifyIdleTask } from "./app/runtime/idle";
 import { useBodyRuntimeClasses } from "./app/runtime/useBodyRuntimeClasses";
 import { useAppLifecycleRuntime } from "./app/runtime/useAppLifecycleRuntime";
-import { applyVisualCustomizationDefaults, migrateVisualSettings } from "./features/settings/visualCustomization";
+import { applyVisualCustomizationDefaults } from "./features/settings/visualCustomization";
 import { getLocaltifyPlatformInfo } from "./app/platform";
 import {
   markOnboardingSeenForThisRelease,
   shouldOpenOnboardingForThisRelease
 } from "./features/onboarding/onboardingRelease";
 import {
-  START_WITH_WINDOWS_DEFAULT_KEY,
-  V013_DEFAULTS_KEY,
   screensaverImage
 } from "./core/app.constants";
 import {
-  V013_RELEASE_DEFAULTS,
   coverColorSyncOptions,
   defaultSettings,
   settingsCategoryTabs
@@ -78,17 +77,14 @@ import {
   discordSecondLineOptions,
   discordStyleOptions
 } from "./features/discord/discord.constants";
-import { PLAYLIST_STORAGE_KEY, PLAYLIST_MIGRATION_KEY } from "./features/playlists/playlist.constants";
 import { clamp, formatTime } from "./shared/utils/format";
 import { useStableCallback } from "./shared/hooks/useStableCallback";
-import { makeLocalId, readLocalJson } from "./shared/storage/localStorage";
+import { makeLocalId } from "./shared/storage/localStorage";
 import {
   applyLibraryOrder,
   createImportAnimationState,
   getSongPlaybackSourceKey,
   isPlayableSong,
-  reorderSongList,
-  saveLibraryOrder,
   stableSongSourceKey
 } from "./features/library";
 import {
@@ -113,7 +109,6 @@ import {
   normalizeThemeId
 } from "./features/settings";
 import { buildDiscordPreview, buildDiscordSongSearchUrl } from "./features/discord";
-import { cleanPlaylistList } from "./features/playlists";
 import type {
   LibraryDropSide,
   LibraryDropTarget,
@@ -181,8 +176,6 @@ function MainModeApp() {
   const heroReflowTimerRef = useRef<number | null>(null);
   const heroCoverMotionTimerRef = useRef<number | null>(null);
   const appRootRef = useRef<HTMLElement | null>(null);
-  const libraryOrderSaveTimerRef = useRef<number | null>(null);
-  const lastSavedOrderRef = useRef<string[]>([]);
   const selectSongBurstTimerRef = useRef<number | null>(null);
   const selectSongBurstIntentRef = useRef<{ songId: string; shouldPlay?: boolean } | null>(null);
   const selectSongLastCommitRef = useRef({ key: "", time: 0 });
@@ -192,7 +185,7 @@ function MainModeApp() {
   const [bootError, setBootError] = useState<string | null>(null);
   const [bootLogCopied, setBootLogCopied] = useState(false);
   const [bootRetryKey, setBootRetryKey] = useState(0);
-  const [songs, setSongs] = useState<Song[]>([]);
+  const {songs, setSongs, moveSong} = useOrderedLibrary(ready);
   const flushPlaylistsRef = useRef<() => Promise<boolean>>(async () => true);
   const { appToast, showAppToast } = useAppToast();
   const {
@@ -611,27 +604,6 @@ function MainModeApp() {
   }, [visualCurrentSong?.id, visualCurrentSong?.filePath, visualCurrentSong?.title, visualCurrentSong?.artist, visualCurrentSong?.coverUrl]);
 
   useEffect(() => {
-    if (!ready) return;
-    const lastOrder = lastSavedOrderRef.current;
-    if (lastOrder.length === songs.length && songs.every((song, i) => song.id === lastOrder[i])) return;
-    let cancelIdle: (() => void) | undefined;
-    libraryOrderSaveTimerRef.current = window.setTimeout(() => {
-      libraryOrderSaveTimerRef.current = null;
-      cancelIdle = runLocaltifyIdleTask(() => {
-        saveLibraryOrder(songs);
-        lastSavedOrderRef.current = songs.map(song => song.id);
-      }, 1600);
-    }, 520);
-    return () => {
-      if (libraryOrderSaveTimerRef.current !== null) {
-        window.clearTimeout(libraryOrderSaveTimerRef.current);
-        libraryOrderSaveTimerRef.current = null;
-      }
-      cancelIdle?.();
-    };
-  }, [ready, songs]);
-
-  useEffect(() => {
     draggedSongIdRef.current = draggedSongId;
   }, [draggedSongId]);
 
@@ -730,11 +702,6 @@ function MainModeApp() {
         appRootRef.current.style.removeProperty("--player-size-live");
         appRootRef.current.style.removeProperty("--sidebar-width-live");
         appRootRef.current.classList.remove("isScrolling");
-      }
-
-      if (libraryOrderSaveTimerRef.current !== null) {
-        window.clearTimeout(libraryOrderSaveTimerRef.current);
-        libraryOrderSaveTimerRef.current = null;
       }
 
       if (scrollBusyFrameRef.current !== null) {
@@ -1623,73 +1590,10 @@ function MainModeApp() {
       devPerfEnd("bootstrap:ipc", `${payload.songs?.length ?? 0} songs`);
 
 
-      const storedSettings = payload.settings || {};
-      const shouldApplyV013Defaults = window.localStorage.getItem(V013_DEFAULTS_KEY) !== "true";
-      const shouldApplyStartWithWindowsDefault = platformInfo.startupSettingSupported && typeof storedSettings.startWithWindows === "undefined";
-      const { settings: nextSettings, changed: visualSettingsChanged } = migrateVisualSettings(storedSettings, {
-        ...defaultSettings,
-        ...(shouldApplyV013Defaults ? V013_RELEASE_DEFAULTS : {})
-      }, shouldApplyV013Defaults ? V013_RELEASE_DEFAULTS : undefined);
-
-      // The redesigned desktop opens as an icon rail once. Preserve later explicit
-      // choices, and never modify Android navigation or an existing hover layout.
-      const sidebarMigrationKey = "localitfy.sidebar-rail-v1";
-      const migrateSidebar = platformInfo.id !== "android" && window.localStorage.getItem(sidebarMigrationKey) !== "true";
-      if (migrateSidebar && storedSettings.sidebarBehavior === undefined && nextSettings.sidebarBehavior === "fixed") nextSettings.sidebarBehavior = "slim";
-
-      if (shouldApplyStartWithWindowsDefault) {
-        nextSettings.startWithWindows = true;
-      }
-
-      if (!platformInfo.startupSettingSupported) {
-        nextSettings.startWithWindows = false;
-      }
-
-      const hadSleepTimer = Number(nextSettings.sleepTimerMinutes) > 0;
-      nextSettings.sleepTimerMinutes = 0;
-      const shouldPersistBootSettings = hadSleepTimer ||
-        shouldApplyV013Defaults || shouldApplyStartWithWindowsDefault ||
-        visualSettingsChanged || (migrateSidebar && nextSettings.sidebarBehavior !== storedSettings.sidebarBehavior);
-
-      if (shouldPersistBootSettings) {
-        writeSettings(nextSettings).then(() => {
-          if (shouldApplyV013Defaults) window.localStorage.setItem(V013_DEFAULTS_KEY, "true");
-          if (shouldApplyStartWithWindowsDefault) window.localStorage.setItem(START_WITH_WINDOWS_DEFAULT_KEY, "true");
-          if (migrateSidebar) window.localStorage.setItem(sidebarMigrationKey, "true");
-        }).catch(() => showAppToast("Could not save settings migration. It will be retried next time.", "error"));
-      } else if (migrateSidebar) {
-        window.localStorage.setItem(sidebarMigrationKey, "true");
-      }
-
-      const nextSongs = applyLibraryOrder(sanitizeSongList(payload.songs || []));
-      const validBootSongIds = new Set(nextSongs.map((song) => song.id));
-
-      let initialPlaylists = cleanPlaylistList(payload.playlists || []);
-      if (!readLocalJson<boolean>(PLAYLIST_MIGRATION_KEY, false)) {
-        const legacy = cleanPlaylistList(readLocalJson<Playlist[]>(PLAYLIST_STORAGE_KEY, []), validBootSongIds);
-        if (!initialPlaylists.length && legacy.length && window.localitfy.savePlaylists &&
-            window.confirm("Restore playlists from the old local backup? Choose Cancel to keep the database empty.")) {
-          initialPlaylists = cleanPlaylistList(await window.localitfy.savePlaylists(legacy, initialPlaylists));
-        }
-        window.localStorage.setItem(PLAYLIST_MIGRATION_KEY, "true");
-      }
+      const {nextSettings, nextSongs, initialPlaylists, initialSongId, resumePosition} =
+        await prepareBootstrap(payload, platformInfo, writeSettings, showAppToast);
       if (!mounted) return;
-
-      const initialSongId =
-        nextSettings.rememberLastSong &&
-        nextSettings.lastSongId &&
-        nextSongs.some((song) => song.id === nextSettings.lastSongId)
-          ? nextSettings.lastSongId
-          : nextSongs[0]?.id || "";
-      const initialSong = nextSongs.find((song) => song.id === initialSongId);
-      const savedTime = Number(initialSong?.playbackPosition || 0);
-      startupResumePositionRef.current =
-        nextSettings.rememberLastSong && nextSettings.rememberPlaybackPosition &&
-        initialSong && Number.isFinite(savedTime) && savedTime > 1 &&
-        (!initialSong.duration || savedTime < initialSong.duration - 2)
-          ? { songId: initialSongId, time: savedTime }
-          : null;
-
+      startupResumePositionRef.current = resumePosition;
 
       setSongs(nextSongs);
       initializePlaylists(initialPlaylists);
@@ -3649,16 +3553,7 @@ function MainModeApp() {
   function moveSongToLibraryEnd(songId: string) {
     if (!songId || !songsById.has(songId)) return;
 
-    setSongs((previousSongs) => {
-      const currentIndex = previousSongs.findIndex((song) => song.id === songId);
-      if (currentIndex === -1 || currentIndex === previousSongs.length - 1) return previousSongs;
-
-      const draggedSong = previousSongs[currentIndex];
-      const nextSongs = previousSongs.filter((song) => song.id !== songId);
-      nextSongs.push(draggedSong);
-      saveLibraryOrder(nextSongs);
-      return nextSongs;
-    });
+    if (!moveSong(songId)) return;
 
     setStatusText("moved song to the end");
     pulseLibraryDropCommit();
@@ -3709,23 +3604,12 @@ function MainModeApp() {
   );
 
   const moveSongInLibraryByPointer = useCallback((sourceSongId: string, targetSongId: string, side: LibraryDropSide) => {
-    let moved = false;
-
-    setSongs((previousSongs) => {
-      const nextSongs = reorderSongList(previousSongs, sourceSongId, targetSongId, side);
-      if (nextSongs === previousSongs) return previousSongs;
-
-      saveLibraryOrder(nextSongs);
-      moved = true;
-      return nextSongs;
-    });
-
-    if (moved) {
+    if (moveSong(sourceSongId, targetSongId, side)) {
       setStatusText("song order updated");
       pulseLibraryDropCommit();
       showAppToast("song order updated", "success");
     }
-  }, []);
+  }, [moveSong, showAppToast]);
 
   const finishPointerLibraryDrag = useCallback((shouldApplyDrop: boolean) => {
     const runtime = pointerLibraryDragRef.current;
@@ -3876,15 +3760,10 @@ function MainModeApp() {
 
     const side = getLibraryDropSide(event);
 
-    setSongs((previousSongs) => {
-      const nextSongs = reorderSongList(previousSongs, songId, targetSongId, side);
-      if (nextSongs === previousSongs) return previousSongs;
-      saveLibraryOrder(nextSongs);
-      return nextSongs;
-    });
-
-    setStatusText("library order updated");
-    pulseLibraryDropCommit();
+    if (moveSong(songId, targetSongId, side)) {
+      setStatusText("library order updated");
+      pulseLibraryDropCommit();
+    }
     endSongDrag();
   }
 
@@ -3927,15 +3806,10 @@ function MainModeApp() {
 
     const side = getLibraryDropSideForElement(event, dropElement);
 
-    setSongs((previousSongs) => {
-      const nextSongs = reorderSongList(previousSongs, songId, targetSongId, side);
-      if (nextSongs === previousSongs) return previousSongs;
-      saveLibraryOrder(nextSongs);
-      return nextSongs;
-    });
-
-    setStatusText("library order updated");
-    pulseLibraryDropCommit();
+    if (moveSong(songId, targetSongId, side)) {
+      setStatusText("library order updated");
+      pulseLibraryDropCommit();
+    }
     endSongDrag();
   }
 
