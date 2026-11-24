@@ -51,8 +51,7 @@ export default function SettingsRail({
       revealCategory.current = null;
       if (!element) return;
       if (element instanceof HTMLDetailsElement) element.open = true;
-      const disclosure = element.closest("details");
-      if (disclosure) disclosure.open = true;
+      for (let disclosure = element.closest("details"); disclosure; disclosure = disclosure.parentElement?.closest("details") ?? null) disclosure.open = true;
       element.scrollIntoView({ block: "start", behavior: "auto" });
       const control = element.querySelector<HTMLElement>("button:not(:disabled), input:not(:disabled), select:not(:disabled), summary");
       control?.focus({ preventScroll: true });
