@@ -224,10 +224,11 @@ export class PhoneLibrary {
     return before !== liked;
   }
 
-  savePlaylists(playlists: SyncPlaylist[]) {
+  savePlaylists(playlists: SyncPlaylist[], finishMigration = false) {
     this.playlists = playlists.map(({ id, name, songIds, createdAt, coverArtwork }) => ({ id, name, songIds: [...songIds], createdAt, ...(coverArtwork ? { coverArtwork } : {}) }));
     this.revision += 1;
-    void this.save(["playlists"]).catch(() => undefined);
+    if (finishMigration) this.settings = {...this.settings, playlistMigrationCompleted: true};
+    void this.save(finishMigration ? ["playlists", "settings"] : ["playlists"]).catch(() => undefined);
     return this.playlists;
   }
 

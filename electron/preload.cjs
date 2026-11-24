@@ -126,7 +126,7 @@ contextBridge.exposeInMainWorld("localitfy", {
     return () => ipcRenderer.removeListener("settings:flush-request", handler);
   },
   getPlaylists: () => ipcRenderer.invoke("playlists:get"),
-  savePlaylists: (playlists, expected) => ipcRenderer.invoke("playlists:save", playlists, expected),
+  savePlaylists: (playlists, expected, finishMigration) => ipcRenderer.invoke("playlists:save", playlists, expected, finishMigration),
 
   updateBackupNow: () => ipcRenderer.invoke("database:backup-now"),
   repairDatabaseNow: () => ipcRenderer.invoke("database:repair-now"),

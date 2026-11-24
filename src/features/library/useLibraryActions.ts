@@ -33,10 +33,11 @@ export function useLibraryActions({getSong, songIndexById, setSongs, setEditorSo
     setSongs(items => items.map(song => updates.has(song.id) ? {...song, ...updates.get(song.id)} : song));
     setEditorSong(current => current && updates.has(current.id) ? {...current, ...updates.get(current.id)} : current);
   });
-  const patchSongLocal = useStableCallback(async (id: string, patch: Partial<Song>) => {
+  const saveSongEdit = useStableCallback(async (id: string, patch: Partial<Song>) => {
     if (Object.hasOwn(patch, "filePath") || Object.hasOwn(patch, "url")) invalidateSource(get(id));
-    await writer.patchSong(id, patch);
+    return writer.patchSong(id, patch);
   });
+  const patchSongLocal = useStableCallback(async (id: string, patch: Partial<Song>) => { await saveSongEdit(id, patch); });
   const toggleLike = useStableCallback((id: string) => {
     const target = get(id);
     if (!target) return;
@@ -45,5 +46,5 @@ export function useLibraryActions({getSong, songIndexById, setSongs, setEditorSo
       if (saved && get(id)?.liked === liked) showAppToast(liked ? `added "${prettyTitle(target.title, 5)}" to liked` : `removed "${prettyTitle(target.title, 5)}" from liked`, liked ? "success" : "info");
     });
   });
-  return {replaceSong, commitCovers, patchSongLocal, toggleLike, flushSongEdits: writer.flush};
+  return {replaceSong, commitCovers, patchSongLocal, saveSongEdit, toggleLike, flushSongEdits: writer.flush};
 }

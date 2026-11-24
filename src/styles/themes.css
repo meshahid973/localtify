@@ -117,7 +117,7 @@
 }
 
 .app{
-  --outline-calm-v487: color-mix(in oklab, var(--lt-border) 84%, var(--lt-accent) 16%) !important;
-  --outline-hover-v487: color-mix(in oklab, var(--lt-border) 68%, var(--lt-accent) 32%) !important;
-  --outline-active-v487: color-mix(in oklab, var(--lt-border) 30%, var(--lt-accent) 70%) !important;
+  --outline-calm-v487: color-mix(in oklab, var(--lt-border) 84%, var(--lt-accent) 16%);
+  --outline-hover-v487: color-mix(in oklab, var(--lt-border) 68%, var(--lt-accent) 32%);
+  --outline-active-v487: color-mix(in oklab, var(--lt-border) 30%, var(--lt-accent) 70%);
 }

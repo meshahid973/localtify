@@ -97,16 +97,17 @@ export function createAndroidBridge(): Bridge {
     },
     getSettings: async () => phoneLibrary.effectiveSettings(),
     saveSettings: async (settings: Partial<Settings>) => {
-      phoneLibrary.settings = { ...phoneLibrary.settings, ...settings };
+      phoneLibrary.settings = { ...phoneLibrary.settings, ...settings, ...(phoneLibrary.settings.playlistMigrationCompleted ? {playlistMigrationCompleted: true} : {}) };
       await phoneLibrary.save(["settings"]);
       return phoneLibrary.effectiveSettings();
     },
     getPlaylists: async () => { await phoneLibrary.load(); await phoneLibrary.flushWrites(true); return phoneLibrary.playlists; },
-    savePlaylists: async (playlists, expected) => {
+    savePlaylists: async (playlists, expected, finishMigration) => {
       await phoneLibrary.load();
+      if (finishMigration && phoneLibrary.settings.playlistMigrationCompleted === true) { await phoneLibrary.flushWrites(true); return phoneLibrary.playlists; }
       const canonical = (items: SyncPlaylist[]) => items.map(({id, name, songIds, createdAt, coverArtwork}) => [id, name, songIds, createdAt, coverArtwork || ""]);
       if (expected !== undefined && JSON.stringify(canonical(expected)) !== JSON.stringify(canonical(phoneLibrary.playlists))) throw new Error("Playlist conflict: library changed");
-      const next = phoneLibrary.savePlaylists(playlists as SyncPlaylist[]);
+      const next = phoneLibrary.savePlaylists(playlists as SyncPlaylist[], finishMigration === true);
       await phoneLibrary.flushWrites();
       return next;
     },

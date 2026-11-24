@@ -244,7 +244,7 @@ function MainModeApp() {
     songs, deferredQuery, view, libraryFilterMode, librarySortMode
   });
 
-  const {replaceSong, commitCovers, patchSongLocal, toggleLike, flushSongEdits} = useLibraryActions({
+  const {replaceSong, commitCovers, patchSongLocal, saveSongEdit, toggleLike, flushSongEdits} = useLibraryActions({
     getSong, songIndexById, setSongs, setEditorSong, showAppToast,
     invalidateSource: song => {
       const key = getSongPlaybackSourceKey(song);
@@ -4358,13 +4358,13 @@ function MainModeApp() {
   async function saveEditor() {
     if (!editorSong) return;
 
-    await patchSongLocal(editorSong.id, {
+    const saved = await saveSongEdit(editorSong.id, {
       title: editTitle.trim() || "untitled",
       artist: editArtist.trim() || "unknown artist",
       album: editAlbum.trim() || "local files"
     });
 
-    setEditorSong(null);
+    if (saved) setEditorSong(current => current?.id === editorSong.id ? null : current);
   }
 
   function dismissOnboarding() {

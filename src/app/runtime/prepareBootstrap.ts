@@ -50,16 +50,23 @@ export async function prepareBootstrap(payload: Awaited<ReturnType<Window["local
   }
 
   const nextSongs = applyLibraryOrder(sanitizeSongList(payload.songs || []));
-  const validBootSongIds = new Set(nextSongs.map((song) => song.id));
-
   let initialPlaylists = cleanPlaylistList(payload.playlists || []);
-  if (!readLocalJson<boolean>(PLAYLIST_MIGRATION_KEY, false)) {
-    const legacy = cleanPlaylistList(readLocalJson<Playlist[]>(PLAYLIST_STORAGE_KEY, []), validBootSongIds);
-    if (!initialPlaylists.length && legacy.length && window.localitfy.savePlaylists &&
-        window.confirm("Restore playlists from the old local backup? Choose Cancel to keep the database empty.")) {
-      initialPlaylists = cleanPlaylistList(await window.localitfy.savePlaylists(legacy, initialPlaylists));
+  if (storedSettings.playlistMigrationCompleted !== true && window.localitfy.savePlaylists) {
+    // Keep the original local backup untouched. The database marker and any imported playlists commit together.
+    const legacy = cleanPlaylistList(readLocalJson<Playlist[]>(PLAYLIST_STORAGE_KEY, []));
+    const restore = !readLocalJson<boolean>(PLAYLIST_MIGRATION_KEY, false) && !initialPlaylists.length && legacy.length > 0 &&
+      window.confirm("Restore playlists from the old local backup? Choose Cancel to keep the database empty. The original backup is retained.");
+    try {
+      initialPlaylists = cleanPlaylistList(await window.localitfy.savePlaylists(restore ? legacy : initialPlaylists, initialPlaylists, true));
+      nextSettings.playlistMigrationCompleted = true;
+      try { window.localStorage.setItem(PLAYLIST_MIGRATION_KEY, "true"); } catch { /* The database is authoritative. */ }
+    } catch (error) {
+      if (!/playlist conflict/i.test(String(error))) throw error;
+      const remote = await window.localitfy.getPlaylists?.();
+      if (!remote) throw error;
+      initialPlaylists = cleanPlaylistList(await window.localitfy.savePlaylists(remote, remote, true));
+      nextSettings.playlistMigrationCompleted = true;
     }
-    window.localStorage.setItem(PLAYLIST_MIGRATION_KEY, "true");
   }
 
   const initialSongId =

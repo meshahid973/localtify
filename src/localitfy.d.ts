@@ -575,7 +575,7 @@ declare global {
       onSettingsFlushRequest?: (callback: () => Promise<boolean>) => () => void;
 
       getPlaylists?: () => Promise<LocalitfyPlaylistRecord[]>;
-      savePlaylists?: (playlists: LocalitfyPlaylistRecord[], expected?: LocalitfyPlaylistRecord[]) => Promise<LocalitfyPlaylistRecord[]>;
+      savePlaylists?: (playlists: LocalitfyPlaylistRecord[], expected?: LocalitfyPlaylistRecord[], finishMigration?: boolean) => Promise<LocalitfyPlaylistRecord[]>;
 
       setDiscordActivity: (payload: LocalitfyDiscordActivityPayload) => Promise<LocalitfyDiscordResult>;
       updateDiscordActivity: (payload: LocalitfyDiscordActivityPayload) => Promise<LocalitfyDiscordResult>;
