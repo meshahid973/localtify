@@ -156,36 +156,19 @@
 .playerBar .circleButton,
 .playerBar .volumeIconButton,
 .playerBar .repeatButton{
-  width: var(--player-control-size) !important;
-  height: var(--player-control-size) !important;
-  min-width: var(--player-control-size) !important;
-  min-height: var(--player-control-size) !important;
   position: relative !important;
 
-  color: var(--lt-text) !important;
 
   cursor: pointer !important;
   -webkit-app-region: no-drag !important;
   transform-origin: center center !important;
-  transition:
-    transform 160ms cubic-bezier(0.16, 1, 0.3, 1),
-    color 160ms ease,
-    opacity 160ms ease !important;
 }
 
 .playerBar .circleButton:hover,
 .playerBar .volumeIconButton:hover,
 .playerBar .repeatButton:hover{
-  transform: translate3d(0, -1px, 0) scale(1.06) !important;
-  color: var(--lt-text) !important;
 
   opacity: 1 !important;
-}
-
-.playerBar .circleButton:active,
-.playerBar .volumeIconButton:active,
-.playerBar .repeatButton:active{
-  transform: translate3d(0, 0, 0) scale(0.94) !important;
 }
 
 .playerBar .circleButton.main{
@@ -698,16 +681,11 @@ body.localitfyThemePainting .app .volumeWrap input[type="range"],
   padding: 0 !important;
   display: inline-grid !important;
   place-items: center !important;
-  border: 0 !important;
   outline: 0 !important;
   border-radius: 999px !important;
-  background: transparent !important;
   background-image: none !important;
-  box-shadow: none !important;
   color: var(--lt-muted) !important;
   opacity: 1 !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
   transform: translateZ(0) !important;
   transition:
     color 160ms ease,
@@ -730,10 +708,8 @@ body.localitfyThemePainting .app .volumeWrap input[type="range"],
 .playerBar .volumeIconButton:hover,
 .playerBar .repeatButton:hover{
   color: var(--lt-text) !important;
-  background: transparent !important;
   background-image: none !important;
   border: 0 !important;
-  box-shadow: none !important;
   filter: none !important;
   transform: translateY(-1px) scale(1.04) translateZ(0) !important;
 }
