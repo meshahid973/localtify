@@ -172,7 +172,7 @@ export function useDownloadsRuntime({ ready, songs, setStatusText, setPlayerErro
       const res = await bridge.spotifyLogin();
       const state = updateSpotifyConnectionState(res || {});
 
-      if (!res?.ok && !state.loggedIn && !state.fallbackAvailable) {
+      if (!res?.ok && !state.loggedIn) {
         const message = res?.needsClientId
           ? "Spotify connection is unavailable in this build. You can still retry with a public Spotify link when public import is available."
           : res?.error || "Spotify login cancelled.";
@@ -193,12 +193,13 @@ export function useDownloadsRuntime({ ready, songs, setStatusText, setPlayerErro
 
   async function handleSpotifyLogout() {
     try {
-      const res = await (window.localitfy as any).spotifyLogout?.();
-      updateSpotifyConnectionState(res || { ready: true, loggedIn: false, mode: "oauth-pkce" });
-    } catch {
-      setSpotifyConnectionReady(true);
-      setSpotifyNeedsClientId(false);
-      setSpotifyLoggedIn(false);
+      const res = await window.localitfy.spotifyLogout?.();
+      if (!res?.ok) throw new Error(res?.error || "Could not disconnect Spotify.");
+      updateSpotifyConnectionState(res);
+    } catch (error) {
+      setSpotifyFetchError(error instanceof Error ? error.message : "Could not disconnect Spotify.");
+      setStatusText("spotify disconnection failed");
+      return;
     }
 
     setSpotifyTracks([]);

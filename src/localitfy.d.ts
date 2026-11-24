@@ -627,8 +627,6 @@ declare global {
 
       spotifyCheck?: () => Promise<LocalitfySpotifyStatus>;
       spotifyLogin?: () => Promise<LocalitfySpotifyStatus>;
-      spotifyImportBrowser: () => Promise<LocalitfySpotifyStatus>;
-      spotifySetCookie: (payload: string | { spDc?: string }) => Promise<LocalitfySpotifyStatus>;
       spotifyLogout?: () => Promise<LocalitfySpotifyStatus>;
       spotifyFetch?: (payload: { url: string }) => Promise<LocalitfySpotifyFetchResult>;
       spotifyFetchTracks?: (url: string) => Promise<LocalitfySpotifyFetchResult>;

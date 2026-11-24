@@ -502,7 +502,6 @@ body.localitfyThemePainting .app .volumeWrap input[type="range"],
 }
 
 
-
 .app.compactPlayer .playerBar{
   --player-size-used: var(--player-size-live, var(--player-size, 92px));
   --player-art-size: clamp(42px, calc(var(--player-size-used) - 34px), 56px);

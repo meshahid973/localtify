@@ -165,11 +165,6 @@ contextBridge.exposeInMainWorld("localitfy", {
 
   spotifyCheck: () => ipcRenderer.invoke("spotify-check"),
   spotifyLogin: () => ipcRenderer.invoke("spotify-login"),
-  spotifyImportBrowser: () => ipcRenderer.invoke("spotify-import-browser"),
-  spotifySetCookie: (payload) => {
-    const spDc = typeof payload === "string" ? payload : payload?.spDc;
-    return ipcRenderer.invoke("spotify-set-cookie", { spDc });
-  },
   spotifyLogout: () => ipcRenderer.invoke("spotify-logout"),
   spotifyFetch: (payload) => ipcRenderer.invoke("spotify-fetch", payload),
   spotifyFetchTracks: (url) => ipcRenderer.invoke("spotify-fetch", { url }),
