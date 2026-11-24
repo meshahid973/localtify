@@ -6,7 +6,7 @@ import { AudioEffectRuntime } from "./audio/audioEffectRuntime";
 import { PlaybackTransitionCoordinator } from "./engine/playbackTransitionCoordinator";
 import { PlaybackUrlCache } from "./playbackUrlCache";
 import { HtmlAudioEngine } from "./engine/htmlAudioEngine";
-import type { PlayerController } from "./engine/playerController";
+import { createPlayerController, type PlayerController } from "./engine/playerController";
 import type { PlaybackUrlResult, Song } from "../library/song.types";
 import type { QueueHistoryItem, RepeatMode } from "./player.types";
 import { QUEUE_HISTORY_STORAGE_KEY, QUEUE_STORAGE_KEY, REPEAT_PLAYLIST_STORAGE_KEY, SHUFFLE_STORAGE_KEY, REPEAT_MODE_STORAGE_KEY } from "../library/library.constants";
@@ -278,8 +278,23 @@ export function usePlayerRuntime({ defaultVolume, setAudioElementVolume }: UsePl
     }
   }
 
+  function ensurePlayerController() {
+    const audio = audioRef.current;
+    if (!audio) return null;
+
+    if (!playerEngineRef.current || playerEngineRef.current.element !== audio) {
+      playerControllerRef.current?.destroy();
+
+      const engine = new HtmlAudioEngine(audio);
+      playerEngineRef.current = engine;
+      playerControllerRef.current = createPlayerController(engine);
+    }
+
+    return playerControllerRef.current;
+  }
+
   return {
-    flushListeningEvents, listeningHistoryRef, audioRef, playerEngineRef, playerControllerRef, playbackTransitionRef,
+    ensurePlayerController, flushListeningEvents, listeningHistoryRef, audioRef, playerEngineRef, playerControllerRef, playbackTransitionRef,
     crossfadeIntervalRef, crossfadeAutoStartedRef, crossfadeMainPauseGuardRef,
     crossfadeLastStartAtRef, crossfadeRecoveryTimerRef, crossfadeHandoffRef,
     animationFrameRef, progressLoopTimeoutRef,

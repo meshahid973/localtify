@@ -2,8 +2,6 @@ import { startTrackPointerSession } from "./features/library/components/trackPoi
 import { createSleepTimer } from "./features/player/sleepTimer";
 import { lazy, startTransition, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent, DragEvent, MouseEvent as ReactMouseEvent, SyntheticEvent } from "react";
-import { HtmlAudioEngine } from "./features/player/engine/htmlAudioEngine";
-import { createPlayerController } from "./features/player/engine/playerController";
 import { useNativeMediaSession } from "./features/player/useNativeMediaSession";
 import type { ListeningOutcome } from "./features/player/listeningHistory";
 import { usePlayerRuntime } from "./features/player";
@@ -138,7 +136,7 @@ function MainModeApp() {
 
   const playerRuntime = usePlayerRuntime({ defaultVolume: defaultSettings.volume, setAudioElementVolume });
   const {
-    flushListeningEvents, listeningHistoryRef, audioRef, playerEngineRef, playerControllerRef, playbackTransitionRef,
+    ensurePlayerController, flushListeningEvents, listeningHistoryRef, audioRef, playerEngineRef, playerControllerRef, playbackTransitionRef,
     crossfadeAutoStartedRef, crossfadeMainPauseGuardRef, crossfadeHandoffRef,
     animationFrameRef, progressLoopTimeoutRef,
     pendingPlayRef, countPlayRef, playCountSongIdRef, playCountListenedRef, playCountLastTimeRef,
@@ -451,20 +449,7 @@ function MainModeApp() {
     };
   }
 
-  function ensurePlayerController() {
-    const audio = audioRef.current;
-    if (!audio) return null;
 
-    if (!playerEngineRef.current || playerEngineRef.current.element !== audio) {
-      playerControllerRef.current?.destroy();
-
-      const engine = new HtmlAudioEngine(audio);
-      playerEngineRef.current = engine;
-      playerControllerRef.current = createPlayerController(engine);
-    }
-
-    return playerControllerRef.current;
-  }
 
   const visualCurrentSong = useMemo(() => {
     if (!crossfadePreviewSongId) return currentSong;

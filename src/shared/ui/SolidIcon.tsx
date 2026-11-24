@@ -44,9 +44,9 @@ const cutouts: Partial<Record<SolidIconName, ReactNode>> = {
   about: <><circle cx="12" cy="7" r="1.5" fill="black" /><path d="M11 11h2v7h-2z" fill="black" /></>,
 };
 
-export function SolidIcon({ name, size = 20, style, ...props }: Props) {
+export function SolidIcon({ name, size = 20, style, className, ...props }: Props) {
   const maskId = useId();
-  return <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor"
+  return <svg className={`ltSolidIcon${className ? ` ${className}` : ""}`} viewBox="0 0 24 24" width={size} height={size} fill="currentColor"
     aria-hidden="true" focusable="false" style={{ display: "block", flexShrink: 0, ...style }} {...props}>
     {cutouts[name] ? <><defs><mask id={maskId} maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24"><rect width="24" height="24" fill="white" />{cutouts[name]}</mask></defs><g mask={`url(#${maskId})`}>{icons[name]}</g></> : icons[name]}
   </svg>;
