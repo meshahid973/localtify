@@ -36,3 +36,58 @@ function createSettingsFlushRuntime({ timeoutMs = 5000 } = {}) {
   };
 }
 module.exports = { createSettingsFlushRuntime };
+
+function createWindowCloseRuntime({settingsFlush, dialog, quitApproved, quitPending, shouldHideToTray, ensureTray}) {
+  const closeFlushApproved = new WeakSet(), closeFlushPending = new WeakSet();
+  const flushConfirmations = new WeakMap();
+  function confirmSettingsFlush(win) {
+    if (!win || win.isDestroyed()) return Promise.resolve(true);
+    const existing = flushConfirmations.get(win);
+    if (existing) return existing;
+    const confirmation = confirmPendingSettings(win).finally(() => flushConfirmations.delete(win));
+    flushConfirmations.set(win, confirmation);
+    return confirmation;
+  }
+
+  async function confirmPendingSettings(win) {
+    if (!win || win.isDestroyed() || await settingsFlush.request(win.webContents)) return true;
+    if (win.isDestroyed()) return true;
+    try {
+      const { response } = await dialog.showMessageBox(win, {
+        type: "warning", title: "Unsaved changes", message: "Localtify could not finish saving settings, playlists or listening history.",
+        detail: "Keep Localtify open to retry, or exit and retain the last saved data.",
+        buttons: ["Keep open", "Exit without saving"], defaultId: 0, cancelId: 0
+      });
+      return response === 1;
+    } catch { return false; }
+  }
+
+  function attachCloseToTray(win) {
+    if (!win || win.__localitfyCloseToTrayAttached) return;
+    win.__localitfyCloseToTrayAttached = true;
+    win.on("close", (event) => {
+      if (win.isDestroyed() || quitApproved() || closeFlushApproved.has(win)) return;
+      if (shouldHideToTray()) {
+        event.preventDefault();
+        win.hide();
+        ensureTray();
+        return;
+      }
+      if (!settingsFlush.hasReady(win.webContents)) return;
+      event.preventDefault();
+      if (closeFlushPending.has(win) || quitPending()) return;
+      closeFlushPending.add(win);
+      void confirmSettingsFlush(win).then(saved => {
+        if (saved && !win.isDestroyed()) {
+          closeFlushApproved.add(win);
+          win.close();
+          closeFlushApproved.delete(win);
+        }
+      }).finally(() => closeFlushPending.delete(win));
+    });
+  }
+
+
+  return {confirmSettingsFlush, attachCloseToTray};
+}
+module.exports.createWindowCloseRuntime = createWindowCloseRuntime;

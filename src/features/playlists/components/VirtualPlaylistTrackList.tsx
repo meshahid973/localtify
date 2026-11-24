@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, DragEvent, MouseEvent as ReactMouseEvent } from "react";
-import { startTrackPointerSession } from "../../library/components/trackPointerSession";
+import { startTrackPointerSession, trackReorderDirection } from "../../library/components/trackPointerSession";
 import { usePageVirtualizer } from "../../../shared/hooks/usePageVirtualizer";
 import { GripVertical, X } from "lucide-react";
 import type { Song, LibraryDropSide } from "../../library/song.types";
@@ -148,9 +148,9 @@ export const VirtualPlaylistTrackList = memo(function VirtualPlaylistTrackList({
               aria-keyshortcuts={reorderable ? "Alt+ArrowUp Alt+ArrowDown" : undefined}
               draggable={reorderable}
               onKeyDown={event => {
-                if (!reorderable || !event.altKey || event.ctrlKey || event.metaKey || !["ArrowUp", "ArrowDown"].includes(event.key)) return;
+                const direction = trackReorderDirection(event);
+                if (!reorderable || direction === null) return;
                 event.preventDefault(); event.stopPropagation();
-                const direction = event.key === "ArrowUp" ? -1 : 1;
                 const target = list[virtualRow.index + direction];
                 if (target) onDropSong(selectedPlaylistId, song.id, target.id, direction < 0 ? "before" : "after");
               }}

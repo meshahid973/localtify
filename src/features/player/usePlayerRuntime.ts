@@ -52,7 +52,6 @@ export function usePlayerRuntime({ defaultVolume, setAudioElementVolume }: UsePl
   const playerControllerRef = useRef<PlayerController | null>(null);
   const crossfadeIntervalRef = useRef<number | null>(null);
   const crossfadeAutoStartedRef = useRef(false);
-  const crossfadeAutoTargetRef = useRef("");
   const crossfadeMainPauseGuardRef = useRef(false);
   const crossfadeLastStartAtRef = useRef(0);
   const crossfadeHandoffClearTimerRef = useRef<number | null>(null);
@@ -264,7 +263,6 @@ export function usePlayerRuntime({ defaultVolume, setAudioElementVolume }: UsePl
       crossfadeRecoveryTimerRef.current = null;
     }
     crossfadeAutoStartedRef.current = false;
-    crossfadeAutoTargetRef.current = "";
     crossfadeMainPauseGuardRef.current = false;
     crossfadeHandoffRef.current = null;
     setCrossfadePreviewSongId("");
@@ -282,8 +280,8 @@ export function usePlayerRuntime({ defaultVolume, setAudioElementVolume }: UsePl
 
   return {
     flushListeningEvents, listeningHistoryRef, audioRef, playerEngineRef, playerControllerRef, playbackTransitionRef,
-    crossfadeIntervalRef, crossfadeAutoStartedRef, crossfadeAutoTargetRef, crossfadeMainPauseGuardRef,
-    crossfadeLastStartAtRef, crossfadeHandoffClearTimerRef, crossfadeRecoveryTimerRef, crossfadeHandoffRef,
+    crossfadeIntervalRef, crossfadeAutoStartedRef, crossfadeMainPauseGuardRef,
+    crossfadeLastStartAtRef, crossfadeRecoveryTimerRef, crossfadeHandoffRef,
     animationFrameRef, progressLoopTimeoutRef,
     pendingPlayRef, countPlayRef, playCountSongIdRef, playCountListenedRef,
     playCountLastTimeRef, positionSaveRef, nextAudioRef, playbackUrlCacheRef,

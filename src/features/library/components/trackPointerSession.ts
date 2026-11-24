@@ -68,3 +68,8 @@ export function startTrackPointerSession(event: ReactPointerEvent<HTMLElement>, 
   try { capture.setPointerCapture(id); } catch { /* Window listeners still own the gesture. */ }
   return cancel;
 }
+
+export function trackReorderDirection(event: Pick<KeyboardEvent, "key" | "altKey" | "ctrlKey" | "metaKey">): -1 | 1 | null {
+  if (!event.altKey || event.ctrlKey || event.metaKey) return null;
+  return event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : null;
+}

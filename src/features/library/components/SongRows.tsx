@@ -1,3 +1,4 @@
+import { trackReorderDirection } from "./trackPointerSession";
 import { memo } from "react";
 import { TrackRow, TrackIndex, TrackLike, TrackAdd, TrackDuration } from "./TrackRow";
 import { GripVertical } from "lucide-react";
@@ -82,9 +83,10 @@ export const SongRowItem = memo(function SongRowItem({
         onPointerStartSongDrag?.(event, song.id);
       }}
       onKeyDown={event => {
-        if (!moveAdjacent || onToggleSelection || !event.altKey || event.ctrlKey || event.metaKey || !["ArrowUp", "ArrowDown"].includes(event.key)) return;
+        const direction = trackReorderDirection(event);
+        if (!moveAdjacent || onToggleSelection || direction === null) return;
         event.preventDefault(); event.stopPropagation();
-        moveAdjacent(event.key === "ArrowUp" ? -1 : 1);
+        moveAdjacent(direction);
       }}
       onDragStart={(event) => onStartSongDrag(event, song.id)}
       onDragOver={(event) => onDragOverSong(event, song.id)}

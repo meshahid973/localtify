@@ -24,10 +24,9 @@ const { uniquePaths, createUserDataRuntime } = require("./runtime/user-data.cjs"
 const { createWindowTranslucencyRuntime } = require("./runtime/translucency.cjs");
 const { createIconRuntime } = require("./runtime/icons.cjs");
 const { createUpdaterRuntime } = require("./runtime/updater.cjs");
-const { createSettingsFlushRuntime } = require("./runtime/settings-flush.cjs");
+const { createSettingsFlushRuntime, createWindowCloseRuntime } = require("./runtime/settings-flush.cjs");
 const settingsFlush = createSettingsFlushRuntime();
 let quitFlushApproved = false, quitFlushPending = false;
-const closeFlushApproved = new WeakSet(), closeFlushPending = new WeakSet();
 const { createMediaServerRuntime } = require("./runtime/media-server.cjs");
 const { createThumbnailRuntime } = require("./runtime/thumbnail-runtime.cjs");
 const { createGenreMetadataBackfill } = require("./runtime/genre-backfill.cjs");
@@ -357,53 +356,11 @@ function cleanupNativeWindowsMedia() {
   }
 }
 
-const flushConfirmations = new WeakMap();
-function confirmSettingsFlush(win) {
-  if (!win || win.isDestroyed()) return Promise.resolve(true);
-  const existing = flushConfirmations.get(win);
-  if (existing) return existing;
-  const confirmation = confirmPendingSettings(win).finally(() => flushConfirmations.delete(win));
-  flushConfirmations.set(win, confirmation);
-  return confirmation;
-}
-
-async function confirmPendingSettings(win) {
-  if (!win || win.isDestroyed() || await settingsFlush.request(win.webContents)) return true;
-  if (win.isDestroyed()) return true;
-  try {
-    const { response } = await dialog.showMessageBox(win, {
-      type: "warning", title: "Unsaved settings", message: "Localtify could not finish saving settings.",
-      detail: "Keep Localtify open to retry, or exit and retain the last saved settings.",
-      buttons: ["Keep open", "Exit without saving"], defaultId: 0, cancelId: 0
-    });
-    return response === 1;
-  } catch { return false; }
-}
-
-function attachCloseToTray(win) {
-  if (!win || win.__localitfyCloseToTrayAttached) return;
-  win.__localitfyCloseToTrayAttached = true;
-  win.on("close", (event) => {
-    if (win.isDestroyed() || quitFlushApproved || closeFlushApproved.has(win)) return;
-    if (minimizeToTray && !allowQuit) {
-      event.preventDefault();
-      win.hide();
-      ensureTray();
-      return;
-    }
-    if (!settingsFlush.hasReady(win.webContents)) return;
-    event.preventDefault();
-    if (closeFlushPending.has(win) || quitFlushPending) return;
-    closeFlushPending.add(win);
-    void confirmSettingsFlush(win).then(saved => {
-      if (saved && !win.isDestroyed()) {
-        closeFlushApproved.add(win);
-        win.close();
-        closeFlushApproved.delete(win);
-      }
-    }).finally(() => closeFlushPending.delete(win));
-  });
-}
+const {confirmSettingsFlush, attachCloseToTray} = createWindowCloseRuntime({
+  settingsFlush, dialog,
+  quitApproved: () => quitFlushApproved, quitPending: () => quitFlushPending,
+  shouldHideToTray: () => minimizeToTray && !allowQuit, ensureTray
+});
 
 function updateNativeMediaState(payload = {}) {
   const volume = Number(payload.volume);
