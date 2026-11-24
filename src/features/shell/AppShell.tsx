@@ -189,7 +189,7 @@ export default function AppShell(props: AppShellProps) {
     >
 
       {artworkEnabled && workspaceSources.length ? <WorkspaceArtworkBackdrop sources={workspaceSources} /> : null}
-      <TitleBar showWindowButtons={platformId !== "mac"} history={nav}>
+      <TitleBar showWindowButtons={platformId !== "mac"} history={nav} onClose={frame.closeWindowSafely}>
         {!isAndroidApp()?updateBanner:null}
       </TitleBar>
 

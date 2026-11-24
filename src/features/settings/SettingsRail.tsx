@@ -50,10 +50,11 @@ export default function SettingsRail({
       if (!element && attempts++ < 40) { revealTimer.current = window.setTimeout(reveal, 75); return; }
       revealCategory.current = null;
       if (!element) return;
-      if (element instanceof HTMLDetailsElement) element.open = true;
+      const nestedDisclosure = element instanceof HTMLDetailsElement ? element : element.firstElementChild instanceof HTMLDetailsElement ? element.firstElementChild : null;
+      if (nestedDisclosure) nestedDisclosure.open = true;
       for (let disclosure = element.closest("details"); disclosure; disclosure = disclosure.parentElement?.closest("details") ?? null) disclosure.open = true;
       element.scrollIntoView({ block: "start", behavior: "auto" });
-      const control = element instanceof HTMLDetailsElement ? element.querySelector<HTMLElement>("summary") : element.querySelector<HTMLElement>("button:not(:disabled), input:not(:disabled), select:not(:disabled), summary");
+      const control = nestedDisclosure ? nestedDisclosure.querySelector<HTMLElement>("summary") : element.querySelector<HTMLElement>("button:not(:disabled), input:not(:disabled), select:not(:disabled), summary");
       control?.focus({ preventScroll: true });
     };
     revealTimer.current = window.setTimeout(reveal, 70);

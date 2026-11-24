@@ -35,13 +35,17 @@ export function useSettingsController({ initialSettings, bootedRef, volumeDraftR
   const themePaintIdleTimerRef = useRef<number | null>(null);
   const themeSettlingRef = useRef(false);
 
+  const flushSettings = useStableCallback(async () => {
+    if (!bootedRef.current) return true;
+    if (saveSettingsTimerRef.current !== null || settingsSaveFailedRef.current) {
+      return saveSettingsSafely(settingsRef.current);
+    }
+    try { await writeSettings.flush(); return true; }
+    catch { return saveSettingsSafely(settingsRef.current); }
+  });
+
   useEffect(() => {
-    const flush = () => {
-      if (!bootedRef.current || (saveSettingsTimerRef.current === null && !settingsSaveFailedRef.current)) return;
-      if (saveSettingsTimerRef.current !== null) window.clearTimeout(saveSettingsTimerRef.current);
-      saveSettingsTimerRef.current = null;
-      void writeSettings(settingsRef.current).then(() => { settingsSaveFailedRef.current = false; setSettingsSaveError(false); }).catch(error => { settingsSaveFailedRef.current = true; setSettingsSaveError(true); console.warn("[localtify settings flush]", error); });
-    };
+    const flush = () => { void flushSettings(); };
     const onVisibility = () => { if (document.hidden) flush(); };
     window.addEventListener("pagehide", flush);
     document.addEventListener("visibilitychange", onVisibility);
@@ -50,7 +54,7 @@ export function useSettingsController({ initialSettings, bootedRef, volumeDraftR
       document.removeEventListener("visibilitychange", onVisibility);
       flush();
     };
-  }, [writeSettings, bootedRef]);
+  }, [flushSettings]);
 
   useEffect(() => {
     themeSettlingRef.current = themeSettling;
@@ -84,7 +88,7 @@ export function useSettingsController({ initialSettings, bootedRef, volumeDraftR
     ].includes(key);
   }
 
-  async function saveSettingsSafely(next: Settings, debounce = false) {
+  async function saveSettingsSafely(next: Settings, debounce = false, delay = 260) {
     if (!bootedRef.current) return true;
 
     if (saveSettingsTimerRef.current !== null) {
@@ -102,7 +106,7 @@ export function useSettingsController({ initialSettings, bootedRef, volumeDraftR
       saveSettingsTimerRef.current = window.setTimeout(() => {
         saveSettingsTimerRef.current = null;
         void runSave();
-      }, 260);
+      }, delay);
       return false;
     }
 
@@ -111,7 +115,7 @@ export function useSettingsController({ initialSettings, bootedRef, volumeDraftR
 
   async function persistSettings(next: Settings, debounce = false, priority: "immediate" | "transition" = "transition") {
     const previous = settingsRef.current;
-    if (settingsAreSame(previous, next)) return settingsSaveFailedRef.current || saveSettingsTimerRef.current !== null ? saveSettingsSafely(next, debounce) : true;
+    if (settingsAreSame(previous, next)) return flushSettings();
 
     settingsRef.current = next;
 
@@ -141,16 +145,7 @@ export function useSettingsController({ initialSettings, bootedRef, volumeDraftR
       settingsRef.current = next;
       setSettings(next);
 
-      if (bootedRef.current) {
-        if (saveSettingsTimerRef.current !== null) {
-          window.clearTimeout(saveSettingsTimerRef.current);
-        }
-
-        saveSettingsTimerRef.current = window.setTimeout(() => {
-          saveSettingsTimerRef.current = null;
-          void saveSettingsSafely(settingsRef.current, false);
-        }, debounce ? 420 : 120);
-      }
+      void saveSettingsSafely(next, true, debounce ? 420 : 120);
 
       return;
     }
@@ -329,7 +324,7 @@ export function useSettingsController({ initialSettings, bootedRef, volumeDraftR
   }
 
   return {
-    saveSettingsSafely, persistSettings, updateSetting, updateSettingsPatch, resetDiscordSettings, resetAppearanceSettings, resetPlayerLayoutSettings, resetLibraryLayoutSettings, resetAllSettingsSafely, updateCoverColorSyncMode,
+    flushSettings, saveSettingsSafely, persistSettings, updateSetting, updateSettingsPatch, resetDiscordSettings, resetAppearanceSettings, resetPlayerLayoutSettings, resetLibraryLayoutSettings, resetAllSettingsSafely, updateCoverColorSyncMode,
     settings, setSettings, settingsRef, settingsSaveError,
     retrySettingsSave: () => saveSettingsSafely(settingsRef.current),
     settingsCategory, setSettingsCategory,

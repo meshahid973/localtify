@@ -1,3 +1,4 @@
+import { startTrackPointerSession } from "./features/library/components/trackPointerSession";
 import { createSleepTimer } from "./features/player/sleepTimer";
 import { lazy, startTransition, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent, DragEvent, MouseEvent as ReactMouseEvent, SyntheticEvent } from "react";
@@ -208,7 +209,7 @@ function MainModeApp() {
     themeSettling,
     themeMotionReady, setThemeMotionReady,
     writeSettings,
-    saveSettingsSafely, persistSettings, updateSetting, updateSettingsPatch, resetDiscordSettings, resetAppearanceSettings, resetPlayerLayoutSettings, resetLibraryLayoutSettings, resetAllSettingsSafely, updateCoverColorSyncMode,
+    flushSettings, saveSettingsSafely, persistSettings, updateSetting, updateSettingsPatch, resetDiscordSettings, resetAppearanceSettings, resetPlayerLayoutSettings, resetLibraryLayoutSettings, resetAllSettingsSafely, updateCoverColorSyncMode,
     themeSettlingTimerRef,
     themePaintIdleTimerRef,
     themeSettlingRef
@@ -276,7 +277,7 @@ function MainModeApp() {
     openUpdateChangelog,
     closeWhatsNew,
     askUpdaterToDownload,
-    askUpdaterToInstall,
+    askUpdaterToInstall: installUpdate,
     manualUpdateCheck,
     handleUpdateLater,
 
@@ -288,6 +289,8 @@ function MainModeApp() {
     setStatusText,
     showAppToast
   });
+  const askUpdaterToInstall = useStableCallback(async () => { if (await flushSettings()) await installUpdate(); });
+  const closeWindowSafely = useStableCallback(async () => { if (await flushSettings()) await window.localitfy.closeWindow(); });
   const {
     isThreeAm,
     screensaverVisible, setScreensaverVisible,
@@ -2250,25 +2253,26 @@ function MainModeApp() {
 
 
   const [sleepDeadline, setSleepDeadline] = useState(0);
+  const expireSleepTimer = useStableCallback((minutes: number) => {
+    if (Number(settingsRef.current.sleepTimerMinutes) !== minutes) return;
+    stopFade();
+    stopCrossfadeAuto();
+    playbackTransitionRef.current.requestPause();
+    pendingPlayRef.current = false;
+    const controller = ensurePlayerController();
+    if (controller) controller.pause(); else audioRef.current?.pause();
+    setIsPlaying(false);
+    if (audioRef.current) applyAudioQualitySettings(audioRef.current, songRef.current);
+    setSleepDeadline(0);
+    void updateSetting("sleepTimerMinutes", 0);
+    setStatusText("Sleep timer finished");
+  });
   useEffect(() => {
     const minutes = Number(settings.sleepTimerMinutes) || 0;
     if (minutes <= 0) { setSleepDeadline(0); return; }
     const deadline = Date.now() + Math.max(1, minutes) * 60_000;
     setSleepDeadline(deadline);
-    const timer = createSleepTimer(deadline, () => {
-      if (Number(settingsRef.current.sleepTimerMinutes) !== minutes) return;
-      stopFade();
-      stopCrossfadeAuto();
-      playbackTransitionRef.current.requestPause();
-      pendingPlayRef.current = false;
-      const controller = ensurePlayerController();
-      if (controller) controller.pause(); else audioRef.current?.pause();
-      setIsPlaying(false);
-      if (audioRef.current) applyAudioQualitySettings(audioRef.current, songRef.current);
-      setSleepDeadline(0);
-      void updateSetting("sleepTimerMinutes", 0);
-      setStatusText("Sleep timer finished");
-    }, { now: Date.now, schedule: (callback, delay) => window.setTimeout(callback, delay), clear: id => window.clearTimeout(id) });
+    const timer = createSleepTimer(deadline, () => expireSleepTimer(minutes), { now: Date.now, schedule: (callback, delay) => window.setTimeout(callback, delay), clear: id => window.clearTimeout(id) });
     document.addEventListener("visibilitychange", timer.check);
     window.addEventListener("focus", timer.check);
     return () => {
@@ -3806,7 +3810,7 @@ function MainModeApp() {
   }, [moveSongInLibraryByPointer]);
 
   function startPointerSongDrag(event: PointerEvent<HTMLElement>, songId: string) {
-    if (event.button !== 0 || !songId || libraryOrderLocked) return;
+    if (event.button !== 0 || !songId || libraryOrderLocked || pointerLibraryDragRef.current) return;
 
     const blockedDragOrigin =
       event.target instanceof HTMLElement
@@ -3832,79 +3836,42 @@ function MainModeApp() {
       sourceElement: event.currentTarget
     };
 
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-
-    const onMove = (moveEvent: globalThis.PointerEvent) => {
-      const runtime = pointerLibraryDragRef.current;
-      if (!runtime || runtime.pointerId !== moveEvent.pointerId) return;
-
-      const distance = Math.hypot(moveEvent.clientX - runtime.startX, moveEvent.clientY - runtime.startY);
-      if (!runtime.active && distance < 7) return;
-
-      moveEvent.preventDefault();
-
-      if (!runtime.active) {
-        runtime.active = true;
-        draggedSongIdRef.current = runtime.songId;
-        setDraggedSongId(runtime.songId);
-        const song = songsById.get(runtime.songId);
-        setDraggedSongTitle(song ? prettyTitle(song.title, 7) : "song");
-        clearLibraryDragTarget("after");
-        setQueueDropHotSafely(false);
-        document.body.classList.add("localitfySongDragging", "localitfyLibraryPointerDragging", "localitfyNoSelect");
-        runtime.sourceElement?.classList.add("songCardPointerSource");
-      }
-
-      if (pointerLibraryDragFrameRef.current !== null) return;
-
-      const clientX = moveEvent.clientX;
-      const clientY = moveEvent.clientY;
-
-      pointerLibraryDragFrameRef.current = window.requestAnimationFrame(() => {
-        pointerLibraryDragFrameRef.current = null;
-        const latestRuntime = pointerLibraryDragRef.current;
-        if (!latestRuntime?.active) return;
-
-        const targetInfo = findPointerLibraryTarget(clientX, clientY, latestRuntime.songId);
-        if (!targetInfo) {
-          latestRuntime.latestTargetId = null;
-          libraryDragOverSongIdRef.current = "";
-          clearLibraryDragTarget(latestRuntime.latestSide);
-          return;
+    event.preventDefault();
+    startTrackPointerSession(event, {
+      move: (clientX, clientY) => {
+        const runtime = pointerLibraryDragRef.current;
+        if (!runtime) return;
+        if (!runtime.active) {
+          runtime.active = true;
+          draggedSongIdRef.current = runtime.songId;
+          setDraggedSongId(runtime.songId);
+          const song = songsById.get(runtime.songId);
+          setDraggedSongTitle(song ? prettyTitle(song.title, 7) : "song");
+          clearLibraryDragTarget("after");
+          setQueueDropHotSafely(false);
+          document.body.classList.add("localitfySongDragging", "localitfyLibraryPointerDragging", "localitfyNoSelect");
+          runtime.sourceElement?.classList.add("songCardPointerSource");
         }
-
-        latestRuntime.latestTargetId = targetInfo.songId;
-        latestRuntime.latestSide = targetInfo.side;
-        setLibraryDragTarget(targetInfo.songId, targetInfo.side, targetInfo.pull);
-      });
-    };
-
-    const stopListening = () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-      window.removeEventListener("pointercancel", onCancel);
-    };
-
-    const onUp = (upEvent: globalThis.PointerEvent) => {
-      if (pointerLibraryDragRef.current?.pointerId !== upEvent.pointerId) return;
-      stopListening();
-      const runtime = pointerLibraryDragRef.current;
-      if (runtime?.active) {
-        const target = findPointerLibraryTarget(upEvent.clientX, upEvent.clientY, runtime.songId);
+        const target = findPointerLibraryTarget(clientX, clientY, runtime.songId);
         runtime.latestTargetId = target?.songId ?? null;
-        if (target) runtime.latestSide = target.side;
+        if (target) {
+          runtime.latestSide = target.side;
+          setLibraryDragTarget(target.songId, target.side, target.pull);
+        } else {
+          libraryDragOverSongIdRef.current = "";
+          clearLibraryDragTarget(runtime.latestSide);
+        }
+      },
+      finish: (apply, x, y) => {
+        const runtime = pointerLibraryDragRef.current;
+        if (runtime && apply) {
+          const target = findPointerLibraryTarget(x, y, runtime.songId);
+          runtime.latestTargetId = target?.songId ?? null;
+          if (target) runtime.latestSide = target.side;
+        }
+        finishPointerLibraryDrag(apply);
       }
-      finishPointerLibraryDrag(true);
-    };
-
-    const onCancel = () => {
-      stopListening();
-      finishPointerLibraryDrag(false);
-    };
-
-    window.addEventListener("pointermove", onMove, { passive: false });
-    window.addEventListener("pointerup", onUp);
-    window.addEventListener("pointercancel", onCancel);
+    });
   }
 
   function startSongDrag(event: DragEvent<HTMLElement>, songId: string) {
@@ -5296,6 +5263,7 @@ function MainModeApp() {
       appRootRef,
       settings,
       platformInfo,
+      closeWindowSafely,
       themeMotionReady,
       showTopUpdateRibbon,
       isViewSwitching,

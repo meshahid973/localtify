@@ -41,3 +41,23 @@ test("a failed settings write does not poison subsequent saves", async () => {
   await saved;
   assert.deepEqual(writes, [1, 2]);
 });
+
+
+test("flush waits for pending settings and reports a failed last write", async () => {
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  const writer = createSettingsWriter(async value => { await gate; if (value === 2) throw new Error("unavailable"); });
+  const first = writer(1);
+  let flushed = false;
+  const flush = writer.flush().then(() => { flushed = true; });
+  await Promise.resolve();
+  assert.equal(flushed, false);
+  release();
+  await Promise.all([first, flush]);
+  assert.equal(flushed, true);
+  const failed = writer(2);
+  await assert.rejects(writer.flush(), /unavailable/);
+  await assert.rejects(failed, /unavailable/);
+  await writer(3);
+  await writer.flush();
+});

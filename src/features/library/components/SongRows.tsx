@@ -69,6 +69,9 @@ export const SongRowItem = memo(function SongRowItem({
 
   return (
     <TrackRow song={song} active={active} playing={isPlaying} selected={selected}
+      tabIndex={moveAdjacent && isMissingFile && !onToggleSelection ? 0 : undefined}
+      aria-label={isMissingFile ? `${song.title}, missing local file` : undefined}
+      aria-keyshortcuts={moveAdjacent && !onToggleSelection ? "Alt+ArrowUp Alt+ArrowDown" : undefined}
       ref={(element) => registerLibrarySongElement?.(song.id, element)}
       className={`songRow ${isDragging ? "songDragging" : ""} ${isDropTarget ? "songDropTarget" : ""} ${isMissingFile ? "songMissingFileV039" : ""}`}
       data-library-song-id={song.id}

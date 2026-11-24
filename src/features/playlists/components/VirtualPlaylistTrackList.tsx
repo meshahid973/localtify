@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties, DragEvent, MouseEvent as ReactMouseEvent, PointerEvent } from "react";
+import type { CSSProperties, DragEvent, MouseEvent as ReactMouseEvent } from "react";
+import { startTrackPointerSession } from "../../library/components/trackPointerSession";
 import { usePageVirtualizer } from "../../../shared/hooks/usePageVirtualizer";
 import { GripVertical, X } from "lucide-react";
 import type { Song, LibraryDropSide } from "../../library/song.types";
@@ -59,7 +60,7 @@ export const VirtualPlaylistTrackList = memo(function VirtualPlaylistTrackList({
   const songIds = useMemo(() => new Set(list.map(song => song.id)), [list]);
   const [dropTarget, setDropTarget] = useState<{ songId: string; side: LibraryDropSide } | null>(null);
   const [pointerSong, setPointerSong] = useState("");
-  const pointer = useRef<{ id: number; songId: string; playlistId: string; x: number; y: number } | null>(null);
+  const pointer = useRef<(() => void) | null>(null);
   const { listRef, virtualizer: rowVirtualizer, scrollMargin } = usePageVirtualizer<HTMLDivElement>({
     count: list.length,
     estimateSize: () => 72,
@@ -67,24 +68,17 @@ export const VirtualPlaylistTrackList = memo(function VirtualPlaylistTrackList({
     getItemKey: (index) => `${selectedPlaylistId}-${list[index]?.id || index}`
   });
 
-  useEffect(() => { pointer.current = null; setPointerSong(""); setDropTarget(null); }, [selectedPlaylistId, reorderable]);
+  useEffect(() => {
+    setPointerSong(""); setDropTarget(null);
+    return () => pointer.current?.();
+  }, [selectedPlaylistId, reorderable]);
 
-  function pointerTarget(event: PointerEvent<HTMLElement>, source: string) {
-    const row = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>(".playlistTrackRow[data-track-id]");
+  function pointerTarget(clientX: number, clientY: number, source: string) {
+    const row = document.elementFromPoint(clientX, clientY)?.closest<HTMLElement>(".playlistTrackRow[data-track-id]");
     const id = row?.dataset.trackId;
     if (!row || !id || id === source || !songIds.has(id)) return null;
     const rect = row.getBoundingClientRect();
-    return { songId: id, side: (event.clientY < rect.top + rect.height / 2 ? "before" : "after") as LibraryDropSide };
-  }
-
-  function endPointer(event: PointerEvent<HTMLElement>, apply: boolean) {
-    const drag = pointer.current;
-    if (!drag || drag.id !== event.pointerId) return;
-    pointer.current = null;
-    const target = apply && reorderable && drag.playlistId === selectedPlaylistId && songIds.has(drag.songId) && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) >= 7 ? pointerTarget(event, drag.songId) : null;
-    if (target) onDropSong(selectedPlaylistId, drag.songId, target.songId, target.side);
-    setPointerSong("");
-    setDropTarget(null);
+    return { songId: id, side: (clientY < rect.top + rect.height / 2 ? "before" : "after") as LibraryDropSide };
   }
 
   const clearLocalDropTarget = useCallback(() => {
@@ -149,6 +143,9 @@ export const VirtualPlaylistTrackList = memo(function VirtualPlaylistTrackList({
                 "--playlist-row-y": `${virtualRow.start - scrollMargin}px`,
                 "--playlist-stagger": Math.min(virtualRow.index, 12)
               } as CSSProperties}
+              tabIndex={reorderable && song.fileExists === false ? 0 : undefined}
+              aria-label={song.fileExists === false ? `${song.title}, missing local file` : undefined}
+              aria-keyshortcuts={reorderable ? "Alt+ArrowUp Alt+ArrowDown" : undefined}
               draggable={reorderable}
               onKeyDown={event => {
                 if (!reorderable || !event.altKey || event.ctrlKey || event.metaKey || !["ArrowUp", "ArrowDown"].includes(event.key)) return;
@@ -199,17 +196,17 @@ export const VirtualPlaylistTrackList = memo(function VirtualPlaylistTrackList({
                 onPointerDown={event => {
                   if (!reorderable || !["touch", "pen"].includes(event.pointerType) || pointer.current) return;
                   event.preventDefault(); event.stopPropagation();
-                  pointer.current = { id: event.pointerId, songId: song.id, playlistId: selectedPlaylistId, x: event.clientX, y: event.clientY };
-                  event.currentTarget.setPointerCapture(event.pointerId);
                   setPointerSong(song.id);
-                }}
-                onPointerMove={event => {
-                  if (pointer.current?.id !== event.pointerId) return;
-                  setDropTarget(pointerTarget(event, song.id));
-                }}
-                onPointerUp={event => endPointer(event, true)}
-                onPointerCancel={event => endPointer(event, false)}
-                onLostPointerCapture={event => endPointer(event, false)}>{reorderable ? <GripVertical size={14} strokeWidth={2.25} /> : null}</span>
+                  pointer.current = startTrackPointerSession(event, {
+                    move: (x, y) => setDropTarget(pointerTarget(x, y, song.id)),
+                    finish: (apply, x, y) => {
+                      pointer.current = null;
+                      const target = apply ? pointerTarget(x, y, song.id) : null;
+                      if (target) onDropSong(selectedPlaylistId, song.id, target.songId, target.side);
+                      setPointerSong(""); setDropTarget(null);
+                    }
+                  });
+                }}>{reorderable ? <GripVertical size={14} strokeWidth={2.25} /> : null}</span>
               <button className="playlistTrackMain" type="button" disabled={song.fileExists === false} aria-current={active ? "true" : undefined} aria-keyshortcuts={reorderable ? "Alt+ArrowUp Alt+ArrowDown" : undefined} title={song.fileExists === false ? "Missing local file" : reorderable ? "Play · Alt + ↑/↓ to reorder" : "Play"} onClick={() => onSelectSong(song.id)}>
                 <span className="playlistTrackIndex"><TrackIndex index={virtualRow.index} active={active} playing={isPlaying} /></span>
                 <Cover song={song} className="playlistTrackCover" preferThumbnail />
