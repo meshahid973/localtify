@@ -24,6 +24,10 @@ const { uniquePaths, createUserDataRuntime } = require("./runtime/user-data.cjs"
 const { createWindowTranslucencyRuntime } = require("./runtime/translucency.cjs");
 const { createIconRuntime } = require("./runtime/icons.cjs");
 const { createUpdaterRuntime } = require("./runtime/updater.cjs");
+const { createSettingsFlushRuntime } = require("./runtime/settings-flush.cjs");
+const settingsFlush = createSettingsFlushRuntime();
+let quitFlushApproved = false, quitFlushPending = false;
+const closeFlushApproved = new WeakSet(), closeFlushPending = new WeakSet();
 const { createMediaServerRuntime } = require("./runtime/media-server.cjs");
 const { createThumbnailRuntime } = require("./runtime/thumbnail-runtime.cjs");
 const { createGenreMetadataBackfill } = require("./runtime/genre-backfill.cjs");
@@ -354,14 +358,41 @@ function cleanupNativeWindowsMedia() {
   }
 }
 
+async function confirmSettingsFlush(win) {
+  if (!win || win.isDestroyed() || await settingsFlush.request(win.webContents)) return true;
+  if (win.isDestroyed()) return true;
+  try {
+    const { response } = await dialog.showMessageBox(win, {
+      type: "warning", title: "Unsaved settings", message: "Localtify could not finish saving settings.",
+      detail: "Keep Localtify open to retry, or exit and retain the last saved settings.",
+      buttons: ["Keep open", "Exit without saving"], defaultId: 0, cancelId: 0
+    });
+    return response === 1;
+  } catch { return false; }
+}
+
 function attachCloseToTray(win) {
   if (!win || win.__localitfyCloseToTrayAttached) return;
   win.__localitfyCloseToTrayAttached = true;
   win.on("close", (event) => {
-    if (!minimizeToTray || allowQuit || win.isDestroyed()) return;
+    if (win.isDestroyed() || quitFlushApproved || closeFlushApproved.has(win)) return;
+    if (minimizeToTray && !allowQuit) {
+      event.preventDefault();
+      win.hide();
+      ensureTray();
+      return;
+    }
+    if (!settingsFlush.hasReady(win.webContents)) return;
     event.preventDefault();
-    win.hide();
-    ensureTray();
+    if (closeFlushPending.has(win) || quitFlushPending) return;
+    closeFlushPending.add(win);
+    void confirmSettingsFlush(win).then(saved => {
+      if (saved && !win.isDestroyed()) {
+        closeFlushApproved.add(win);
+        win.close();
+        closeFlushApproved.delete(win);
+      }
+    }).finally(() => closeFlushPending.delete(win));
   });
 }
 
@@ -1865,6 +1896,12 @@ function createWindow() {
   const rendererIndexPath = isDev ? "" : getRendererIndexPath();
   installRendererSecurityGuards(mainWindow, { isDev, rendererFileRoot: rendererIndexPath ? path.dirname(rendererIndexPath) : "" });
   installSessionPermissionGuards(mainWindow.webContents?.session);
+  const settingsContents = mainWindow.webContents;
+  settingsContents.on("did-start-navigation", (_event, _url, isInPlace, isMainFrame) => {
+    if (isMainFrame && !isInPlace) settingsFlush.forget(settingsContents);
+  });
+  settingsContents.on("render-process-gone", () => settingsFlush.forget(settingsContents));
+  settingsContents.once("destroyed", () => settingsFlush.forget(settingsContents));
   mainWindow.webContents.on("dom-ready", () => hardenRendererBackground(mainWindow));
   mainWindow.webContents.once("did-finish-load", () => {
     clearRendererLoadWatchdog();
@@ -2105,6 +2142,8 @@ app.whenReady().then(async () => {
     return { ok: true, downloadFolder: target, changedCount: refresh.changedCount + repair.changedCount, importedCount: refresh.importedCount, repairedCount: repair.changedCount, songs: repair.songs || refresh.songs };
   });
 
+  ipcRouter.handle("settings:flush-ready", async event => { settingsFlush.ready(event.sender); return true; });
+  ipcRouter.handle("settings:flush-complete", async (event, id, saved) => settingsFlush.complete(event.sender, id, saved));
   ipcRouter.handle("settings:get", async () => getSettings());
   ipcRouter.handle("settings:save", async (_event, settings) => {
     try {
@@ -2186,7 +2225,12 @@ app.whenReady().then(async () => {
   ipcRouter.handle("localitfy:check-for-updates", async (_event, payload) => checkForUpdates(payload));
   ipcRouter.handle("localitfy:get-update-state", async () => getUpdateState());
   ipcRouter.handle("localitfy:download-update", async () => downloadUpdate());
-  ipcRouter.handle("localitfy:install-update", async () => installUpdate());
+  ipcRouter.handle("localitfy:install-update", async () => {
+    if (!await confirmSettingsFlush(mainWindow)) return false;
+    const installed = await installUpdate();
+    if (installed) { quitFlushApproved = true; allowQuit = true; }
+    return installed;
+  });
   ipcRouter.handle("localitfy:open-external", async (_event, url) => {
     const targetUrl = String(url || "").trim();
     if (!/^https?:\/\//i.test(targetUrl)) return { ok: false, reason: "invalid-url" };
@@ -2211,8 +2255,19 @@ app.whenReady().then(async () => {
   app.on("activate", () => { if (!shutdownStarted && BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 
-app.on("before-quit", async () => {
+app.on("before-quit", async event => {
   if (shutdownStarted) return;
+  if (!quitFlushApproved && mainWindow && !mainWindow.isDestroyed() && settingsFlush.hasReady(mainWindow.webContents)) {
+    event.preventDefault();
+    if (quitFlushPending) return;
+    quitFlushPending = true;
+    const saved = await confirmSettingsFlush(mainWindow);
+    quitFlushPending = false;
+    if (!saved) { allowQuit = false; return; }
+    quitFlushApproved = true;
+    app.quit();
+    return;
+  }
   shutdownStarted = true;
   allowQuit = true;
   clearTimeout(startupWindowTimer);

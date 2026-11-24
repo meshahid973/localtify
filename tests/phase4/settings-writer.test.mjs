@@ -3,6 +3,7 @@ import fs from "node:fs";
 import test from "node:test";
 import ts from "typescript";
 import { runInNewContext } from "node:vm";
+import { createRequire } from "node:module";
 
 const source = fs.readFileSync("src/features/settings/settingsWriter.ts", "utf8");
 const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } });
@@ -60,4 +61,26 @@ test("flush waits for pending settings and reports a failed last write", async (
   await assert.rejects(failed, /unavailable/);
   await writer(3);
   await writer.flush();
+});
+
+test("native close flush waits for the registered renderer and rejects stale acknowledgments", async () => {
+  const { createSettingsFlushRuntime } = createRequire(import.meta.url)("../../electron/runtime/settings-flush.cjs");
+  const flush = createSettingsFlushRuntime({timeoutMs: 30});
+  const messages = [];
+  const contents = { isDestroyed: () => false, send: (channel,id) => messages.push({channel,id}) };
+  assert.equal(await flush.request(contents), true);
+  flush.ready(contents);
+  const request = flush.request(contents);
+  assert.equal(flush.request(contents), request);
+  assert.equal(messages.length, 1);
+  assert.equal(flush.complete(contents,"stale",true), false);
+  assert.equal(flush.complete({},messages[0].id,true), false);
+  assert.equal(flush.complete(contents,messages[0].id,true), true);
+  assert.equal(await request,true);
+  const timeout = flush.request(contents);
+  assert.equal(await timeout,false);
+  const interrupted = flush.request(contents);
+  flush.forget(contents);
+  assert.equal(await interrupted,false);
+  assert.equal(await flush.request(contents),true);
 });

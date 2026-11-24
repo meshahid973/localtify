@@ -48,9 +48,11 @@ export function useSettingsController({ initialSettings, bootedRef, volumeDraftR
   useEffect(() => {
     const flush = () => { void flushSettings(); };
     const onVisibility = () => { if (document.hidden) flush(); };
+    const unsubscribe = window.localitfy.onSettingsFlushRequest?.(flushSettings);
     window.addEventListener("pagehide", flush);
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
+      unsubscribe?.();
       window.removeEventListener("pagehide", flush);
       document.removeEventListener("visibilitychange", onVisibility);
       flush();

@@ -114,6 +114,17 @@ contextBridge.exposeInMainWorld("localitfy", {
 
   getSettings: () => ipcRenderer.invoke("settings:get"),
   saveSettings: (settings) => ipcRenderer.invoke("settings:save", settings),
+  onSettingsFlushRequest: (callback) => {
+    const handler = (_event, id) => {
+      Promise.resolve().then(callback).then(
+        saved => ipcRenderer.invoke("settings:flush-complete", id, saved === true),
+        () => ipcRenderer.invoke("settings:flush-complete", id, false)
+      ).catch(() => {});
+    };
+    ipcRenderer.on("settings:flush-request", handler);
+    ipcRenderer.invoke("settings:flush-ready").catch(() => {});
+    return () => ipcRenderer.removeListener("settings:flush-request", handler);
+  },
   getPlaylists: () => ipcRenderer.invoke("playlists:get"),
   savePlaylists: (playlists) => ipcRenderer.invoke("playlists:save", playlists),
 

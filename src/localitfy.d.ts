@@ -572,6 +572,7 @@ declare global {
 
       getSettings: () => Promise<Partial<Settings>>;
       saveSettings: (settings: Partial<Settings>) => Promise<Partial<Settings>>;
+      onSettingsFlushRequest?: (callback: () => Promise<boolean>) => () => void;
 
       getPlaylists?: () => Promise<LocalitfyPlaylistRecord[]>;
       savePlaylists?: (playlists: LocalitfyPlaylistRecord[]) => Promise<LocalitfyPlaylistRecord[]>;

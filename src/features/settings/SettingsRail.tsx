@@ -55,7 +55,8 @@ export default function SettingsRail({
       for (let disclosure = element.closest("details"); disclosure; disclosure = disclosure.parentElement?.closest("details") ?? null) disclosure.open = true;
       element.scrollIntoView({ block: "start", behavior: "auto" });
       const control = nestedDisclosure ? nestedDisclosure.querySelector<HTMLElement>("summary") : element.querySelector<HTMLElement>("button:not(:disabled), input:not(:disabled), select:not(:disabled), summary");
-      control?.focus({ preventScroll: true });
+      if (control) control.focus({ preventScroll: true });
+      else { element.tabIndex = -1; element.focus({ preventScroll: true }); }
     };
     revealTimer.current = window.setTimeout(reveal, 70);
   }
