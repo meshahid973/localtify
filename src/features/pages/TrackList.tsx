@@ -1,7 +1,7 @@
 import { usePageVirtualizer } from "../../shared/hooks/usePageVirtualizer";
 import { Fragment, useCallback } from "react";
 import { SolidIcon } from "../../shared/ui/SolidIcon";
-import { TrackRow, TrackIndex, TrackLike, TrackAdd } from "../library/components/TrackRow";
+import { TrackRow, TrackIndex, TrackLike, TrackAdd, TrackDuration } from "../library/components/TrackRow";
 import { Cover } from "../covers/Cover";
 import { formatTime } from "../../shared/utils/format";
 import { prettyMeta } from "../search/search.utils";
@@ -53,14 +53,14 @@ export default function TrackList({ songs, currentId, isPlaying, playFrom, toggl
           <SolidIcon name="play" className="trackRowPlayIcon" size={15} />
         </button>
         {showCover ? <Cover song={song} className="trackRowCover" preferThumbnail /> : null}
-        <TrackMetadata song={song} className="trackRowTitle" maxWords={10} subtitle={shown.length ? shown.map((name, at) => (
+        <TrackMetadata song={song} className="trackRowTitle ltTrackMetadata" maxWords={10} subtitle={shown.length ? shown.map((name, at) => (
               <Fragment key={name}>
                 {at ? ", " : null}
                 <button className="trackLink" type="button" onClick={(event) => { event.stopPropagation(); nav.openArtistPage(name); }}>{prettyMeta(name)}</button>
               </Fragment>
             )) : prettyMeta(song.artist || "unknown artist")} />
         <TrackLike song={song} onLike={() => toggleLike(song.id)} />
-        <span className="trackRowDuration">{formatTime(song.duration)}</span>
+        <TrackDuration song={song} formatted={formatTime(song.duration)} className="trackRowDuration" />
         <TrackAdd song={song} className="trackRowAdd" onAdd={() => openPlaylistPicker(song)} />
       </TrackRow>
     );

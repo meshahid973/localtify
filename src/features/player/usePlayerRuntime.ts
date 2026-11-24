@@ -54,7 +54,6 @@ export function usePlayerRuntime({ defaultVolume }: UsePlayerRuntimeOptions) {
   const playCountSongIdRef = useRef("");
   const playCountListenedRef = useRef(0);
   const playCountLastTimeRef = useRef(0);
-  const sleepTimerRef = useRef<number | null>(null);
   const positionSaveRef = useRef(0);
   const nextAudioRef = useRef<HTMLAudioElement | null>(null);
   const [playbackUrlCache] = useState(() => new PlaybackUrlCache());
@@ -180,7 +179,7 @@ export function usePlayerRuntime({ defaultVolume }: UsePlayerRuntimeOptions) {
     crossfadeLastStartAtRef, crossfadeHandoffClearTimerRef, crossfadeRecoveryTimerRef, crossfadeHandoffRef,
     fadeIntervalRef, animationFrameRef, progressLoopTimeoutRef,
     pendingPlayRef, countPlayRef, playCountSongIdRef, playCountListenedRef,
-    playCountLastTimeRef, sleepTimerRef, positionSaveRef, nextAudioRef, playbackUrlCacheRef,
+    playCountLastTimeRef, positionSaveRef, nextAudioRef, playbackUrlCacheRef,
     playbackUrlPendingRef, lastQueueHistoryRef, songRef, timeRef, durationRef, playingRef,
     volumeRef, effectiveVolumeRef, lastNonZeroVolumeRef, beatFrameRef, beatFrameTimerRef,
     audioEffectRuntimeRef, beatSmoothRef, beatReactiveTargetCacheRef, beatLastPaintSignatureRef,

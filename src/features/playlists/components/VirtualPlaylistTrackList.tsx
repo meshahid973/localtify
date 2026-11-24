@@ -7,7 +7,7 @@ import { Cover } from "../../covers/Cover";
 import { MascotStateArt } from "../../../shared/ui/LocaltifyViewUi";
 import { formatTime } from "../../../shared/utils/format";
 import { TrackMetadata } from "../../library/TrackMetadata";
-import { TrackRow, TrackIndex } from "../../library/components/TrackRow";
+import { TrackRow, TrackIndex, TrackDuration } from "../../library/components/TrackRow";
 
 function readPlaylistDraggedSongId(event: DragEvent<HTMLElement>, fallbackSongId = "") {
   return (
@@ -151,7 +151,7 @@ export const VirtualPlaylistTrackList = memo(function VirtualPlaylistTrackList({
               } as CSSProperties}
               draggable={reorderable}
               onKeyDown={event => {
-                if (!reorderable || !event.altKey || !["ArrowUp", "ArrowDown"].includes(event.key)) return;
+                if (!reorderable || !event.altKey || event.ctrlKey || event.metaKey || !["ArrowUp", "ArrowDown"].includes(event.key)) return;
                 event.preventDefault(); event.stopPropagation();
                 const direction = event.key === "ArrowUp" ? -1 : 1;
                 const target = list[virtualRow.index + direction];
@@ -213,9 +213,9 @@ export const VirtualPlaylistTrackList = memo(function VirtualPlaylistTrackList({
               <button className="playlistTrackMain" type="button" disabled={song.fileExists === false} aria-current={active ? "true" : undefined} aria-keyshortcuts={reorderable ? "Alt+ArrowUp Alt+ArrowDown" : undefined} title={song.fileExists === false ? "Missing local file" : reorderable ? "Play · Alt + ↑/↓ to reorder" : "Play"} onClick={() => onSelectSong(song.id)}>
                 <span className="playlistTrackIndex"><TrackIndex index={virtualRow.index} active={active} playing={isPlaying} /></span>
                 <Cover song={song} className="playlistTrackCover" preferThumbnail />
-                <TrackMetadata song={song} className="playlistTrackText" subtitle={song.fileExists === false ? "Missing local file" : undefined} />
+                <TrackMetadata song={song} className="playlistTrackText ltTrackMetadata" subtitle={song.fileExists === false ? "Missing local file" : undefined} />
               </button>
-              <span className="playlistTrackDuration">{formatTime(song.duration)}</span>
+              <TrackDuration song={song} formatted={formatTime(song.duration)} className="playlistTrackDuration" />
               <button className="iconAction iconActionSvg" type="button" disabled={!editable} onClick={() => onRemoveSong(selectedPlaylistId, song.id)} aria-label={`Remove ${song.title} from playlist`}>
                 <X size={16} strokeWidth={2.5} />
               </button>

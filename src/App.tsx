@@ -1,3 +1,4 @@
+import { createSleepTimer } from "./features/player/sleepTimer";
 import { lazy, startTransition, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent, DragEvent, MouseEvent as ReactMouseEvent, SyntheticEvent } from "react";
 import { HtmlAudioEngine } from "./features/player/engine/htmlAudioEngine";
@@ -150,7 +151,7 @@ function MainModeApp() {
     crossfadeLastStartAtRef, crossfadeHandoffClearTimerRef, crossfadeRecoveryTimerRef, crossfadeHandoffRef, fadeIntervalRef,
     animationFrameRef, progressLoopTimeoutRef,
     pendingPlayRef, countPlayRef, playCountSongIdRef, playCountListenedRef, playCountLastTimeRef,
-    sleepTimerRef, positionSaveRef, nextAudioRef, playbackUrlCacheRef, playbackUrlPendingRef,
+    positionSaveRef, nextAudioRef, playbackUrlCacheRef, playbackUrlPendingRef,
     lastQueueHistoryRef, songRef, timeRef, durationRef, playingRef, volumeRef, effectiveVolumeRef, lastNonZeroVolumeRef,
     beatFrameRef, beatFrameTimerRef, audioEffectRuntimeRef,
     beatSmoothRef, beatReactiveTargetCacheRef, beatLastPaintSignatureRef,
@@ -406,7 +407,6 @@ function MainModeApp() {
   function changeView(nextView: View, _source: "nav" | "onboarding" | "settings" | "unknown" = "nav") {
     setLyricsOpen(false);
     if (nextView === "covers") nextView = "library";
-    if (view === nextView) return;
 
     if (viewSwitchTimerRef.current !== null) {
       window.clearTimeout(viewSwitchTimerRef.current);
@@ -1690,7 +1690,9 @@ function MainModeApp() {
         nextSettings.startWithWindows = false;
       }
 
-      const shouldPersistBootSettings =
+      const hadSleepTimer = Number(nextSettings.sleepTimerMinutes) > 0;
+      nextSettings.sleepTimerMinutes = 0;
+      const shouldPersistBootSettings = hadSleepTimer ||
         shouldApplyV013Defaults || shouldApplyStartWithWindowsDefault ||
         visualSettingsChanged || (migrateSidebar && nextSettings.sidebarBehavior !== storedSettings.sidebarBehavior);
 
@@ -1904,10 +1906,6 @@ function MainModeApp() {
       stopFade();
       stopCrossfadeAuto();
       stopProgressLoop();
-
-      if (sleepTimerRef.current !== null) {
-        window.clearTimeout(sleepTimerRef.current);
-      }
 
       if (volumeDraftFrameRef.current !== null) {
         window.cancelAnimationFrame(volumeDraftFrameRef.current);
@@ -2257,10 +2255,8 @@ function MainModeApp() {
     if (minutes <= 0) { setSleepDeadline(0); return; }
     const deadline = Date.now() + Math.max(1, minutes) * 60_000;
     setSleepDeadline(deadline);
-    let finished = false;
-    const expire = () => {
-      if (finished || settingsRef.current.sleepTimerMinutes !== minutes) return;
-      finished = true;
+    const timer = createSleepTimer(deadline, () => {
+      if (Number(settingsRef.current.sleepTimerMinutes) !== minutes) return;
       stopFade();
       stopCrossfadeAuto();
       playbackTransitionRef.current.requestPause();
@@ -2268,17 +2264,17 @@ function MainModeApp() {
       const controller = ensurePlayerController();
       if (controller) controller.pause(); else audioRef.current?.pause();
       setIsPlaying(false);
+      if (audioRef.current) applyAudioQualitySettings(audioRef.current, songRef.current);
+      setSleepDeadline(0);
       void updateSetting("sleepTimerMinutes", 0);
       setStatusText("Sleep timer finished");
-    };
-    const checkDeadline = () => { if (Date.now() >= deadline) expire(); };
-    sleepTimerRef.current = window.setTimeout(expire, Math.max(0, deadline - Date.now()));
-    document.addEventListener("visibilitychange", checkDeadline);
+    }, { now: Date.now, schedule: (callback, delay) => window.setTimeout(callback, delay), clear: id => window.clearTimeout(id) });
+    document.addEventListener("visibilitychange", timer.check);
+    window.addEventListener("focus", timer.check);
     return () => {
-      finished = true;
-      document.removeEventListener("visibilitychange", checkDeadline);
-      if (sleepTimerRef.current !== null) window.clearTimeout(sleepTimerRef.current);
-      sleepTimerRef.current = null;
+      timer.cancel();
+      document.removeEventListener("visibilitychange", timer.check);
+      window.removeEventListener("focus", timer.check);
     };
   }, [settings.sleepTimerMinutes]);
 

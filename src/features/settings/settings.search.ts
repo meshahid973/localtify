@@ -36,6 +36,7 @@ export const SETTINGS_CONTROL_LINKS: readonly SettingsControlLink[] = [
   { id: "playback", label: "Speed and volume", description: "Playback", category: "playback", target: "settings-playback-listening", keywords: "normalization resume autoplay remember volume speed" },
   { id: "effects", label: "Audio effects", description: "Playback", category: "playback", target: "settings-playback-effects", keywords: "nightcore daycore slowed reverb pitch strength" },
   { id: "sleep", label: "Queue and sleep timer", description: "Playback", category: "playback", target: "settings-playback-sleep", keywords: "song radio autoplay sleep timer stop queue" },
+  { id: "scrobbling", label: "Scrobbling accounts", description: "Playback", category: "playback", target: "settings-playback-scrobbling", keywords: "lastfm last.fm listenbrainz plays sync listening account" },
   { id: "lyrics", label: "Lyrics and online lookup", description: "Lyrics & tags", category: "lyrics", target: "settings-lyrics-display", keywords: "lrclib karaoke synced cache song lyrics" },
   { id: "tagging", label: "MusicBrainz tag editor", description: "Lyrics & tags", category: "lyrics", target: "settings-lyrics-tagging", keywords: "id3 metadata album cover write file" },
   { id: "phone-sync", label: "Phone sync", description: "Library", category: "library", target: "settings-library-sync", keywords: "pair computer phone wifi device sync" },

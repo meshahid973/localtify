@@ -24,6 +24,10 @@ export function TrackIndex({ index, active, playing, selection }: {
   return selection !== undefined ? (selection ? "✓" : "○") : active && playing ? <PlayingBarsIcon /> : index + 1;
 }
 
+export function TrackDuration({ song, formatted, className = "" }: { song: Song; formatted: string; className?: string }) {
+  return <span className={`ltTrackDuration ${className}`}>{song.fileExists === false ? "Missing" : formatted}</span>;
+}
+
 export function TrackLike({ song, onLike }: { song: Song; onLike: () => unknown }) {
   const label = song.liked ? "Unlike" : "Like";
   return <button type="button" className={`iconAction likeActionV443 noActionHoverV444 ${song.liked ? "liked likeActionActiveV443" : ""}`}

@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { TrackRow, TrackIndex, TrackLike, TrackAdd } from "./TrackRow";
+import { TrackRow, TrackIndex, TrackLike, TrackAdd, TrackDuration } from "./TrackRow";
 import { GripVertical } from "lucide-react";
 import type { CSSProperties, DragEvent, MouseEvent as ReactMouseEvent, PointerEvent } from "react";
 import { usePageVirtualizer } from "../../../shared/hooks/usePageVirtualizer";
@@ -100,10 +100,10 @@ export const SongRowItem = memo(function SongRowItem({
 
         <Cover song={song} className="songArt" />
 
-        <TrackMetadata song={song} className="songMeta" subtitle={isMissingFile ? "missing local file · reimport or relink" : undefined} />
+        <TrackMetadata song={song} className="songMeta ltTrackMetadata" subtitle={isMissingFile ? "missing local file · reimport or relink" : undefined} />
       </button>
 
-      <span className="songInfo songDurationInfo">{isMissingFile ? "missing" : formatTime(song.duration)}</span>
+      <TrackDuration song={song} formatted={formatTime(song.duration)} className="songInfo songDurationInfo" />
 
       <TrackLike song={song} onLike={() => onToggleLike(song.id)} />
       <TrackAdd song={song} className="playlistAddAction noActionHoverV444" onAdd={() => onOpenPlaylistPicker(song)} />

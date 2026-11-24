@@ -87,8 +87,8 @@ export default function PlaybackSettings({ settings, updateSetting, sleepDeadlin
       </SettingSection>
       </div>
     </div>
-    {phone ? <Suspense fallback={null}><PhoneScrobbleStatus /></Suspense>
+    <div id="settings-playback-scrobbling">{phone ? <Suspense fallback={<p role="status">Loading scrobbling…</p>}><PhoneScrobbleStatus /></Suspense>
       : <ScrobbleSettings lastfmApiKey={settings.lastfmApiKey}
-          saveLastfmApiKey={key => void updateSetting("lastfmApiKey", key)} />}
+          saveLastfmApiKey={key => void updateSetting("lastfmApiKey", key)} />}</div>
   </section>;
 }

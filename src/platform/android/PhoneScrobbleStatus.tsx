@@ -2,7 +2,7 @@ import { computerName } from "../../app/platform";
 import { useEffect, useState } from "react";
 import type { ScrobbleService, ScrobbleStatus } from "../../features/scrobbling/scrobble.types";
 import { phoneLibrary } from "./library";
-import { fromMac } from "./macFeatures";
+import { fromMac, markMacReachable } from "./macFeatures";
 import { onSyncProgress } from "./sync";
 import "../../features/scrobbling/scrobbling.css";
 
@@ -26,7 +26,7 @@ export default function PhoneScrobbleStatus() {
       setAvailability("loading");
       const stillCurrent = () => active && version === generation && phoneLibrary.pairing?.token === pairing.token && phoneLibrary.pairing?.url === pairing.url;
       void fromMac<ScrobbleStatus>("scrobble:status", null).then(next => {
-        if (stillCurrent()) { setStatus(next); setAvailability("ready"); }
+        if (stillCurrent()) { if (!next?.lastfm || !next?.listenbrainz) { setStatus(null); setAvailability("offline"); return; } setStatus(next); setAvailability("ready"); }
       }).catch(() => {
         if (stillCurrent()) { setStatus(null); setAvailability("offline"); }
       });
@@ -37,7 +37,7 @@ export default function PhoneScrobbleStatus() {
   }, [retry]);
 
   const computer = computerName();
-  return <div id="settings-playback-scrobbling" className="settingsPanelCard settingsFocusPanelV491">
+  return <div className="settingsPanelCard settingsFocusPanelV491">
     <div className="settingsPanelHeader"><div><strong>Scrobbling</strong><span>Your {computer} sends plays to Last.fm or ListenBrainz when you sync.</span></div></div>
     {availability === "ready" && status ? SERVICES.map(([service, name]) => (
       <div className="scrobbleService" key={service}>
@@ -45,7 +45,7 @@ export default function PhoneScrobbleStatus() {
           <span>{status[service].connected ? <>Connected as <b>{status[service].username}</b></> : "Not connected"}</span></div>
       </div>
     )) : <p role="status">{availability === "unpaired" ? "Pair a computer first." : availability === "offline" ? "Connection status unavailable. Check Wi-Fi and try again." : "Checking connection…"}</p>}
-    {availability === "offline" ? <button type="button" className="settingsActionButton" onClick={() => setRetry(value => value + 1)}>Retry</button> : null}
+    {availability === "offline" ? <button type="button" className="settingsActionButton" onClick={() => { markMacReachable(); setRetry(value => value + 1); }}>Retry</button> : null}
     <p className="settingsHintText" role="status">
       {unsynced ? `${plural(unsynced, "play")} waiting for the next sync.` : "No completed plays waiting to sync."}
       {availability === "ready" && status?.lastfm.connected ? " Last.fm accepts plays from the last 14 days." : ""}

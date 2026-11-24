@@ -47,13 +47,13 @@ export default function SettingsRail({
     const reveal = () => {
       const element = document.getElementById(target);
       if (revealCategory.current !== category) return;
-      if (!element && attempts++ < 18) { revealTimer.current = window.setTimeout(reveal, 75); return; }
+      if (!element && attempts++ < 40) { revealTimer.current = window.setTimeout(reveal, 75); return; }
       revealCategory.current = null;
       if (!element) return;
       if (element instanceof HTMLDetailsElement) element.open = true;
       for (let disclosure = element.closest("details"); disclosure; disclosure = disclosure.parentElement?.closest("details") ?? null) disclosure.open = true;
       element.scrollIntoView({ block: "start", behavior: "auto" });
-      const control = element.querySelector<HTMLElement>("button:not(:disabled), input:not(:disabled), select:not(:disabled), summary");
+      const control = element instanceof HTMLDetailsElement ? element.querySelector<HTMLElement>("summary") : element.querySelector<HTMLElement>("button:not(:disabled), input:not(:disabled), select:not(:disabled), summary");
       control?.focus({ preventScroll: true });
     };
     revealTimer.current = window.setTimeout(reveal, 70);
