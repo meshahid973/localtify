@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import type { Dispatch, RefObject, SetStateAction } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import type { AppToastKind, View } from "../shell/view.types";
 import type { LibraryDropSide, Song } from "../library/song.types";
 import { insertIdNearTarget, reorderIdList } from "../library/library.utils";
 import { prettyTitle } from "../search/search.utils";
 import { makeLocalId, readLocalJson, writeLocalJson } from "../../shared/storage/localStorage";
-import { PLAYLIST_STORAGE_KEY, PLAYLIST_RECOVERY_KEY } from "./playlist.constants";
+import { PLAYLIST_RECOVERY_KEY } from "./playlist.constants";
 import type { Playlist } from "./playlist.types";
 import { prepareGeneratedPlaylist } from "./generatedPlaylist";
 import { cleanPlaylistArtwork, cleanPlaylistList } from "./playlist.utils";
@@ -14,8 +14,6 @@ import { useStableCallback } from "../../shared/hooks/useStableCallback";
 
 export type PlaylistsControllerOptions = {
   songsById: Map<string, Song>;
-  songIndexById: ReadonlyMap<string, number>;
-  bootedRef: RefObject<boolean>;
   changeView: (view: View, source?: "nav" | "onboarding" | "settings" | "unknown") => void;
   setStatusText: Dispatch<SetStateAction<string>>;
   showAppToast: (message: string, kind?: AppToastKind) => void;
@@ -23,8 +21,6 @@ export type PlaylistsControllerOptions = {
 
 export function usePlaylistsController({
   songsById,
-  songIndexById,
-  bootedRef,
   changeView,
   setStatusText,
   showAppToast
@@ -41,7 +37,6 @@ export function usePlaylistsController({
     },
     publish: publishPlaylists,
     journal: (base, draft) => {
-      writeLocalJson(PLAYLIST_STORAGE_KEY, base);
       writeLocalJson(PLAYLIST_RECOVERY_KEY, samePlaylists(base, draft) ? null : {base, draft});
     },
     failed: () => showAppToast("Could not save playlists. Changes retained; retry or reopen Localtify.", "error")
@@ -64,11 +59,6 @@ export function usePlaylistsController({
   const [playlistDragOverPlaylistId, setPlaylistDragOverPlaylistId] = useState("");
   const [renamingPlaylistId, setRenamingPlaylistId] = useState<string | null>(null);
   const [renamingPlaylistName, setRenamingPlaylistName] = useState("");
-  useEffect(() => {
-    if (!bootedRef.current) return;
-    setPlaylists(items => cleanPlaylistList(items, songIndexById));
-  }, [songIndexById, bootedRef, setPlaylists]);
-
   useEffect(() => window.localitfy.onPlaylistsChanged?.(next => persistence.remote(cleanPlaylistList(next))), [persistence]);
 
   const normalizePlaylistName = useCallback((sourceName: string, fallbackName: string) => {

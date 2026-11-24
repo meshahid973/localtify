@@ -104,7 +104,7 @@ export function createListeningEventWriter(write: (event: PlayEvent) => Promise<
     running = (async () => {
       while (pending.size) {
         const event = pending.values().next().value as PlayEvent;
-        try { if (!await write(event)) return false; }
+        try { await write(event); }
         catch { return false; }
         if (pending.get(event.id) === event) pending.delete(event.id);
         persist();

@@ -32,7 +32,7 @@ import { useCoversController } from "./features/covers";
 import type { VirtualSongRowsProps } from "./features/library/components/SongRows";
 import { useLibraryController, useLibraryDerivedState } from "./features/library";
 import { subscribeWatchedFoldersChange } from "./features/library/watchedFolderBridge";
-import { patchLibrarySong, replaceLibrarySong } from "./features/search/incrementalLibraryIndex";
+import { patchLibrarySong } from "./features/search/incrementalLibraryIndex";
 import { pickRecentlyAdded, pickListenNow } from "./features/home/homeShelfPicks";
 import { createMetadataCleanPreview } from "./features/library/metadataCleanPreview";
 import {
@@ -46,6 +46,7 @@ import { useNavigationHistory } from "./features/shell/useNavigationHistory";
 import { revealSidebarSettingsPanel } from "./features/shell/sidebarLayout";
 import CatBuddy from "./CatBuddy";
 import { prepareBootstrap } from "./app/runtime/prepareBootstrap";
+import { useLibraryActions } from "./features/library/useLibraryActions";
 import { useOrderedLibrary } from "./features/library/useOrderedLibrary";
 import { runLocaltifyIdleTask } from "./app/runtime/idle";
 import { useBodyRuntimeClasses } from "./app/runtime/useBodyRuntimeClasses";
@@ -136,7 +137,7 @@ function MainModeApp() {
 
   const playerRuntime = usePlayerRuntime({ defaultVolume: defaultSettings.volume, setAudioElementVolume });
   const {
-    ensurePlayerController, flushListeningEvents, listeningHistoryRef, audioRef, playerEngineRef, playerControllerRef, playbackTransitionRef,
+    ensurePlayerController, flushListeningEvents, listeningHistoryRef, audioRef, playbackTransitionRef,
     crossfadeAutoStartedRef, crossfadeMainPauseGuardRef, crossfadeHandoffRef,
     animationFrameRef, progressLoopTimeoutRef,
     pendingPlayRef, countPlayRef, playCountSongIdRef, playCountListenedRef, playCountLastTimeRef,
@@ -185,8 +186,9 @@ function MainModeApp() {
   const [bootError, setBootError] = useState<string | null>(null);
   const [bootLogCopied, setBootLogCopied] = useState(false);
   const [bootRetryKey, setBootRetryKey] = useState(0);
-  const {songs, setSongs, moveSong} = useOrderedLibrary(ready);
+  const {songs, setSongs, getSong, moveSong} = useOrderedLibrary(ready);
   const flushPlaylistsRef = useRef<() => Promise<boolean>>(async () => true);
+  const flushSongEditsRef = useRef<() => Promise<boolean>>(async () => true);
   const { appToast, showAppToast } = useAppToast();
   const {
     settings, setSettings, settingsRef, settingsSaveError, retrySettingsSave,
@@ -202,7 +204,7 @@ function MainModeApp() {
   } = useSettingsController({
     initialSettings: () => applyVisualCustomizationDefaults(defaultSettings as Settings),
     bootedRef, volumeDraftRef, setStatusText, showAppToast,
-    flushExtra: async () => (await Promise.all([flushPlaylistsRef.current(), flushListeningEvents()])).every(Boolean),
+    flushExtra: async () => (await Promise.all([flushPlaylistsRef.current(), flushListeningEvents(), flushSongEditsRef.current()])).every(Boolean),
     applyLiveVolumePercent, kickThemeSettle
   });
   const [heroMotion, setHeroMotion] = useState<"idle" | "expanding" | "compacting">("idle");
@@ -242,6 +244,18 @@ function MainModeApp() {
     songs, deferredQuery, view, libraryFilterMode, librarySortMode
   });
 
+  const {replaceSong, commitCovers, patchSongLocal, toggleLike, flushSongEdits} = useLibraryActions({
+    getSong, songIndexById, setSongs, setEditorSong, showAppToast,
+    invalidateSource: song => {
+      const key = getSongPlaybackSourceKey(song);
+      if (!key) return;
+      playbackUrlCacheRef.current.delete(key);
+      playbackUrlPendingRef.current.delete(`${key}:normal`);
+      playbackUrlPendingRef.current.delete(`${key}:force`);
+    }
+  });
+  useLayoutEffect(() => { flushSongEditsRef.current = flushSongEdits; }, [flushSongEdits]);
+
   const albumsController = useAlbumsController({
     view, songs, songsById, setSongs, setLibraryScanBusy, setLibraryScanMessage,
     setStatusText, patchSongLocal, reducedMotion: settings.reducedMotion
@@ -273,8 +287,8 @@ function MainModeApp() {
     setStatusText,
     showAppToast
   });
-  const askUpdaterToInstall = useStableCallback(async () => { if (await flushSettings() && await flushPlaylistsRef.current() && await flushListeningEvents()) await installUpdate(); });
-  const closeWindowSafely = useStableCallback(async () => { if (await flushSettings() && await flushPlaylistsRef.current() && await flushListeningEvents()) await window.localitfy.closeWindow(); });
+  const askUpdaterToInstall = useStableCallback(async () => { if (await flushSettings() && await flushPlaylistsRef.current() && await flushListeningEvents() && await flushSongEditsRef.current()) await installUpdate(); });
+  const closeWindowSafely = useStableCallback(async () => { if (await flushSettings() && await flushPlaylistsRef.current() && await flushListeningEvents() && await flushSongEditsRef.current()) await window.localitfy.closeWindow(); });
   const {
     isThreeAm,
     screensaverVisible, setScreensaverVisible,
@@ -528,8 +542,6 @@ function MainModeApp() {
     upsertSpotifyPlaylistFromImport
   } = usePlaylistsController({
     songsById,
-    songIndexById,
-    bootedRef,
     changeView,
     setStatusText,
     showAppToast
@@ -2616,53 +2628,6 @@ function MainModeApp() {
     await persistSettings({ ...settingsRef.current, lastSongId: id }, true);
   }
 
-  function replaceSong(updated: Song | null) {
-    if (!updated) return;
-
-    setSongs((oldSongs) => replaceLibrarySong(oldSongs, updated, songIndexById.get(updated.id)));
-
-    if (editorSong?.id === updated.id) {
-      setEditorSong(updated);
-    }
-  }
-
-  function commitCovers(updates: Map<string, Partial<Song>>) {
-    setSongs(old => old.map(song => updates.has(song.id) ? { ...song, ...updates.get(song.id) } : song));
-    setEditorSong(old => old && updates.has(old.id) ? { ...old, ...updates.get(old.id) } : old);
-  }
-
-  async function patchSongLocal(id: string, patch: Partial<Song>) {
-    if (Object.prototype.hasOwnProperty.call(patch, "filePath") || Object.prototype.hasOwnProperty.call(patch, "url")) {
-      const cachedSong = songsById.get(id);
-      const cacheKey = getSongPlaybackSourceKey(cachedSong);
-      if (cacheKey) {
-        playbackUrlCacheRef.current.delete(cacheKey);
-        playbackUrlPendingRef.current.delete(`${cacheKey}:normal`);
-        playbackUrlPendingRef.current.delete(`${cacheKey}:force`);
-      }
-    }
-
-    const previousSong = songsById.get(id);
-    setSongs((oldSongs) => patchLibrarySong(oldSongs, id, patch, songIndexById.get(id)));
-
-    try {
-      const updated = await window.localitfy.patchSong(id, patch);
-      if (!updated) throw new Error("Song was not saved");
-      replaceSong(updated);
-    } catch {
-      if (previousSong) setSongs((current) => current.map((song) => {
-        if (song.id !== id) return song;
-        const rollback: Partial<Song> = {};
-        for (const key of Object.keys(patch) as (keyof Song)[]) {
-          if (Object.is(song[key], patch[key])) (rollback as Record<string, unknown>)[key] = previousSong[key];
-        }
-        return Object.keys(rollback).length ? { ...song, ...rollback } : song;
-      }));
-      showAppToast("Could not save song changes", "error");
-    }
-  }
-
-
   function openMetadataCleanPreview() {
     if (!songs.length || libraryScanBusy) return;
 
@@ -4149,34 +4114,6 @@ function MainModeApp() {
     setVolumeDraft(safePercent);
     updateVolumeFast(safePercent / 100);
     setIsVolumeDragging(false);
-  }
-
-  function toggleLike(songId: string) {
-    const target = songsById.get(songId) || songs.find((song) => song.id === songId);
-    if (!target) return;
-
-    const nextLiked = !target.liked;
-    const toastTitle = prettyTitle(target.title, 5);
-
-    setSongs((oldSongs) =>
-      oldSongs.map((song) => (song.id === songId ? { ...song, liked: nextLiked } : song))
-    );
-
-    showAppToast(
-      nextLiked ? `added "${toastTitle}" to liked` : `removed "${toastTitle}" from liked`,
-      nextLiked ? "success" : "info"
-    );
-
-    void window.localitfy.patchSong(songId, { liked: nextLiked })
-      .then((updated) => {
-        replaceSong({ ...updated, liked: nextLiked });
-      })
-      .catch(() => {
-        setSongs((oldSongs) =>
-          oldSongs.map((song) => (song.id === songId ? { ...song, liked: target.liked } : song))
-        );
-        showAppToast("could not save like change", "error");
-      });
   }
 
   function askRemoveSong(songId: string) {

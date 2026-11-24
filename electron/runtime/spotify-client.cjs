@@ -69,11 +69,11 @@ function createSpotifyClient({app, BrowserWindow, safeStorage, getWindow}) {
     tokenGeneration++;
     cancelLogin?.("Spotify login cancelled.");
     refreshPending = null;
+    fs.rmSync(SPOTIFY_OAUTH_FILE(), {force: true});
     storedToken = null;
     tokenLoaded = true;
     _spotifyToken = null;
     _spotifyTokenExpiry = 0;
-    fs.rmSync(SPOTIFY_OAUTH_FILE(), {force: true});
   }
   function saveSpotifyOAuthResponse(data = {}, previous = {}, generation = tokenGeneration) {
     if (generation !== tokenGeneration) throw new Error("Spotify login cancelled.");

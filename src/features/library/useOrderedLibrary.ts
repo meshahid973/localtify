@@ -13,6 +13,10 @@ export function useOrderedLibrary(ready: boolean) {
     current.current = next;
     publish(next);
   }, []);
+  const getSong = useCallback((id: string, hint?: number) => {
+    const list = current.current;
+    return hint !== undefined && list[hint]?.id === id ? list[hint] : list.find(song => song.id === id);
+  }, []);
   const persist = useCallback((next: Song[]) => {
     saveLibraryOrder(next);
     savedOrder.current = next.map(song => song.id);
@@ -34,5 +38,5 @@ export function useOrderedLibrary(ready: boolean) {
     persist(next);
     return true;
   }, [persist, setSongs]);
-  return {songs, setSongs, moveSong};
+  return {songs, setSongs, getSong, moveSong};
 }

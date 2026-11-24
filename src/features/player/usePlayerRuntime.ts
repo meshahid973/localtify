@@ -294,7 +294,7 @@ export function usePlayerRuntime({ defaultVolume, setAudioElementVolume }: UsePl
   }
 
   return {
-    ensurePlayerController, flushListeningEvents, listeningHistoryRef, audioRef, playerEngineRef, playerControllerRef, playbackTransitionRef,
+    ensurePlayerController, flushListeningEvents, listeningHistoryRef, audioRef, playbackTransitionRef,
     crossfadeIntervalRef, crossfadeAutoStartedRef, crossfadeMainPauseGuardRef,
     crossfadeLastStartAtRef, crossfadeRecoveryTimerRef, crossfadeHandoffRef,
     animationFrameRef, progressLoopTimeoutRef,
