@@ -6,7 +6,7 @@ import type { PlayEvent } from "../../features/player/listeningHistory";
 import type { ScrobbleStatus } from "../../features/scrobbling/scrobble.types";
 import { computerName } from "../../app/platform";
 import { phoneLibrary } from "./library";
-import { fromMac, fromMacOrKept, cachedArtworkFromMac } from "./macFeatures";
+import { fromMac, fromMacOrKept, cachedArtworkFromMac, scopedFeatureKey } from "./macFeatures";
 import { LocaltifyNative } from "./native";
 import { readValue, writeValues } from "./store";
 import { setLibraryChangedHandler } from "./sync";
@@ -25,8 +25,9 @@ const RETURNS_LIST = new Set(["listPixelArt", "getPendingMusicBrainzTags", "sear
 
 /** A lyrics choice made from the phone replaces the copy kept for offline use. */
 async function keepLyrics(id: string, answer: Promise<LyricsResult>) {
+  const key = await scopedFeatureKey(`mac:lyrics:${id}`);
   const result = await answer;
-  await writeValues({ [`mac:lyrics:${id}`]: result }).catch(() => undefined);
+  if (key) await writeValues({ [key]: result }).catch(() => undefined);
   return result;
 }
 
@@ -100,7 +101,7 @@ export function createAndroidBridge(): Bridge {
       await phoneLibrary.save(["settings"]);
       return phoneLibrary.effectiveSettings();
     },
-    getPlaylists: async () => phoneLibrary.playlists,
+    getPlaylists: async () => { await phoneLibrary.flushWrites(true); return phoneLibrary.playlists; },
     savePlaylists: async (playlists, expected) => {
       if (expected !== undefined && JSON.stringify(expected) !== JSON.stringify(phoneLibrary.playlists)) throw new Error("Playlist conflict: library changed");
       const next = phoneLibrary.savePlaylists(playlists as SyncPlaylist[]);
@@ -109,7 +110,7 @@ export function createAndroidBridge(): Bridge {
     },
     patchSong: async (id: string, patch: Partial<Song>) => {
       const updated = phoneLibrary.patchSong(id, patch);
-      if (updated) await phoneLibrary.flushWrites();
+      if (updated) await phoneLibrary.flushWrites(true);
       if (updated && typeof patch.liked === "boolean") void sendLike(id, patch.liked);
       return updated;
     },
@@ -132,10 +133,10 @@ export function createAndroidBridge(): Bridge {
     selectLyricsMatch: (payload) => keepLyrics(payload.id, fromMac("lyrics:select-match", payload, 15000)),
     clearLyricsMatch: (payload) => keepLyrics(payload.id, fromMac("lyrics:clear-selection", payload, 15000)),
     setLyricsOffset: async (payload) => {
+      const key = await scopedFeatureKey(`mac:lyrics:${payload.id}`);
       const saved = await fromMac<{ offsetMs: number }>("lyrics:set-offset", payload);
-      const key = `mac:lyrics:${payload.id}`;
-      const kept = await readValue<LyricsResult | null>(key, null).catch(() => null);
-      if (kept) await writeValues({ [key]: { ...kept, offsetMs: saved.offsetMs } }).catch(() => undefined);
+      const kept = key ? await readValue<LyricsResult | null>(key, null).catch(() => null) : null;
+      if (key && kept) await writeValues({ [key]: { ...kept, offsetMs: saved.offsetMs } }).catch(() => undefined);
       return saved;
     },
     // Desktop cache tokens are not transferable; the phone owns its artwork files.

@@ -2,7 +2,7 @@ import { computerName } from "../../app/platform";
 import { useEffect, useRef, useState } from "react";
 import { RefreshCw, Smartphone } from "lucide-react";
 import { phoneLibrary } from "./library";
-import { forgetMac, getSyncProgress, isSyncing, onSyncProgress, pairWithMac, syncNow, type SyncProgress } from "./sync";
+import { forgetMac, getSyncProgress, isSyncing, onSyncProgress, pairWithMac, restorePausedPairing, syncNow, type SyncProgress } from "./sync";
 import { getLiveStatus, onLiveEvent, restartLiveConnection } from "./live";
 import "../../features/sync/phone-sync.css";
 
@@ -51,8 +51,20 @@ export default function AndroidSyncSettings() {
     if (operation.current || isSyncing()) return;
     operation.current = true;
     setBusy(true); setMessage("");
-    try { await forgetMac(); restartLiveConnection(); setPaired(false); }
+    try {
+      const pending = Boolean(phoneLibrary.pendingSync);
+      if (pending && !window.confirm("Pause this pairing and keep its unacknowledged sync for recovery?")) return;
+      await forgetMac(pending); restartLiveConnection(); setPaired(false);
+    }
     catch (error) { setMessage(error instanceof Error ? error.message : "Could not unpair"); }
+    finally { operation.current = false; setBusy(false); }
+  }
+
+  async function restore() {
+    if (operation.current) return;
+    operation.current = true; setBusy(true); setMessage("");
+    try { await restorePausedPairing(address); restartLiveConnection(); setPaired(true); void syncNow(); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "Could not restore pairing"); }
     finally { operation.current = false; setBusy(false); }
   }
 
@@ -85,7 +97,11 @@ export default function AndroidSyncSettings() {
         unsupported: `Live: update localtify on your ${computer} to see and control playback from here.`,
         off: "Live: off while the app is in the background."
       }[live]}</p>
-    </> : <form className="phoneSyncPairForm" onSubmit={(event) => { event.preventDefault(); void pair(); }}>
+    </> : phoneLibrary.detachedPairing ? <div className="phoneSyncPairForm">
+      <p className="settingsHintText">Saved pairing with {phoneLibrary.detachedPairing.pairing.name}. Your pending changes remain on this phone. Restore the original computer to finish syncing safely.</p>
+      <label><span>Updated address (optional)</span><input value={address} onChange={event => setAddress(event.target.value)} placeholder={phoneLibrary.detachedPairing.pairing.url} /></label>
+      <button type="button" className="settingsActionButton settingsPrimaryAction" disabled={busy} onClick={() => void restore()}>Restore pairing</button>
+    </div> : <form className="phoneSyncPairForm" onSubmit={(event) => { event.preventDefault(); void pair(); }}>
       <label><span>{computer === "computer" ? "Computer" : computer} address</span><input value={address} onChange={(event) => setAddress(event.target.value)} placeholder="192.168.1.20" inputMode="url" autoCapitalize="off" autoCorrect="off" /></label>
       <label><span>Pairing code</span><input value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="6 digits" inputMode="numeric" /></label>
       <button type="submit" className="settingsActionButton settingsPrimaryAction" disabled={busy || !address.trim() || code.length !== 6}><Smartphone size={14} /> {busy ? "Pairing…" : "Pair"}</button>

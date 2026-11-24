@@ -31,7 +31,10 @@ export function usePlaylistsController({
 }: PlaylistsControllerOptions) {
   const [playlists, publishPlaylists] = useState<Playlist[]>([]);
   const [persistence] = useState(() => createPlaylistPersistence({
-    read: async () => cleanPlaylistList(await window.localitfy.getPlaylists?.()),
+    read: async () => {
+      if (!window.localitfy.getPlaylists) throw new Error("Playlist storage unavailable");
+      return cleanPlaylistList(await window.localitfy.getPlaylists());
+    },
     save: async (next, expected) => {
       if (!window.localitfy.savePlaylists) throw new Error("Playlist saving is unavailable");
       return cleanPlaylistList(await window.localitfy.savePlaylists(next, expected));
@@ -89,7 +92,7 @@ export function usePlaylistsController({
     }
     const createdAt = Date.now();
     setPlaylists(items => previous
-      ? items.map(item => item.id === id ? {...item,songIds} : item)
+      ? items.map(item => item.id === id ? {...item,songIds: [...new Set([...item.songIds, ...songIds])]} : item)
       : [{id,name:safeName,songIds,createdAt},...items]);
     setSelectedPlaylistId(id);
     setActivePlaylistId(id);

@@ -163,8 +163,11 @@ function createLibraryImportRuntime({getSongs, getSong, insertSongs, patchSong, 
       if (cachedCoverPath) {
         const normalizedCover = currentCover.replace(/\\/g, "/").toLowerCase();
         const isPixelFallback = normalizedCover.includes("/pixelart/");
-        const isSpotifyCover = normalizedCover.includes("/spotify-covers/");
-        if (!currentCover || !fileExists(currentCover) || isPixelFallback || !isSpotifyCover) patch.coverPath = cachedCoverPath;
+        if (song.coverSource !== "custom" && (!currentCover || !fileExists(currentCover) || isPixelFallback || song.coverSource === "fallback" || song.coverSource === "none")) {
+          patch.coverPath = cachedCoverPath;
+          patch.coverSource = "spotify";
+          patch.coverUpdatedAt = new Date().toISOString();
+        }
       }
       const duration = Number(matched?.duration || Math.round(Number(matched?.durationMs || 0) / 1000) || 0);
       if (duration > 0 && !Number(song.duration || 0)) patch.duration = duration;

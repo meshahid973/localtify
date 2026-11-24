@@ -90,6 +90,7 @@ async function call<T>(path: string, options: { method?: string; body?: unknown;
 
 export async function pairWithMac(address: string, code: string) {
   if (running || changingPairing) throw new Error("Wait for the current sync or pairing before changing pairing");
+  if (phoneLibrary.detachedPairing) throw new Error("Restore the saved pairing before pairing another computer; an unacknowledged batch is retained.");
   if (phoneLibrary.pendingSync) throw new Error(`Finish the pending sync with your paired ${computerName()} before changing pairing`);
   const base = normalizeMacAddress(address);
   if (!base) throw new Error(`Enter the ${computerName()}'s address, for example 192.168.1.20`);
@@ -107,15 +108,46 @@ export async function pairWithMac(address: string, code: string) {
   } finally { changingPairing = false; }
 }
 
-export async function forgetMac() {
+export async function forgetMac(pausePending = false) {
   if (running || changingPairing) throw new Error("Wait for the current sync or pairing before unpairing");
-  if (phoneLibrary.pendingSync) throw new Error("Finish the pending sync before unpairing so acknowledged edits are not sent twice");
+  if (phoneLibrary.pendingSync && !pausePending) throw new Error("Finish the pending sync before unpairing so acknowledged edits are not sent twice");
   changingPairing = true;
   try {
+    await phoneLibrary.flushWrites(true);
     const previous = phoneLibrary.pairing;
+    const batch = phoneLibrary.pendingSync;
+    const detached = phoneLibrary.detachedPairing;
+    if (batch && !previous) throw new Error("Pending sync has no pairing");
+    if (batch && previous) phoneLibrary.detachedPairing = {pairing: previous, batch};
     phoneLibrary.pairing = null;
-    try { await phoneLibrary.save(["pairing"]); }
-    catch (error) { phoneLibrary.pairing = previous; throw error; }
+    phoneLibrary.pendingSync = null;
+    try { await phoneLibrary.save(["pairing", "pendingSync", "detachedPairing"]); }
+    catch (error) {
+      phoneLibrary.pairing = previous;
+      phoneLibrary.pendingSync = batch;
+      phoneLibrary.detachedPairing = detached;
+      throw error;
+    }
+  } finally { changingPairing = false; }
+}
+
+export async function restorePausedPairing(address?: string) {
+  if (running || changingPairing || phoneLibrary.pairing) throw new Error("Wait for the current pairing or sync");
+  const saved = phoneLibrary.detachedPairing;
+  if (!saved) throw new Error("No saved pairing");
+  const url = address?.trim() ? normalizeMacAddress(address) : saved.pairing.url;
+  if (!url) throw new Error("Enter a valid computer address");
+  changingPairing = true;
+  try {
+    await phoneLibrary.flushWrites(true);
+    // Verify the original credential before restoring its exact receipt sequence.
+    await call<Snapshot>("/v1/snapshot", {base: url, token: saved.pairing.token});
+    phoneLibrary.pairing = {...saved.pairing, url};
+    phoneLibrary.pendingSync = saved.batch;
+    phoneLibrary.detachedPairing = null;
+    try { await phoneLibrary.save(["pairing", "pendingSync", "detachedPairing"]); }
+    catch (error) { phoneLibrary.pairing = null; phoneLibrary.pendingSync = null; phoneLibrary.detachedPairing = saved; throw error; }
+    setPairedComputerPlatform(saved.pairing.platform);
   } finally { changingPairing = false; }
 }
 
@@ -345,6 +377,7 @@ export function syncNow() {
     await LocaltifyNative.setSyncActive({ active: true }).catch(() => undefined);
     try {
       featuresChanged = false;
+      await phoneLibrary.flushWrites(true);
       await exchangeEdits();
       markMacReachable();
       // Today's mixes are made on the Mac; keep a copy so they are there away from home too.
