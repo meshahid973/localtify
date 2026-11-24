@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import { useStableCallback } from "../../shared/hooks/useStableCallback";
-import { ListeningHistory, createListeningEventWriter, type PlayEvent } from "./listeningHistory";
+import { ListeningHistory, createListeningEventWriter, type PlayEvent, type ListeningOutcome } from "./listeningHistory";
 import { AudioEffectRuntime } from "./audio/audioEffectRuntime";
 import { PlaybackTransitionCoordinator } from "./engine/playbackTransitionCoordinator";
 import { PlaybackUrlCache } from "./playbackUrlCache";
@@ -183,6 +183,67 @@ export function usePlayerRuntime({ defaultVolume, setAudioElementVolume }: UsePl
     };
   }, []);
 
+  function resetPlayCountTracker(outcome: Exclude<ListeningOutcome, "active"> = "interrupted") {
+    listeningHistoryRef.current?.finish(outcome);
+    countPlayRef.current = false;
+    playCountSongIdRef.current = "";
+    playCountListenedRef.current = 0;
+    playCountLastTimeRef.current = 0;
+  }
+
+  function armPlayCount(songId: string, startTime = 0) {
+    countPlayRef.current = true;
+    playCountSongIdRef.current = songId;
+    playCountListenedRef.current = 0;
+    playCountLastTimeRef.current = Math.max(0, Number.isFinite(startTime) ? startTime : 0);
+  }
+
+  function tickPlayCountTracker(nextTime: number) {
+    if (audioRef.current) listeningHistoryRef.current?.sample(audioRef.current);
+    const song = songRef.current;
+    if (!song || !countPlayRef.current || playCountSongIdRef.current !== song.id) return;
+
+    const safeNextTime = Math.max(0, Number.isFinite(nextTime) ? nextTime : 0);
+    const delta = safeNextTime - playCountLastTimeRef.current;
+
+    // Count real listening progress only. Big jumps are usually seeking, not listening.
+    if (delta > 0 && delta < 3) {
+      playCountListenedRef.current += delta;
+    }
+
+    playCountLastTimeRef.current = safeNextTime;
+  }
+
+  function finishCountedPlay(song: Song | null, outcome: "ended" | "transition" = "ended") {
+    if (audioRef.current) listeningHistoryRef.current?.sample(audioRef.current);
+    listeningHistoryRef.current?.finish(outcome);
+    if (!song || !countPlayRef.current || playCountSongIdRef.current !== song.id) return false;
+
+    const duration = Math.max(0, Number(durationRef.current || song.duration || 0));
+    const listened = playCountListenedRef.current;
+    const required = duration > 0 ? Math.max(8, duration * 0.82) : 8;
+
+    resetPlayCountTracker();
+
+    if (listened + 1 < required) return false;
+
+    return true;
+  }
+
+  function hasActivePlayCount() { return countPlayRef.current; }
+
+  function stopProgressLoop() {
+    if (animationFrameRef.current !== null) {
+      window.cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+
+    if (progressLoopTimeoutRef.current !== null) {
+      window.clearTimeout(progressLoopTimeoutRef.current);
+      progressLoopTimeoutRef.current = null;
+    }
+  }
+
   function stopFade() {
     if (fadeFrameRef.current !== null) {
       window.cancelAnimationFrame(fadeFrameRef.current);
@@ -298,8 +359,7 @@ export function usePlayerRuntime({ defaultVolume, setAudioElementVolume }: UsePl
     crossfadeIntervalRef, crossfadeAutoStartedRef, crossfadeMainPauseGuardRef,
     crossfadeLastStartAtRef, crossfadeRecoveryTimerRef, crossfadeHandoffRef,
     animationFrameRef, progressLoopTimeoutRef,
-    pendingPlayRef, countPlayRef, playCountSongIdRef, playCountListenedRef,
-    playCountLastTimeRef, positionSaveRef, nextAudioRef, playbackUrlCacheRef,
+    pendingPlayRef, resetPlayCountTracker, armPlayCount, tickPlayCountTracker, finishCountedPlay, hasActivePlayCount, stopProgressLoop, positionSaveRef, nextAudioRef, playbackUrlCacheRef,
     playbackUrlPendingRef, lastQueueHistoryRef, songRef, timeRef, durationRef, playingRef,
     volumeRef, effectiveVolumeRef, lastNonZeroVolumeRef, beatFrameRef, beatFrameTimerRef,
     audioEffectRuntimeRef, beatSmoothRef, beatReactiveTargetCacheRef, beatLastPaintSignatureRef,

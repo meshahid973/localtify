@@ -2,7 +2,7 @@ import { computerName } from "../../app/platform";
 import { useEffect, useRef, useState } from "react";
 import { RefreshCw, Smartphone } from "lucide-react";
 import { phoneLibrary } from "./library";
-import { forgetMac, getSyncProgress, isSyncing, onSyncProgress, pairWithMac, restorePausedPairing, syncNow, type SyncProgress } from "./sync";
+import { archivePausedPairing, forgetMac, getSyncProgress, isSyncing, onSyncProgress, pairWithMac, restorePausedPairing, syncNow, type SyncProgress } from "./sync";
 import { getLiveStatus, onLiveEvent, restartLiveConnection } from "./live";
 import "../../features/sync/phone-sync.css";
 
@@ -27,6 +27,7 @@ export default function AndroidSyncSettings() {
   const [code, setCode] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showRecovery, setShowRecovery] = useState(false);
   const operation = useRef(false);
 
   const [live, setLive] = useState(getLiveStatus);
@@ -68,6 +69,15 @@ export default function AndroidSyncSettings() {
     finally { operation.current = false; setBusy(false); }
   }
 
+  async function archive() {
+    if (operation.current || !window.confirm("Archive pending metadata and listening history instead of replaying them to another computer? The archive contains no audio files. Cached songs remain available until the next sync.")) return;
+    operation.current = true;
+    setBusy(true); setMessage("");
+    try { await archivePausedPairing(); setAddress(""); setMessage("Recovery data saved. You can pair another computer."); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "Could not save recovery data"); }
+    finally { operation.current = false; setBusy(false); }
+  }
+
   // Re-read on every render: pairing (and the first sync) tells the phone whether it is a Mac or a PC.
   const computer = computerName();
   const syncing = isSyncing() && progress.phase !== "done" && progress.phase !== "error";
@@ -101,12 +111,17 @@ export default function AndroidSyncSettings() {
       <p className="settingsHintText">Saved pairing with {phoneLibrary.detachedPairing.pairing.name}. Your pending changes remain on this phone. Restore the original computer to finish syncing safely.</p>
       <label><span>Updated address (optional)</span><input value={address} onChange={event => setAddress(event.target.value)} placeholder={phoneLibrary.detachedPairing.pairing.url} /></label>
       <button type="button" className="settingsActionButton settingsPrimaryAction" disabled={busy} onClick={() => void restore()}>Restore pairing</button>
+      <button type="button" className="settingsActionButton" disabled={busy} onClick={() => void archive()}>Archive pending sync</button>
     </div> : <form className="phoneSyncPairForm" onSubmit={(event) => { event.preventDefault(); void pair(); }}>
       <label><span>{computer === "computer" ? "Computer" : computer} address</span><input value={address} onChange={(event) => setAddress(event.target.value)} placeholder="192.168.1.20" inputMode="url" autoCapitalize="off" autoCorrect="off" /></label>
       <label><span>Pairing code</span><input value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="6 digits" inputMode="numeric" /></label>
       <button type="submit" className="settingsActionButton settingsPrimaryAction" disabled={busy || !address.trim() || code.length !== 6}><Smartphone size={14} /> {busy ? "Pairing…" : "Pair"}</button>
       <p className="settingsHintText">Your computer shows its address and a code in localtify under Settings → Library → Phone sync → Pair a phone.</p>
     </form>}
+    {phoneLibrary.recoveryArchives.length ? <div className="phoneSyncPairForm">
+      <button type="button" className="settingsActionButton" onClick={() => setShowRecovery(value => !value)}>{showRecovery ? "Hide" : "View"} recovery data ({phoneLibrary.recoveryArchives.length})</button>
+      {showRecovery ? <label><span>Saved metadata and listening history (select and copy to export)</span><textarea readOnly rows={6} value={JSON.stringify(phoneLibrary.recoveryArchives, null, 2)} /></label> : null}
+    </div> : null}
     {message ? <p className="settingsHintText phoneSyncError" role="alert">{message}</p> : null}
   </div>;
 }

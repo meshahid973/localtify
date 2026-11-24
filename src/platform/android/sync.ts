@@ -154,6 +154,39 @@ export async function restorePausedPairing(address?: string) {
   } finally { changingPairing = false; }
 }
 
+export async function archivePausedPairing() {
+  if (running || changingPairing || phoneLibrary.pairing) throw new Error("Wait for the current pairing or sync");
+  const saved = phoneLibrary.detachedPairing;
+  if (!saved) throw new Error("No saved pairing");
+  changingPairing = true;
+  try {
+    await phoneLibrary.flushWrites(true);
+    const { token: _token, ...computer } = saved.pairing;
+    const { pairingToken: _pairingToken, ...batch } = saved.batch;
+    const previous = {
+      recoveryArchives: phoneLibrary.recoveryArchives, detachedPairing: saved,
+      base: phoneLibrary.base, pendingEvents: phoneLibrary.pendingEvents,
+      likeClock: phoneLibrary.likeClock, clockOffset: phoneLibrary.clockOffset
+    };
+    // Keep the visible library intact, but do not replay uncertain old deltas under a new credential.
+    phoneLibrary.recoveryArchives = [...previous.recoveryArchives, structuredClone({
+      at: Date.now(), computer, batch, remoteSongs: phoneLibrary.remoteSongs,
+      edits: phoneLibrary.edits, base: phoneLibrary.base,
+      playlists: phoneLibrary.playlists, pendingEvents: phoneLibrary.pendingEvents
+    })];
+    phoneLibrary.base = {
+      songs: Object.fromEntries(phoneLibrary.phoneSongFields().map(song => [song.id, baseFields(song)])),
+      playlists: structuredClone(phoneLibrary.playlists)
+    };
+    phoneLibrary.pendingEvents = [];
+    phoneLibrary.likeClock = {};
+    phoneLibrary.clockOffset = 0;
+    phoneLibrary.detachedPairing = null;
+    try { await phoneLibrary.save(["recoveryArchives", "detachedPairing", "base", "pendingEvents", "likeClock", "clockOffset"]); }
+    catch (error) { Object.assign(phoneLibrary, previous); throw error; }
+  } finally { changingPairing = false; }
+}
+
 const baseFields = (song: SyncSongFields): SyncSongFields => {
   const fields: SyncSongFields = { id: song.id, playCount: song.playCount, lastPlayed: song.lastPlayed ?? null };
   for (const field of EDITABLE_SONG_FIELDS) if (song[field] !== undefined) (fields as Record<string, unknown>)[field] = song[field];

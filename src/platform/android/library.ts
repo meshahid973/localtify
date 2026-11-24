@@ -12,9 +12,11 @@ export type RemoteSong = SyncSongFields & Record<string, unknown> & { file: File
 /** `platform` is the computer's process.platform ("darwin", "win32", "linux"), for calling it a Mac or a PC. */
 export type Pairing = { url: string; token: string; name: string; platform?: string; sequence?: number };
 export type SyncRecord = { at: number; ok: boolean; message: string };
-type Saved = "detachedPairing" | "remoteSongs" | "edits" | "base" | "playlists" | "settings" | "macFeatures" | "pendingEvents" | "files" | "pairing" | "lastSync" | "pendingSync" | "likeClock" | "clockOffset";
+type Saved = "recoveryArchives" | "detachedPairing" | "remoteSongs" | "edits" | "base" | "playlists" | "settings" | "macFeatures" | "pendingEvents" | "files" | "pairing" | "lastSync" | "pendingSync" | "likeClock" | "clockOffset";
 
 type LocalFiles = Record<string, { audio?: string; audioExt?: string; cover?: string; coverExt?: string }>;
+
+type RecoveryArchive = { at: number; computer: Omit<Pairing, "token">; batch: Omit<SyncBatch, "pairingToken">; remoteSongs: RemoteSong[]; edits: Record<string, Partial<Song>>; base: PhoneLibrary["base"]; playlists: SyncPlaylist[]; pendingEvents: PlayEvent[] };
 
 export const fileKey = (info: FileInfo | null | undefined) => (info ? `${info.size}-${info.mtimeMs}` : "");
 
@@ -33,6 +35,7 @@ export class PhoneLibrary {
   files: LocalFiles = {};
   pairing: Pairing | null = null;
   detachedPairing: { pairing: Pairing; batch: SyncBatch } | null = null;
+  recoveryArchives: RecoveryArchive[] = [];
   lastSync: SyncRecord | null = null;
   pendingSync: SyncBatch | null = null;
   /** When each song's like last changed (Mac clock): a tap here, or one adopted from the Mac. The newest wins. */
@@ -74,7 +77,7 @@ export class PhoneLibrary {
   load() {
     this.loading ??= (async () => {
       try { this.paths = await LocaltifyNative.getPaths(); } catch { /* keep defaults outside the app */ }
-      const [remoteSongs, edits, base, playlists, settings, macFeatures, pendingEvents, files, pairing, lastSync, pendingSync, likeClock, clockOffset, detachedPairing] = await Promise.all([
+      const [remoteSongs, edits, base, playlists, settings, macFeatures, pendingEvents, files, pairing, lastSync, pendingSync, likeClock, clockOffset, detachedPairing, recoveryArchives] = await Promise.all([
         readValue<RemoteSong[]>("remoteSongs", []),
         readValue<Record<string, Partial<Song>>>("edits", {}),
         readValue("base", this.base),
@@ -89,9 +92,10 @@ export class PhoneLibrary {
         readValue<SyncBatch | null>("pendingSync", null),
         readValue<Record<string, number>>("likeClock", {}),
         readValue<number>("clockOffset", 0),
-        readValue<PhoneLibrary["detachedPairing"]>("detachedPairing", null)
+        readValue<PhoneLibrary["detachedPairing"]>("detachedPairing", null),
+        readValue<RecoveryArchive[]>("recoveryArchives", [])
       ]);
-      Object.assign(this, { remoteSongs, edits, base, playlists, settings, macFeatures, pendingEvents, files, pairing, lastSync, pendingSync, likeClock, clockOffset, detachedPairing });
+      Object.assign(this, { remoteSongs, edits, base, playlists, settings, macFeatures, pendingEvents, files, pairing, lastSync, pendingSync, likeClock, clockOffset, detachedPairing, recoveryArchives });
     })().catch(error => {
       // A transient IndexedDB open or read failure must not permanently
       // poison the boot promise for the lifetime of the WebView.
@@ -233,6 +237,8 @@ export class PhoneLibrary {
   }
 
   recordPlayEvent(event: PlayEvent) {
+    // A still-running playback session must not replay an archived event on another computer.
+    if (this.recoveryArchives.some(archive => archive.pendingEvents.some(old => old.id === event.id) || archive.batch.playEvents.some(old => old.id === event.id))) return true;
     const indices = this.pendingEventIndex();
     const index = indices.get(event.id);
     if (index !== undefined) {

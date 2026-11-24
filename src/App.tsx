@@ -3,7 +3,6 @@ import { createSleepTimer } from "./features/player/sleepTimer";
 import { lazy, startTransition, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent, DragEvent, MouseEvent as ReactMouseEvent, SyntheticEvent } from "react";
 import { useNativeMediaSession } from "./features/player/useNativeMediaSession";
-import type { ListeningOutcome } from "./features/player/listeningHistory";
 import { usePlayerRuntime } from "./features/player";
 import { createCrossfadePlayback } from "./features/player/crossfadePlayback";
 import { usePlaybackProgressLoop } from "./features/player/usePlayerRuntime";
@@ -140,7 +139,7 @@ function MainModeApp() {
     ensurePlayerController, flushListeningEvents, listeningHistoryRef, audioRef, playbackTransitionRef,
     crossfadeAutoStartedRef, crossfadeMainPauseGuardRef, crossfadeHandoffRef,
     animationFrameRef, progressLoopTimeoutRef,
-    pendingPlayRef, countPlayRef, playCountSongIdRef, playCountListenedRef, playCountLastTimeRef,
+    pendingPlayRef, resetPlayCountTracker, armPlayCount, tickPlayCountTracker, finishCountedPlay, hasActivePlayCount, stopProgressLoop,
     positionSaveRef, nextAudioRef, playbackUrlCacheRef, playbackUrlPendingRef,
     lastQueueHistoryRef, songRef, timeRef, durationRef, playingRef, volumeRef, effectiveVolumeRef, lastNonZeroVolumeRef,
     beatFrameRef, beatFrameTimerRef, audioEffectRuntimeRef,
@@ -1375,57 +1374,13 @@ function MainModeApp() {
   }, [ready, isPlaying, currentSong?.id, isAppBackgrounded, settings.animatedGlow, settings.reducedMotion, settings.volume, settings.playbackSpeed, settings.audioEffectMode, settings.audioEffectAmount, settings.audioReverbAmount, view, settingsCategory, isSeeking, isVolumeDragging]);
 
 
-  function resetPlayCountTracker(outcome: Exclude<ListeningOutcome, "active"> = "interrupted") {
-    listeningHistoryRef.current?.finish(outcome);
-    countPlayRef.current = false;
-    playCountSongIdRef.current = "";
-    playCountListenedRef.current = 0;
-    playCountLastTimeRef.current = 0;
-  }
-
-  function armPlayCount(songId: string, startTime = 0) {
-    countPlayRef.current = true;
-    playCountSongIdRef.current = songId;
-    playCountListenedRef.current = 0;
-    playCountLastTimeRef.current = Math.max(0, Number.isFinite(startTime) ? startTime : 0);
-  }
-
-  function tickPlayCountTracker(nextTime: number) {
-    if (audioRef.current) listeningHistoryRef.current?.sample(audioRef.current);
-    const song = songRef.current;
-    if (!song || !countPlayRef.current || playCountSongIdRef.current !== song.id) return;
-
-    const safeNextTime = Math.max(0, Number.isFinite(nextTime) ? nextTime : 0);
-    const delta = safeNextTime - playCountLastTimeRef.current;
-
-    // Count real listening progress only. Big jumps are usually seeking, not listening.
-    if (delta > 0 && delta < 3) {
-      playCountListenedRef.current += delta;
-    }
-
-    playCountLastTimeRef.current = safeNextTime;
-  }
-
   function markSongCompletedForPlayCount(song: Song | null, outcome: "ended" | "transition" = "ended") {
-    if (audioRef.current) listeningHistoryRef.current?.sample(audioRef.current);
-    listeningHistoryRef.current?.finish(outcome);
-    if (!song || !countPlayRef.current || playCountSongIdRef.current !== song.id) return false;
-
-    const duration = Math.max(0, Number(durationRef.current || song.duration || 0));
-    const listened = playCountListenedRef.current;
-    const required = duration > 0 ? Math.max(8, duration * 0.82) : 8;
-
-    resetPlayCountTracker();
-
-    if (listened + 1 < required) return false;
-
-    const latest = songs.find((item) => item.id === song.id) || song;
-
+    if (!song || !finishCountedPlay(song, outcome)) return false;
+    const latest = getSong(song.id) || song;
     void patchSongLocal(song.id, {
       playCount: Math.max(0, Number(latest.playCount || 0)) + 1,
       lastPlayed: new Date().toISOString()
     });
-
     return true;
   }
   const triggerSecret = useCallback((mode: SecretTriggerMode, message: string) => {
@@ -2460,18 +2415,6 @@ function MainModeApp() {
     }
 
     playNext(true, "auto");
-  }
-
-  function stopProgressLoop() {
-    if (animationFrameRef.current !== null) {
-      window.cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-
-    if (progressLoopTimeoutRef.current !== null) {
-      window.clearTimeout(progressLoopTimeoutRef.current);
-      progressLoopTimeoutRef.current = null;
-    }
   }
 
   function getAudioErrorText(audio: HTMLAudioElement | null) {
@@ -3695,7 +3638,7 @@ function MainModeApp() {
       return;
     }
 
-    if (!countPlayRef.current && (timeRef.current <= 2 || currentTime <= 2)) {
+    if (!hasActivePlayCount() && (timeRef.current <= 2 || currentTime <= 2)) {
       armPlayCount(currentSong.id, timeRef.current || currentTime || 0);
     }
     pendingPlayRef.current = true;

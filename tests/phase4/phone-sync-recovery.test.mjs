@@ -346,3 +346,29 @@ test("desktop edits after the snapshot trigger a safe playlist rebase without re
     assert.deepEqual(f.repositories.playlists.get()[0].songIds,["a","b"]);
   } finally {await f.close();}
 });
+
+test("abandoning an unavailable computer archives uncertain changes without replaying them", async () => {
+  const f = await syncFixture();
+  try {
+    f.phone.patchSong("a", {playCount:5});
+    f.phone.recordPlayEvent(play("ended"));
+    f.hooks.afterChanges = once(() => {throw new Error("response lost");});
+    await f.sync.syncNow();
+    const token = f.phone.pairing.token;
+    await f.sync.forgetMac(true);
+    await f.sync.archivePausedPairing();
+    await f.restartPhone();
+    assert.equal(f.phone.detachedPairing,null);
+    assert.equal(f.phone.pendingSync,null);
+    assert.equal(f.phone.pendingEvents.length,0);
+    assert.equal(f.phone.base.songs.a.playCount,5);
+    assert.equal(f.phone.recoveryArchives[0].batch.sequence,1);
+    assert.equal(f.phone.recoveryArchives[0].pendingEvents.length,1);
+    assert.ok(!JSON.stringify(f.phone.recoveryArchives).includes(token));
+    assert.equal(f.phone.songs()[0].playCount,5);
+    await f.sync.pairWithMac(f.url,f.server.newPairingCode().code);
+    await f.sync.syncNow();
+    assert.equal(f.repositories.songs.get("a").playCount,5);
+    assert.equal(f.requests.length,1);
+  } finally {await f.close();}
+});

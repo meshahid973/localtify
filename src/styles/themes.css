@@ -107,16 +107,10 @@
 
 .app{
   --accent-contrast: var(--button-text-on-accent, #06100b);
-}
-
-.app{
   --panel-calm-bg: var(--lt-surface-soft);
   --panel-calm-bg-strong: var(--lt-surface-soft);
   --panel-calm-shadow: none;
   --panel-calm-shadow-hover: none;
-}
-
-.app{
   --outline-calm-v487: color-mix(in oklab, var(--lt-border) 84%, var(--lt-accent) 16%);
   --outline-hover-v487: color-mix(in oklab, var(--lt-border) 68%, var(--lt-accent) 32%);
   --outline-active-v487: color-mix(in oklab, var(--lt-border) 30%, var(--lt-accent) 70%);
