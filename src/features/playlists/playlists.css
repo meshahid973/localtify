@@ -50,8 +50,8 @@
   border-bottom: 1px solid transparent;
   border-radius: var(--lt-radius-item); color: var(--playlist-text); background: transparent;
 }
-.playlistTrackRow.virtualPlaylistTrackRow:hover { background: var(--lt-fill-hover); }
-.playlistTrackRow.virtualPlaylistTrackRow.active { background: var(--lt-fill-selected); }
+.playlistTrackRow.virtualPlaylistTrackRow:hover { background: var(--track-hover); }
+.playlistTrackRow.virtualPlaylistTrackRow.active { background: var(--track-active); }
 .playlistTrackRow.songDropTarget[data-drop-side="before"] { border-top: 2px solid var(--lt-accent); }
 .playlistTrackRow.songDropTarget[data-drop-side="after"] { border-bottom: 2px solid var(--lt-accent); }
 .playlistTrackRow.songDragging { opacity: .46; }
@@ -61,6 +61,7 @@
 .playlistTrackCover,.playlistTrackCover img { width: 44px; height: 44px; object-fit: cover; border-radius: 7px; }
 .playlistTrackText { min-width: 0; display: grid; gap: 4px; }
 .playlistTrackText strong { overflow: hidden; color: var(--lt-text); text-overflow: ellipsis; white-space: nowrap; font-size: var(--lt-text-base); font-weight: 550; }
+.playlistTrackRow.active .playlistTrackText strong { color: var(--lt-accent); }
 .playlistTrackText small { overflow: hidden; color: var(--lt-muted); text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
 .playlistTrackDuration { color: var(--playlist-muted); font-size: 11px; font-variant-numeric: tabular-nums; text-align: right; }
 .playlistTrackRow .iconAction { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; background: transparent; border: 0; color: var(--lt-muted); cursor: pointer; }
