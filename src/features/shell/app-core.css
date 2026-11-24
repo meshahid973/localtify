@@ -352,12 +352,6 @@ button:disabled{
   gap: 14px;
 }
 
-.topList{
-  display: grid;
-
-  margin-top: 12px;
-}
-
 .editorModal{
   width: min(980px, calc(100vw - 40px));
   max-height: calc(100vh - 78px);
@@ -1037,10 +1031,6 @@ button:disabled{
   background: linear-gradient(90deg, color-mix(in srgb, var(--lt-bg) 72%, transparent), color-mix(in srgb, var(--lt-bg) 28%, transparent) 55%, color-mix(in srgb, var(--lt-bg) 38%, transparent)),
     repeating-linear-gradient(90deg, rgba(255,255,255,.025) 0 1px, transparent 1px 9px),
     linear-gradient(180deg, rgba(255,255,255,.035), transparent 34%) !important;
-}
-
-.topList{
-  gap: 7px !important;
 }
 
 .secretLayer{

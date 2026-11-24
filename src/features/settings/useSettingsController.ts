@@ -38,11 +38,16 @@ export function useSettingsController({ initialSettings, bootedRef, volumeDraftR
 
   const flushSettings = useStableCallback(async () => {
     if (!bootedRef.current) return true;
-    if (saveSettingsTimerRef.current !== null || settingsSaveFailedRef.current) {
-      return saveSettingsSafely(settingsRef.current);
+    for (;;) {
+      const snapshot = settingsRef.current;
+      if (saveSettingsTimerRef.current !== null || settingsSaveFailedRef.current) {
+        if (!await saveSettingsSafely(snapshot)) return false;
+      } else {
+        try { await writeSettings.flush(); }
+        catch { if (!await saveSettingsSafely(settingsRef.current)) return false; }
+      }
+      if (settingsRef.current === snapshot && saveSettingsTimerRef.current === null) return true;
     }
-    try { await writeSettings.flush(); return true; }
-    catch { return saveSettingsSafely(settingsRef.current); }
   });
 
   useEffect(() => {

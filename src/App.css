@@ -1744,11 +1744,6 @@ button {
   display: none !important;
 }
 
-.topList{
-  overflow: hidden !important;
-  contain: paint;
-}
-
 .app.viewSwitching .ambientSurface::before,
 .app.viewSwitching .ambientSurface::after,
 .app.viewSwitching .coverAura,

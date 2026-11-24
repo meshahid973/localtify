@@ -592,11 +592,27 @@ server.listen(5173,async()=>{
       await until(()=>win.webContents.executeJavaScript("document.querySelector('#settings-playback-sleep')?.textContent.includes('remaining')").catch(()=>false),"visible sleep countdown");
       await win.webContents.executeJavaScript("[...document.querySelectorAll('#settings-playback-sleep button')].find(b=>b.textContent.trim()==='Off').click()");
       await until(()=>win.webContents.executeJavaScript("!document.querySelector('#settings-playback-sleep')?.textContent.includes('remaining')"),"sleep timer cancels");
-      for(const [query,label,target] of [["scrobbling","Scrobbling accounts","settings-playback-scrobbling"],["phone sync","Phone sync","settings-library-sync"]]){
-        await win.webContents.executeJavaScript(`(()=>{const e=document.querySelector('#settings-section-search');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,${JSON.stringify(query)});e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
-        await until(()=>win.webContents.executeJavaScript(`[...document.querySelectorAll('.settingsControlResult')].some(b=>b.textContent.includes(${JSON.stringify(label)}))`),"search "+query);
-        await win.webContents.executeJavaScript(`[...document.querySelectorAll('.settingsControlResult')].find(b=>b.textContent.includes(${JSON.stringify(label)})).click()`);
-        await until(()=>win.webContents.executeJavaScript(`(()=>{const e=document.getElementById(${JSON.stringify(target)});return !!e && !!document.activeElement && e.contains(document.activeElement);})()`).catch(()=>false),"focused "+query);
+      const settingsSearchCases = [
+        {
+          label: "scrobbling",
+          search: "(()=>{const e=document.querySelector('#settings-section-search');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,'scrobbling');e.dispatchEvent(new Event('input',{bubbles:true}));})()",
+          found: "[...document.querySelectorAll('.settingsControlResult')].some(b=>b.textContent.includes('Scrobbling accounts'))",
+          click: "[...document.querySelectorAll('.settingsControlResult')].find(b=>b.textContent.includes('Scrobbling accounts')).click()",
+          focused: "!!document.getElementById('settings-playback-scrobbling')?.contains(document.activeElement)"
+        },
+        {
+          label: "phone sync",
+          search: "(()=>{const e=document.querySelector('#settings-section-search');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,'phone sync');e.dispatchEvent(new Event('input',{bubbles:true}));})()",
+          found: "[...document.querySelectorAll('.settingsControlResult')].some(b=>b.textContent.includes('Phone sync'))",
+          click: "[...document.querySelectorAll('.settingsControlResult')].find(b=>b.textContent.includes('Phone sync')).click()",
+          focused: "!!document.getElementById('settings-library-sync')?.contains(document.activeElement)"
+        }
+      ];
+      for(const check of settingsSearchCases){
+        await win.webContents.executeJavaScript(check.search);
+        await until(()=>win.webContents.executeJavaScript(check.found),"search "+check.label);
+        await win.webContents.executeJavaScript(check.click);
+        await until(()=>win.webContents.executeJavaScript(check.focused).catch(()=>false),"focused "+check.label);
       }
       const discordSelected = await win.webContents.executeJavaScript("(()=>{const button=[...document.querySelectorAll('.settingsCategoryButton')].find(button=>button.textContent.trim()==='Discord');if(!button)return false;button.click();return true;})()");
       assert.ok(discordSelected,"Discord settings remain reachable");

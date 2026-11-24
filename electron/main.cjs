@@ -2170,7 +2170,11 @@ app.whenReady().then(async () => {
       return { ok: true, restartRequired: false, windowReloadRequired: false, changedNativeMaterial: transparentModeChanged, ...next };
     } catch (error) { console.log("[localitfy translucent window save error]", error?.message || error); return { ok: false, error: error?.message || "could not update translucent window", ...getSavedWindowTranslucencySettings() }; }
   });
-  ipcRouter.handle("localitfy:restart-app", async () => { restartForWindowTranslucency(); return true; });
+  ipcRouter.handle("localitfy:restart-app", async () => {
+    if (!await confirmSettingsFlush(mainWindow)) return false;
+    restartForWindowTranslucency();
+    return true;
+  });
   ipcRouter.handle("localitfy:open-logs", async () => {
     try {
       const logsPath = app.getPath("logs");
@@ -2228,7 +2232,7 @@ app.whenReady().then(async () => {
   ipcRouter.handle("localitfy:install-update", async () => {
     if (!await confirmSettingsFlush(mainWindow)) return false;
     const installed = await installUpdate();
-    if (installed) { quitFlushApproved = true; allowQuit = true; }
+    if (installed && !updaterRuntime.linuxUpdaterIsManualOnly()) { quitFlushApproved = true; allowQuit = true; }
     return installed;
   });
   ipcRouter.handle("localitfy:open-external", async (_event, url) => {
