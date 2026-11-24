@@ -5099,15 +5099,14 @@ function MainModeApp() {
           fallback={
             <div className="settingsPageCard settingsLazyLoading" role="status" aria-live="polite">
               <div className="settingsSectionTitle">
-                <span>settings</span>
-                <strong>loading this section</strong>
-                <small>only loading the panel you opened, so startup stays lighter.</small>
+                <strong>Loading settings…</strong>
               </div>
             </div>
           }
         >
           <SettingsCategoryContent
           settingsCategory={settingsCategory}
+        sleepDeadline={sleepDeadline}
         setSettingsCategory={(value: string) => setSettingsCategory(value as SettingsCategory)}
         settings={settings}
         updateSetting={updateSetting}
@@ -5145,9 +5144,6 @@ function MainModeApp() {
         diagnosticsCopied={diagnosticsCopied}
         diagnosticsInfo={diagnosticsInfo}
         platformInfo={platformInfo}
-        libraryRenderLimitRef={libraryRenderLimitRef}
-        INITIAL_LIBRARY_RENDER_LIMIT={INITIAL_LIBRARY_RENDER_LIMIT}
-        setLibraryRenderLimit={setLibraryRenderLimit}
         resetDiscordSettings={resetDiscordSettings}
         resetAppearanceSettings={resetAppearanceSettings}
         resetPlayerLayoutSettings={resetPlayerLayoutSettings}

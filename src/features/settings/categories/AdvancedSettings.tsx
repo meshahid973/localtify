@@ -1,13 +1,10 @@
 import type { Settings } from "../settings.types";
 import type { DiagnosticsInfo, PlatformInfoLike, UpdateSetting } from "../settings.shared";
 import { ToggleRow } from "../settings.shared";
-import type { UpdatePromptState } from "../../updates/update.types";
 const DANGER_MASCOT_SRC = new URL("../../../assets/danger-state.png", import.meta.url).href;
 
 export type AdvancedSettingsProps = {
-  settings: Settings; updateSetting: UpdateSetting; appVersion: string; diagnosticsInfo: DiagnosticsInfo; diagnosticsCopied: boolean; copyDiagnosticsInfo: () => void;
-  updatePrompt: UpdatePromptState; manualUpdateCheck: () => void; askUpdaterToInstall: () => void; libraryScanBusy: boolean; rebuildSearchIndexAction: () => void;
-  libraryRenderLimitRef: { current: number }; initialLibraryRenderLimit: number; setLibraryRenderLimit: (value: number) => void;
+  settings: Settings; updateSetting: UpdateSetting; diagnosticsInfo: DiagnosticsInfo; diagnosticsCopied: boolean; copyDiagnosticsInfo: () => void;
   platformInfo: Required<PlatformInfoLike>; resetDiscordSettings: () => void; resetAppearanceSettings: () => void; resetPlayerLayoutSettings: () => void; resetLibraryLayoutSettings: () => void; resetAllSettingsSafely: () => void;
 };
 export default function AdvancedSettings(p: AdvancedSettingsProps) {

@@ -439,6 +439,7 @@
   scrollbar-width: thin;
 }
 
+.settingsPage.settingsPageV027 .settingsRangeValue { color: var(--lt-muted); font-variant-numeric: tabular-nums; }
 .settingsPage.settingsPageV027 .settingsRowHelpVisuallyHidden {
   position: absolute;
   width: 1px;
