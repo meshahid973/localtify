@@ -78,7 +78,7 @@ import {
   discordSecondLineOptions,
   discordStyleOptions
 } from "./features/discord/discord.constants";
-import { PLAYLIST_STORAGE_KEY } from "./features/playlists/playlist.constants";
+import { PLAYLIST_STORAGE_KEY, PLAYLIST_MIGRATION_KEY } from "./features/playlists/playlist.constants";
 import { clamp, formatTime } from "./shared/utils/format";
 import { useStableCallback } from "./shared/hooks/useStableCallback";
 import { makeLocalId, readLocalJson } from "./shared/storage/localStorage";
@@ -193,6 +193,7 @@ function MainModeApp() {
   const [bootLogCopied, setBootLogCopied] = useState(false);
   const [bootRetryKey, setBootRetryKey] = useState(0);
   const [songs, setSongs] = useState<Song[]>([]);
+  const flushPlaylistsRef = useRef<() => Promise<boolean>>(async () => true);
   const { appToast, showAppToast } = useAppToast();
   const {
     settings, setSettings, settingsRef, settingsSaveError, retrySettingsSave,
@@ -208,6 +209,7 @@ function MainModeApp() {
   } = useSettingsController({
     initialSettings: () => applyVisualCustomizationDefaults(defaultSettings as Settings),
     bootedRef, volumeDraftRef, setStatusText, showAppToast,
+    flushExtra: () => flushPlaylistsRef.current(),
     applyLiveVolumePercent, kickThemeSettle
   });
   const [heroMotion, setHeroMotion] = useState<"idle" | "expanding" | "compacting">("idle");
@@ -278,8 +280,8 @@ function MainModeApp() {
     setStatusText,
     showAppToast
   });
-  const askUpdaterToInstall = useStableCallback(async () => { if (await flushSettings()) await installUpdate(); });
-  const closeWindowSafely = useStableCallback(async () => { if (await flushSettings()) await window.localitfy.closeWindow(); });
+  const askUpdaterToInstall = useStableCallback(async () => { if (await flushSettings() && await flushPlaylistsRef.current()) await installUpdate(); });
+  const closeWindowSafely = useStableCallback(async () => { if (await flushSettings() && await flushPlaylistsRef.current()) await window.localitfy.closeWindow(); });
   const {
     isThreeAm,
     screensaverVisible, setScreensaverVisible,
@@ -512,7 +514,7 @@ function MainModeApp() {
   const songTransitionCounterRef = useRef(0);
   const {
     playlists,
-    setPlaylists,
+    setPlaylists, initializePlaylists, flushPlaylists,
     newPlaylistName,
     setNewPlaylistName,
     playlistPickerName,
@@ -552,6 +554,7 @@ function MainModeApp() {
     setStatusText,
     showAppToast
   });
+  useLayoutEffect(() => { flushPlaylistsRef.current = flushPlaylists; }, [flushPlaylists]);
   const {
     retryDownloads,
     downloadText,
@@ -1661,9 +1664,16 @@ function MainModeApp() {
       const nextSongs = applyLibraryOrder(sanitizeSongList(payload.songs || []));
       const validBootSongIds = new Set(nextSongs.map((song) => song.id));
 
-      const localPlaylists = cleanPlaylistList(readLocalJson<Playlist[]>(PLAYLIST_STORAGE_KEY, []), validBootSongIds);
-      const databasePlaylists = cleanPlaylistList(payload.playlists || [], validBootSongIds);
-      const initialPlaylists = databasePlaylists.length ? databasePlaylists : localPlaylists;
+      let initialPlaylists = cleanPlaylistList(payload.playlists || []);
+      if (!readLocalJson<boolean>(PLAYLIST_MIGRATION_KEY, false)) {
+        const legacy = cleanPlaylistList(readLocalJson<Playlist[]>(PLAYLIST_STORAGE_KEY, []), validBootSongIds);
+        if (!initialPlaylists.length && legacy.length && window.localitfy.savePlaylists &&
+            window.confirm("Restore playlists from the old local backup? Choose Cancel to keep the database empty.")) {
+          initialPlaylists = cleanPlaylistList(await window.localitfy.savePlaylists(legacy, initialPlaylists));
+        }
+        window.localStorage.setItem(PLAYLIST_MIGRATION_KEY, "true");
+      }
+      if (!mounted) return;
 
       const initialSongId =
         nextSettings.rememberLastSong &&
@@ -1682,15 +1692,11 @@ function MainModeApp() {
 
 
       setSongs(nextSongs);
-      setPlaylists(initialPlaylists);
+      initializePlaylists(initialPlaylists);
       settingsRef.current = nextSettings;
       setSettings(nextSettings);
       setCurrentId(initialSongId);
       setReady(true);
-
-      if (!databasePlaylists.length && localPlaylists.length && window.localitfy.savePlaylists) {
-        window.localitfy.savePlaylists(localPlaylists).catch(() => undefined);
-      }
 
       cancelPixelArtLoad = runLocaltifyIdleTask(() => {
         if (!mounted) return;

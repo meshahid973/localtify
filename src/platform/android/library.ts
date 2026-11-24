@@ -42,6 +42,8 @@ export class PhoneLibrary {
   revision = 0;
   private loading: Promise<void> | null = null;
   private checkpointDirty = false;
+  private pendingWrite: Promise<void> = Promise.resolve();
+  private dirtyKeys = new Set<Saved>();
   private indexedSongs: RemoteSong[] | null = null;
   private songsById = new Map<string, RemoteSong>();
   private indexedEvents: PlayEvent[] | null = null;
@@ -99,7 +101,28 @@ export class PhoneLibrary {
 
   save(keys: Saved[]) {
     const selected = this.checkpointDirty ? [...new Set([...keys, ...this.checkpointKeys])] : keys;
-    return writeValues(Object.fromEntries(selected.map((key) => [key, this[key]])));
+    for (const key of selected) this.dirtyKeys.add(key);
+    const snapshot = [...this.dirtyKeys];
+    this.dirtyKeys.clear();
+    const write = writeValues(Object.fromEntries(snapshot.map(key => [key, this[key]]))).catch(error => {
+      for (const key of snapshot) this.dirtyKeys.add(key);
+      throw error;
+    });
+    this.pendingWrite = write;
+    void write.catch(() => undefined);
+    return write;
+  }
+
+  async flushWrites() {
+    for (;;) {
+      const pending = this.pendingWrite;
+      try { await pending; } catch {
+        if (this.pendingWrite === pending) throw new Error("Could not save phone library. Retry the change or sync again.");
+      }
+      if (this.pendingWrite !== pending) continue;
+      if (!this.dirtyKeys.size) return;
+      await this.save([...this.dirtyKeys]);
+    }
   }
 
   private readonly checkpointKeys = ["remoteSongs", "playlists", "base", "edits", "pendingEvents", "macFeatures", "pairing", "pendingSync"] as const;
@@ -166,7 +189,7 @@ export class PhoneLibrary {
     this.edits[id] = { ...previous, ...patch };
     if (typeof patch.liked === "boolean") this.likeClock[id] = Date.now() + this.clockOffset;
     this.revision += 1;
-    void this.save(typeof patch.liked === "boolean" ? ["edits", "likeClock"] : ["edits"]);
+    void this.save(typeof patch.liked === "boolean" ? ["edits", "likeClock"] : ["edits"]).catch(() => undefined);
     return this.toSong(remote);
   }
 
@@ -187,14 +210,14 @@ export class PhoneLibrary {
       else delete this.edits[id];
     }
     this.likeClock[id] = changedAt;
-    void this.save(["remoteSongs", "base", "edits", "likeClock"]);
+    void this.save(["remoteSongs", "base", "edits", "likeClock"]).catch(() => undefined);
     return before !== liked;
   }
 
   savePlaylists(playlists: SyncPlaylist[]) {
     this.playlists = playlists.map(({ id, name, songIds, createdAt, coverArtwork }) => ({ id, name, songIds: [...songIds], createdAt, ...(coverArtwork ? { coverArtwork } : {}) }));
     this.revision += 1;
-    void this.save(["playlists"]);
+    void this.save(["playlists"]).catch(() => undefined);
     return this.playlists;
   }
 
@@ -207,7 +230,7 @@ export class PhoneLibrary {
       this.pendingEvents.push(event);
     }
     this.revision += 1;
-    void this.save(["pendingEvents"]);
+    void this.save(["pendingEvents"]).catch(() => undefined);
     return true;
   }
 }

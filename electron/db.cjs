@@ -1040,7 +1040,7 @@ function getPlaylists() {
     .filter(Boolean);
 }
 
-function savePlaylists(playlists) {
+function savePlaylists(playlists, expected) {
   const database = ensureDb();
   // A malformed IPC payload must never be interpreted as a request to
   // clear every playlist. Only an explicit empty array may clear the library.
@@ -1072,6 +1072,7 @@ function savePlaylists(playlists) {
   const deleteMembers = database.prepare("DELETE FROM playlist_songs WHERE playlistId = ?");
   const deleteMember = database.prepare("DELETE FROM playlist_songs WHERE playlistId = ? AND songId = ?");
   const tx = database.transaction(items => {
+    if (expected !== undefined && !require("node:util").isDeepStrictEqual(expected, getPlaylists())) throw new Error("Playlist conflict: library changed");
     // Preserve last-write-wins playlist metadata and union membership for duplicate
     // IDs, matching the previous full-snapshot upsert semantics.
     const targets = new Map();

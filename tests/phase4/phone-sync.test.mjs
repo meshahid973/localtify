@@ -11,13 +11,14 @@ import { receiptDatabase, receiptRepository } from "../helpers/phone-sync-fixtur
 const require = createRequire(import.meta.url);
 const { createSyncServer, isPrivateAddress } = require("../../electron/sync/server.cjs");
 
-function compile(file) {
+function compile(file, dependencies = {}) {
   const output = ts.transpileModule(fs.readFileSync(file, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   const exports = {};
-  runInNewContext(output, { exports });
+  runInNewContext(output, { exports, require: name => { if (!(name in dependencies)) throw Error(name); return dependencies[name]; } });
   return exports;
 }
-const merge = compile("src/platform/android/syncMerge.ts");
+const playlistMerge = compile("src/features/playlists/playlistMerge.ts");
+const merge = compile("src/platform/android/syncMerge.ts", { "../../features/playlists/playlistMerge": playlistMerge });
 const plain = (value) => JSON.parse(JSON.stringify(value));
 const playlist = (id, songIds, name = id) => ({ id, name, songIds, createdAt: 1 });
 

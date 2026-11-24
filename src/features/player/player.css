@@ -502,17 +502,6 @@ body.localitfyThemePainting .app .volumeWrap input[type="range"],
 }
 
 
-.app.viewSwitching .playerBar::before,
-.app.viewSwitching .playerBar::after{
-  animation-play-state: paused !important;
-  filter: none !important;
-  opacity: 0.16 !important;
-}
-
-.app.viewSwitching .playerBar{
-
-  filter: none !important;
-}
 
 .app.compactPlayer .playerBar{
   --player-size-used: var(--player-size-live, var(--player-size, 92px));
@@ -1928,7 +1917,6 @@ body.localitfyThemePainting .app .volumeWrap input[type="range"],
 body.localtifyWindowBackgrounded .app .playerBar,
 .app.reducedMotion .playerBar,
 .app[data-motion-level="reduced"] .playerBar,
-.app.viewSwitching .playerBar,
 .app.themeSettling .playerBar{
   --player-perf-blur: 18px;
   --player-perf-opacity: 0.14;
@@ -1943,7 +1931,6 @@ body.localtifyWindowBackgrounded .app .playerBar,
 body.localtifyWindowBackgrounded .app .playerBar::before,
 .app.reducedMotion .playerBar::before,
 .app[data-motion-level="reduced"] .playerBar::before,
-.app.viewSwitching .playerBar::before,
 .app.themeSettling .playerBar::before{
   animation: none !important;
   transition: opacity 120ms ease, filter 120ms ease !important;
@@ -1954,7 +1941,6 @@ body.localtifyWindowBackgrounded .app .playerBar::before,
 body.localtifyWindowBackgrounded .app .playerBar:hover::before,
 .app.reducedMotion .playerBar:hover::before,
 .app[data-motion-level="reduced"] .playerBar:hover::before,
-.app.viewSwitching .playerBar:hover::before,
 .app.themeSettling .playerBar:hover::before{
   opacity: var(--player-perf-hover-opacity) !important;
   filter:
@@ -1974,7 +1960,6 @@ body.localtifyWindowBackgrounded .app .playerBar:hover::before,
   animation: none !important;
 }
 
-.app.viewSwitching .playerBar *,
 .app.themeSettling .playerBar *{
   transition-duration: 80ms !important;
 }

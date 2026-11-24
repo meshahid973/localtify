@@ -17,9 +17,10 @@ export type UseSettingsControllerOptions = {
   showAppToast: (message:string,kind?:AppToastKind)=>void;
   applyLiveVolumePercent: (percent:number)=>void;
   kickThemeSettle: ()=>void;
+  flushExtra: () => Promise<boolean>;
 };
 
-export function useSettingsController({ initialSettings, bootedRef, volumeDraftRef, setStatusText, showAppToast, applyLiveVolumePercent, kickThemeSettle }: UseSettingsControllerOptions) {
+export function useSettingsController({ initialSettings, bootedRef, volumeDraftRef, setStatusText, showAppToast, applyLiveVolumePercent, kickThemeSettle, flushExtra }: UseSettingsControllerOptions) {
   const [settings, setSettings] = useState<Settings>(initialSettings);
   const settingsRef = useRef(settings);
   const settingsSaveFailedRef = useRef(false);
@@ -50,10 +51,15 @@ export function useSettingsController({ initialSettings, bootedRef, volumeDraftR
     }
   });
 
+  const flushAll = useStableCallback(async () => {
+    const results = await Promise.allSettled([flushSettings(), flushExtra()]);
+    return results.every(result => result.status === "fulfilled" && result.value);
+  });
+
   useEffect(() => {
-    const flush = () => { void flushSettings(); };
+    const flush = () => { void flushAll(); };
     const onVisibility = () => { if (document.hidden) flush(); };
-    const unsubscribe = window.localitfy.onSettingsFlushRequest?.(flushSettings);
+    const unsubscribe = window.localitfy.onSettingsFlushRequest?.(flushAll);
     window.addEventListener("pagehide", flush);
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
@@ -62,7 +68,7 @@ export function useSettingsController({ initialSettings, bootedRef, volumeDraftR
       document.removeEventListener("visibilitychange", onVisibility);
       flush();
     };
-  }, [flushSettings]);
+  }, [flushAll]);
 
   useEffect(() => {
     themeSettlingRef.current = themeSettling;

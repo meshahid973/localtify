@@ -31,7 +31,7 @@ export type DownloadsRuntimeOptions = {
   changeView: (view:View,source?:"nav"|"onboarding"|"settings"|"unknown")=>void;
   updateSetting: <K extends keyof Settings>(key:K,value:Settings[K],debounce?:boolean)=>Promise<void>;
   showAppToast: (message:string,kind?:AppToastKind)=>void;
-  upsertSpotifyPlaylistFromImport: (name:string,songs:Song[])=>string|null;
+  upsertSpotifyPlaylistFromImport: (name:string,songs:Song[],sourceId:string)=>string|null;
   clearPlaybackCaches: ()=>void;
 };
 
@@ -99,6 +99,7 @@ export function useDownloadsRuntime({ ready, songs, setStatusText, setPlayerErro
   const [spotifyTracks, setSpotifyTracks] = useState<SpotifyTrack[]>([]);
   const [spotifySourceName, setSpotifySourceName] = useState("");
   const [spotifySourceType, setSpotifySourceType] = useState("");
+  const [spotifySourceId, setSpotifySourceId] = useState("");
   const [spotifyFetchBusy, setSpotifyFetchBusy] = useState(false);
   const [spotifyFetchError, setSpotifyFetchError] = useState("");
   const [spotifySelectedIds, setSpotifySelectedIds] = useState<Set<string>>(() => new Set());
@@ -121,11 +122,11 @@ export function useDownloadsRuntime({ ready, songs, setStatusText, setPlayerErro
     setSpotifyNeedsClientId(needsClientId);
     setSpotifyConnectionMode(String(res?.mode || (fallbackAvailable ? "public-fallback" : "oauth-pkce")));
     if (res?.redirectUri) setSpotifyRedirectUri(String(res.redirectUri));
-    setSpotifyLoggedIn(loggedIn || Boolean(res?.ok && fallbackAvailable));
+    setSpotifyLoggedIn(loggedIn);
 
     return {
       ready: connectionReady || fallbackAvailable,
-      loggedIn: loggedIn || Boolean(res?.ok && fallbackAvailable),
+      loggedIn: loggedIn,
       fallbackAvailable
     };
   }, []);
@@ -217,6 +218,7 @@ export function useDownloadsRuntime({ ready, songs, setStatusText, setPlayerErro
     setSpotifySelectedIds(new Set());
     setSpotifySourceName("");
     setSpotifySourceType("");
+    setSpotifySourceId("");
     setPlayerError("");
     setStatusText("fetching spotify tracks...");
 
@@ -279,6 +281,8 @@ export function useDownloadsRuntime({ ready, songs, setStatusText, setPlayerErro
 
       setSpotifySourceName(sourceName || (finalSourceType === "album" ? "Spotify Album" : finalSourceType === "track" ? "Spotify Track" : "Spotify Playlist"));
       setSpotifySourceType(finalSourceType);
+      const sourceMatch = cleanUrl.match(/(?:open\.spotify\.com\/(?:intl-[^/]+\/)?|spotify:)(album|playlist)[/:]([A-Za-z0-9]{22})(?:[/?#:]|$)/i);
+      setSpotifySourceId(sourceMatch ? `spotify:${sourceMatch[1].toLowerCase()}:${sourceMatch[2]}` : "");
       setSpotifyTracks(tracks);
       setSpotifySelectedIds(new Set(tracks.map((t) => t.id)));
       setSpotifyFetchError("");
@@ -694,7 +698,7 @@ export function useDownloadsRuntime({ ready, songs, setStatusText, setPlayerErro
                 });
               }
 
-              upsertSpotifyPlaylistFromImport(playlistName, importedSpotifySongs);
+              upsertSpotifyPlaylistFromImport(playlistName, importedSpotifySongs, spotifySourceId);
             }
           }
         }

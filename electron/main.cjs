@@ -2194,7 +2194,7 @@ app.whenReady().then(async () => {
     } catch (error) { return { ok: false, error: error?.message || "could not open logs folder" }; }
   });
   ipcRouter.handle("playlists:get", async () => getPlaylists());
-  ipcRouter.handle("playlists:save", async (_event, playlists) => savePlaylists(playlists));
+  ipcRouter.handle("playlists:save", async (_event, playlists, expected) => savePlaylists(playlists, expected));
   ipcRouter.handle("database:backup-now", async () => { try { return { ok: backupDatabase() }; } catch (e) { return { ok: false, error: e?.message }; } });
   ipcRouter.handle("database:repair-now", async () => {
     try {
