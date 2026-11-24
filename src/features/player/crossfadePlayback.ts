@@ -160,10 +160,10 @@ export function createCrossfadePlayback(runtime: Runtime, options: CrossfadeOpti
     crossfadeLastStartAtRef.current = performance.now();
 
     const version = playbackTransitionRef.current.snapshot().generation;
-    const playbackUrl = await resolvePlaybackUrl(target.song);
+    const playbackUrl = await resolvePlaybackUrl(target.song).catch(() => null);
     if (!crossfadeAutoStartedRef.current || !playbackTransitionRef.current.isCurrentCrossfade(target.song.id, version)) return;
 
-    if (!playbackUrl.ok || !playbackUrl.url || playbackUrl.fileExists === false) {
+    if (!playbackUrl?.ok || !playbackUrl.url || playbackUrl.fileExists === false) {
       crossfadeAutoStartedRef.current = false;
       playbackTransitionRef.current.crossfadeCancelled();
       setCrossfadePreviewSongId("");

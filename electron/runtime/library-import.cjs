@@ -172,7 +172,10 @@ function createLibraryImportRuntime({getSongs, getSong, insertSongs, patchSong, 
       const duration = Number(matched?.duration || Math.round(Number(matched?.durationMs || 0) / 1000) || 0);
       if (duration > 0 && !Number(song.duration || 0)) patch.duration = duration;
       if (Object.keys(patch).length) {
-        try { patchSong(song.id, patch); changedCount += 1; } catch (error) { console.log("[localitfy spotify metadata repair error]", error?.message || error); }
+        try {
+          const guarded = guardMetadataRepairPatch(song, getSong(song.id), patch);
+          if (Object.keys(guarded).length && patchSong(song.id, guarded)) changedCount += 1;
+        } catch (error) { console.log("[localitfy spotify metadata repair error]", error?.message || error); }
       }
     }
     if (changedCount) clearFileInfoCache();

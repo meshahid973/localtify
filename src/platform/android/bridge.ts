@@ -101,14 +101,17 @@ export function createAndroidBridge(): Bridge {
       await phoneLibrary.save(["settings"]);
       return phoneLibrary.effectiveSettings();
     },
-    getPlaylists: async () => { await phoneLibrary.flushWrites(true); return phoneLibrary.playlists; },
+    getPlaylists: async () => { await phoneLibrary.load(); await phoneLibrary.flushWrites(true); return phoneLibrary.playlists; },
     savePlaylists: async (playlists, expected) => {
-      if (expected !== undefined && JSON.stringify(expected) !== JSON.stringify(phoneLibrary.playlists)) throw new Error("Playlist conflict: library changed");
+      await phoneLibrary.load();
+      const canonical = (items: SyncPlaylist[]) => items.map(({id, name, songIds, createdAt, coverArtwork}) => [id, name, songIds, createdAt, coverArtwork || ""]);
+      if (expected !== undefined && JSON.stringify(canonical(expected)) !== JSON.stringify(canonical(phoneLibrary.playlists))) throw new Error("Playlist conflict: library changed");
       const next = phoneLibrary.savePlaylists(playlists as SyncPlaylist[]);
       await phoneLibrary.flushWrites();
       return next;
     },
     patchSong: async (id: string, patch: Partial<Song>) => {
+      await phoneLibrary.load();
       const updated = phoneLibrary.patchSong(id, patch);
       if (updated) await phoneLibrary.flushWrites(true);
       if (updated && typeof patch.liked === "boolean") void sendLike(id, patch.liked);
@@ -116,7 +119,7 @@ export function createAndroidBridge(): Bridge {
     },
     liveSend: sendLive,
     onLiveEvent: onLiveEvent as Bridge["onLiveEvent"],
-    recordPlayEvent: async (event: PlayEvent) => { phoneLibrary.recordPlayEvent(event); await phoneLibrary.flushWrites(); return true; },
+    recordPlayEvent: async (event: PlayEvent) => { await phoneLibrary.load(); phoneLibrary.recordPlayEvent(event); await phoneLibrary.flushWrites(); return true; },
     getListeningSummary: (payload) => fromMacOrKept<Awaited<ReturnType<Bridge["getListeningSummary"]>>>("listening:summary", payload, `mac:listening-summary:${payload.days}`, null, result => isListeningSummary(result, payload.days)),
     getListeningCalendarSummary: (payload) => fromMacOrKept<Awaited<ReturnType<Bridge["getListeningCalendarSummary"]>>>("listening:calendar-summary", payload, `mac:listening-calendar:${payload.range}:${payload.offset}`, null, result => isListeningCalendarSummary(result, payload)),
     onWatchedFoldersChange: subscribe("songs") as Bridge["onWatchedFoldersChange"],

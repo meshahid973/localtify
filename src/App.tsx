@@ -148,7 +148,7 @@ function MainModeApp() {
     beatSmoothRef, beatReactiveTargetCacheRef, beatLastPaintSignatureRef,
     progressDomSignatureRef, isVolumeDragging, setIsVolumeDragging, volumeDraft, setVolumeDraft,
     volumeDraftRef, volumeDraftFrameRef, liveVolumeFrameRef, liveVolumePendingPercentRef,
-    stopFade, fadeAudio, stopCrossfadeAuto,
+    stopFade, fadeAudio, stopCrossfadeAuto, clearCrossfadeHandoffSoon,
     currentId, setCurrentId, isPlaying, setIsPlaying, isShuffle, setIsShuffle, repeatMode, setRepeatMode,
     currentTime, setCurrentTime, currentDuration, setCurrentDuration, isSeeking, setIsSeeking,
     seekDraftPercent, setSeekDraftPercent, seekDraftPercentRef, isSeekingRef, seekDraftFrameRef,

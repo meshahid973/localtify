@@ -300,3 +300,27 @@ test("pairing excludes automatic sync and concurrent unpairing until persisted",
     assert.equal(f.persisted.get("pairing").token, f.phone.pairing.token);
   } finally { await f.close(); }
 });
+
+test("pausing a pairing retains its exact outstanding receipt through a phone restart", async () => {
+  const f = await syncFixture();
+  try {
+    f.phone.patchSong("a", {playCount:5});
+    f.hooks.afterChanges = once(() => {throw new Error("response lost");});
+    await f.sync.syncNow();
+    assert.ok(f.phone.pendingSync);
+    const batch = plain(f.phone.pendingSync);
+    await f.sync.forgetMac(true);
+    assert.equal(f.phone.pairing,null);
+    assert.equal(f.phone.pendingSync,null);
+    assert.deepEqual(plain(f.phone.detachedPairing.batch),batch);
+    await f.restartPhone();
+    assert.deepEqual(plain(f.phone.detachedPairing.batch),batch);
+    f.hooks.afterChanges = undefined;
+    await f.sync.restorePausedPairing();
+    assert.deepEqual(plain(f.phone.pendingSync),batch);
+    await f.sync.syncNow();
+    assert.equal(f.sync.getSyncProgress().phase,"done");
+    assert.equal(f.repositories.songs.get("a").playCount,5);
+    assert.deepEqual(f.requests.map(({body})=>body.sequence),[1,1]);
+  } finally {await f.close();}
+});
