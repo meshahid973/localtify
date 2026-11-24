@@ -1,5 +1,6 @@
 import { startTransition, useDeferredValue, useEffect, useRef, useState } from "react";
 import type { Settings, SettingsCategory } from "./settings.types";
+import { useStableCallback } from "../../shared/hooks/useStableCallback";
 import { createSettingsWriter } from "./settingsWriter";
 import { defaultSettings } from "./settings.constants";
 import { VISUAL_CUSTOMIZATION_DEFAULTS } from "./visualCustomization";

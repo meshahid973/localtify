@@ -359,7 +359,7 @@
  }
  .settingsPage.settingsPageV027 .settingsCategoryRail nav { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; overscroll-behavior-inline: contain; scroll-snap-type: x proximity; }
  .settingsPage.settingsPageV027 .settingsCategoryRail nav::-webkit-scrollbar { display: none; }
- .settingsPage.settingsPageV027 .settingsNavGroup { display: flex; gap: 6px; flex: none; }
+ .settingsPage.settingsPageV027 .settingsNavGroup { display: flex; align-items: center; gap: 6px; flex: none; }
  .settingsPage.settingsPageV027 .settingsNavGroup + .settingsNavGroup { margin: 0; padding: 0; border: 0; }
  .settingsPage.settingsPageV027 .settingsNavCaption { display: none; }
  .settingsPage.settingsPageV027 .settingsCategoryButton { flex: none; width: auto; min-width: 115px; }

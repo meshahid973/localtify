@@ -50,8 +50,8 @@ export function useLibraryController() {
     latestTargetId: string | null;
     latestSide: LibraryDropSide;
     sourceElement: HTMLElement | null;
+    cancel?: () => void;
   } | null>(null);
-  const pointerLibraryDragFrameRef = useRef<number | null>(null);
 
   return {
     editorSong, setEditorSong,
@@ -77,7 +77,7 @@ export function useLibraryController() {
     libraryDropSide, setLibraryDropSide,
     draggedSongIdRef, libraryDragOverSongIdRef, libraryDropSideRef,
     libraryDropPullRef, libraryDropVisualSongIdRef, libraryDropVisualSideRef,
-    librarySongElementRefs, pointerLibraryDragRef, pointerLibraryDragFrameRef
+    librarySongElementRefs, pointerLibraryDragRef
   };
 }
 

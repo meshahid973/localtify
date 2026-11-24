@@ -251,7 +251,7 @@ function MainModeApp() {
     libraryDropSide, setLibraryDropSide,
     draggedSongIdRef, libraryDragOverSongIdRef, libraryDropSideRef,
     libraryDropPullRef, libraryDropVisualSongIdRef, libraryDropVisualSideRef,
-    librarySongElementRefs, pointerLibraryDragRef, pointerLibraryDragFrameRef
+    librarySongElementRefs, pointerLibraryDragRef
   } = useLibraryController();
 
   const { libraryIndex, mostPlayed, missingSongsForLibrary, visibleSongs, libraryOrderLocked, songsById, songIndexById, playableSongs } = useLibraryDerivedState({
@@ -3794,11 +3794,6 @@ function MainModeApp() {
     const runtime = pointerLibraryDragRef.current;
     pointerLibraryDragRef.current = null;
 
-    if (pointerLibraryDragFrameRef.current !== null) {
-      window.cancelAnimationFrame(pointerLibraryDragFrameRef.current);
-      pointerLibraryDragFrameRef.current = null;
-    }
-
     document.body.classList.remove("localitfyLibraryPointerDragging");
     runtime?.sourceElement?.classList.remove("songCardPointerSource");
 
@@ -3808,6 +3803,8 @@ function MainModeApp() {
 
     endSongDrag();
   }, [moveSongInLibraryByPointer]);
+
+  useEffect(() => () => pointerLibraryDragRef.current?.cancel?.(), [view, libraryOrderLocked]);
 
   function startPointerSongDrag(event: PointerEvent<HTMLElement>, songId: string) {
     if (event.button !== 0 || !songId || libraryOrderLocked || pointerLibraryDragRef.current) return;
@@ -3837,7 +3834,7 @@ function MainModeApp() {
     };
 
     event.preventDefault();
-    startTrackPointerSession(event, {
+    pointerLibraryDragRef.current.cancel = startTrackPointerSession(event, {
       move: (clientX, clientY) => {
         const runtime = pointerLibraryDragRef.current;
         if (!runtime) return;

@@ -198,7 +198,10 @@ export const VirtualPlaylistTrackList = memo(function VirtualPlaylistTrackList({
                   event.preventDefault(); event.stopPropagation();
                   setPointerSong(song.id);
                   pointer.current = startTrackPointerSession(event, {
-                    move: (x, y) => setDropTarget(pointerTarget(x, y, song.id)),
+                    move: (x, y) => {
+                      const next = pointerTarget(x, y, song.id);
+                      setDropTarget(current => current?.songId === next?.songId && current?.side === next?.side ? current : next);
+                    },
                     finish: (apply, x, y) => {
                       pointer.current = null;
                       const target = apply ? pointerTarget(x, y, song.id) : null;

@@ -587,6 +587,17 @@ server.listen(5173,async()=>{
       const rangeValues = await win.webContents.executeJavaScript("Array.from(document.querySelectorAll('[data-settings-category=playback] .settingsRangeValue')).filter(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'&&e.textContent.trim()}).length");
       assert.ok(rangeValues>=2,"Playback sliders show numerical values");
       await screenshot(win,"settings-playback-"+mode);
+      const timerChoice = await win.webContents.executeJavaScript("(()=>{const b=[...document.querySelectorAll('#settings-playback-sleep button')].find(b=>b.textContent.trim()==='15 min');if(!b)return false;b.click();return true})()");
+      assert.ok(timerChoice, "Sleep timer can be armed");
+      await until(()=>win.webContents.executeJavaScript("document.querySelector('#settings-playback-sleep')?.textContent.includes('remaining')").catch(()=>false),"visible sleep countdown");
+      await win.webContents.executeJavaScript("[...document.querySelectorAll('#settings-playback-sleep button')].find(b=>b.textContent.trim()==='Off').click()");
+      await until(()=>win.webContents.executeJavaScript("!document.querySelector('#settings-playback-sleep')?.textContent.includes('remaining')"),"sleep timer cancels");
+      for(const [query,label,target] of [["scrobbling","Scrobbling accounts","settings-playback-scrobbling"],["phone sync","Phone sync","settings-library-sync"]]){
+        await win.webContents.executeJavaScript(`(()=>{const e=document.querySelector('#settings-section-search');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,${JSON.stringify(query)});e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+        await until(()=>win.webContents.executeJavaScript(`[...document.querySelectorAll('.settingsControlResult')].some(b=>b.textContent.includes(${JSON.stringify(label)}))`),"search "+query);
+        await win.webContents.executeJavaScript(`[...document.querySelectorAll('.settingsControlResult')].find(b=>b.textContent.includes(${JSON.stringify(label)})).click()`);
+        await until(()=>win.webContents.executeJavaScript(`(()=>{const e=document.getElementById(${JSON.stringify(target)});return !!e && !!document.activeElement && e.contains(document.activeElement);})()`).catch(()=>false),"focused "+query);
+      }
       const discordSelected = await win.webContents.executeJavaScript("(()=>{const button=[...document.querySelectorAll('.settingsCategoryButton')].find(button=>button.textContent.trim()==='Discord');if(!button)return false;button.click();return true;})()");
       assert.ok(discordSelected,"Discord settings remain reachable");
       await until(()=>win.webContents.executeJavaScript("!!document.querySelector('[data-settings-category=discord] #settings-discord-privacy')").catch(()=>false),"Discord Settings "+mode,5000);
