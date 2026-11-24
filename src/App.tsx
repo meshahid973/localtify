@@ -2243,37 +2243,24 @@ function MainModeApp() {
   ]);
 
 
+  const [sleepDeadline, setSleepDeadline] = useState(0);
   useEffect(() => {
-    if (sleepTimerRef.current !== null) {
-      window.clearTimeout(sleepTimerRef.current);
-      sleepTimerRef.current = null;
-    }
-
     const minutes = Number(settings.sleepTimerMinutes) || 0;
-    if (!isPlaying || minutes <= 0) return;
-
-    sleepTimerRef.current = window.setTimeout(() => {
-      const audio = audioRef.current;
-      const finishSleepTimer = () => {
-        setIsPlaying(false);
-        updateSetting("sleepTimerMinutes", 0).catch(() => undefined);
-        setStatusText("sleep timer faded out playback");
-      };
-
-      if (audio && !audio.paused && !settings.reducedMotion) {
-        fadeAudio(0, 2200, finishSleepTimer);
-      } else {
-        finishSleepTimer();
-      }
-    }, Math.max(1, minutes) * 60 * 1000);
-
-    return () => {
-      if (sleepTimerRef.current !== null) {
-        window.clearTimeout(sleepTimerRef.current);
-        sleepTimerRef.current = null;
-      }
+    if (minutes <= 0) { setSleepDeadline(0); return; }
+    const deadline = Date.now() + Math.max(1, minutes) * 60_000;
+    setSleepDeadline(deadline);
+    const expire = () => {
+      audioRef.current?.pause();
+      setIsPlaying(false);
+      void updateSetting("sleepTimerMinutes", 0);
+      setStatusText("Sleep timer finished");
     };
-  }, [settings.sleepTimerMinutes, isPlaying]);
+    sleepTimerRef.current = window.setTimeout(expire, Math.max(0, deadline - Date.now()));
+    return () => {
+      if (sleepTimerRef.current !== null) window.clearTimeout(sleepTimerRef.current);
+      sleepTimerRef.current = null;
+    };
+  }, [settings.sleepTimerMinutes]);
 
   useEffect(() => {
     if (settings.volumeNormalization && currentSong && typeof currentSong.volumeGain !== "number" && window.localitfy.analyzeSongVolume) {
