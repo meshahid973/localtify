@@ -9,6 +9,7 @@ import type { SettingsCategory } from "./settings.types";
 export type SettingsRailProps = {
   tabs: ReadonlyArray<(typeof settingsCategoryTabs)[number]>;
   activeCategory: SettingsCategory;
+  analysisSupported?: boolean;
   search: string;
   resultLabel: string;
   onSearchChange: (value: string) => void;
@@ -27,11 +28,11 @@ const SETTINGS_NAV_GROUPS: ReadonlyArray<{
 ];
 
 export default function SettingsRail({
-  tabs, activeCategory, search, resultLabel, onSearchChange, onCategoryChange
+  tabs, activeCategory, analysisSupported = false, search, resultLabel, onSearchChange, onCategoryChange
 }: SettingsRailProps) {
   const selectedRef = useRef<HTMLButtonElement>(null);
   const railRef = useRef<HTMLElement>(null);
-  const matches = useMemo(() => matchSettingsControls(search, settingsCategoryTabs.map(tab => tab.id)), [search]);
+  const matches = useMemo(() => matchSettingsControls(search, settingsCategoryTabs.map(tab => tab.id), analysisSupported), [search, analysisSupported]);
   const revealTimer = useRef<number | undefined>(undefined);
   const revealCategory = useRef<SettingsCategory | null>(null);
   function cancelReveal() { window.clearTimeout(revealTimer.current); revealCategory.current = null; }

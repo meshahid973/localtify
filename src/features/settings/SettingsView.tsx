@@ -16,7 +16,7 @@ export type SettingsViewProps = {
 export default function SettingsView({
   renderSettingsCategoryContent, settingsRail, settingsCategory
 }: SettingsViewProps) {
-  const selectedTab = settingsCategoryTabs.find((tab) => tab.id === settingsCategory);
+  const selectedTab = settingsRail.tabs.find(tab => tab.id === settingsCategory) ?? settingsCategoryTabs.find(tab => tab.id === settingsCategory);
   const pageRef = useRef<HTMLElement>(null);
   const lastCategory = useRef(settingsCategory);
 

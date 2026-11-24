@@ -360,18 +360,26 @@ function MainModeApp() {
 
   // Do not auto-close it just because songs exist; import completion is handled inside Onboarding.
 
+  const [analysisSupported, setAnalysisSupported] = useState(false);
+  useEffect(() => {
+    if (view !== "settings") return;
+    let active = true;
+    void window.localitfy.getAnalysisStatus().then(status => { if (active) setAnalysisSupported(status.supported); }).catch(() => { if (active) setAnalysisSupported(false); });
+    return () => { active = false; };
+  }, [view]);
+  const availableSettingsTabs = useMemo(() => settingsCategoryTabs.map(tab => tab.id === "experimental" && analysisSupported ? { ...tab, label: "Analysis & history" } : tab), [analysisSupported]);
   const settingsSearchQuery = normalizeSettingsSearch(deferredSettingsSearch);
 
   const visibleSettingsTabs = useMemo(() => {
-    if (!settingsSearchQuery) return settingsCategoryTabs;
+    if (!settingsSearchQuery) return availableSettingsTabs;
     const controlCategories = new Set(
-      matchSettingsControls(settingsSearchQuery, settingsCategoryTabs.map(tab => tab.id))
+      matchSettingsControls(settingsSearchQuery, availableSettingsTabs.map(tab => tab.id), analysisSupported)
         .map(result => result.category)
     );
-    return settingsCategoryTabs.filter(tab =>
+    return availableSettingsTabs.filter(tab =>
       settingsTabMatchesSearch(tab, settingsSearchQuery) || controlCategories.has(tab.id)
     );
-  }, [settingsSearchQuery]);
+  }, [settingsSearchQuery, availableSettingsTabs, analysisSupported]);
 
   const settingsSearchResultLabel = settingsSearchQuery
     ? visibleSettingsTabs.length
@@ -5450,6 +5458,7 @@ function MainModeApp() {
       renderSettingsCategoryContent,
       settingsRail: {
         tabs: visibleSettingsTabs,
+        analysisSupported,
         activeCategory: settingsCategory,
         search: settingsSearch,
         resultLabel: settingsSearchResultLabel,
