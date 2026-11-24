@@ -1,5 +1,7 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useStableCallback } from "../../shared/hooks/useStableCallback";
+import { AppReducedMotionContext } from "../../shared/hooks/useAppReducedMotion";
+import { MotionConfig } from "motion/react";
 import type { CollectionMenuStore } from "./collectionMenuStore";
 import type { CSSProperties } from "react";
 import { FolderPlus } from "lucide-react";
@@ -134,6 +136,8 @@ export default function AppShell(props: AppShellProps) {
 
 
   return (
+    <MotionConfig reducedMotion={settings.reducedMotion ? "always" : "user"}>
+    <AppReducedMotionContext.Provider value={settings.reducedMotion}>
     <AppActionsContext.Provider value={actions}>
     <ArtworkAmbientContext.Provider value={artworkEnabled}>
     <PageAtmosphereContext.Provider value={atmosphereContext}>
@@ -292,6 +296,8 @@ export default function AppShell(props: AppShellProps) {
     </PageAtmosphereContext.Provider>
     </ArtworkAmbientContext.Provider>
     </AppActionsContext.Provider>
+    </AppReducedMotionContext.Provider>
+    </MotionConfig>
   );
 }
 
