@@ -1,5 +1,5 @@
-import { memo, useCallback, useMemo, useState } from "react";
-import type { CSSProperties, DragEvent, MouseEvent as ReactMouseEvent } from "react";
+import { memo, useCallback, useMemo, useRef, useState } from "react";
+import type { CSSProperties, DragEvent, MouseEvent as ReactMouseEvent, PointerEvent } from "react";
 import { usePageVirtualizer } from "../../../shared/hooks/usePageVirtualizer";
 import { GripVertical, X } from "lucide-react";
 import type { Song, LibraryDropSide } from "../../library/song.types";
@@ -58,12 +58,32 @@ export const VirtualPlaylistTrackList = memo(function VirtualPlaylistTrackList({
 }: VirtualPlaylistTrackListProps) {
   const songIds = useMemo(() => new Set(list.map(song => song.id)), [list]);
   const [dropTarget, setDropTarget] = useState<{ songId: string; side: LibraryDropSide } | null>(null);
+  const [pointerSong, setPointerSong] = useState("");
+  const pointer = useRef<{ id: number; songId: string; x: number; y: number } | null>(null);
   const { listRef, virtualizer: rowVirtualizer, scrollMargin } = usePageVirtualizer<HTMLDivElement>({
     count: list.length,
     estimateSize: () => 72,
     overscan: 5,
     getItemKey: (index) => `${selectedPlaylistId}-${list[index]?.id || index}`
   });
+
+  function pointerTarget(event: PointerEvent<HTMLElement>, source: string) {
+    const row = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>(".playlistTrackRow[data-track-id]");
+    const id = row?.dataset.trackId;
+    if (!row || !id || id === source || !songIds.has(id)) return null;
+    const rect = row.getBoundingClientRect();
+    return { songId: id, side: (event.clientY < rect.top + rect.height / 2 ? "before" : "after") as LibraryDropSide };
+  }
+
+  function endPointer(event: PointerEvent<HTMLElement>, apply: boolean) {
+    const drag = pointer.current;
+    if (!drag || drag.id !== event.pointerId) return;
+    pointer.current = null;
+    const target = apply && reorderable && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) >= 7 ? pointerTarget(event, drag.songId) : null;
+    if (target) onDropSong(selectedPlaylistId, drag.songId, target.songId, target.side);
+    setPointerSong("");
+    setDropTarget(null);
+  }
 
   const clearLocalDropTarget = useCallback(() => {
     setDropTarget((current) => (current ? null : current));
@@ -113,8 +133,8 @@ export const VirtualPlaylistTrackList = memo(function VirtualPlaylistTrackList({
           if (!song) return null;
 
           const active = song.id === currentId;
-          const isDragging = draggedSongId === song.id;
-          const isDropTarget = dropTarget?.songId === song.id && draggedSongId !== song.id;
+          const isDragging = draggedSongId === song.id || pointerSong === song.id;
+          const isDropTarget = dropTarget?.songId === song.id && draggedSongId !== song.id && pointerSong !== song.id;
 
           return (
             <TrackRow song={song} active={active} playing={isPlaying}
@@ -128,6 +148,13 @@ export const VirtualPlaylistTrackList = memo(function VirtualPlaylistTrackList({
                 "--playlist-stagger": Math.min(virtualRow.index, 12)
               } as CSSProperties}
               draggable={reorderable}
+              onKeyDown={event => {
+                if (!reorderable || !event.altKey || !["ArrowUp", "ArrowDown"].includes(event.key)) return;
+                event.preventDefault(); event.stopPropagation();
+                const direction = event.key === "ArrowUp" ? -1 : 1;
+                const target = list[virtualRow.index + direction];
+                if (target) onDropSong(selectedPlaylistId, song.id, target.id, direction < 0 ? "before" : "after");
+              }}
               onDragStart={(event) => onStartSongDrag(event, song.id)}
               onDragOver={(event) => {
                 const incomingSongId = readPlaylistDraggedSongId(event, draggedSongId);
@@ -166,8 +193,22 @@ export const VirtualPlaylistTrackList = memo(function VirtualPlaylistTrackList({
               }}
               onContextMenu={(event) => onOpenContextMenu(event, song)}
             >
-              <span className="playlistTrackGrip">{reorderable ? <GripVertical size={14} strokeWidth={2.25} /> : null}</span>
-              <button className="playlistTrackMain" type="button" disabled={song.fileExists === false} aria-current={active ? "true" : undefined} onClick={() => onSelectSong(song.id)}>
+              <span className="playlistTrackGrip" aria-hidden="true"
+                onPointerDown={event => {
+                  if (!reorderable || !["touch", "pen"].includes(event.pointerType) || pointer.current) return;
+                  event.preventDefault(); event.stopPropagation();
+                  pointer.current = { id: event.pointerId, songId: song.id, x: event.clientX, y: event.clientY };
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                  setPointerSong(song.id);
+                }}
+                onPointerMove={event => {
+                  if (pointer.current?.id !== event.pointerId) return;
+                  setDropTarget(pointerTarget(event, song.id));
+                }}
+                onPointerUp={event => endPointer(event, true)}
+                onPointerCancel={event => endPointer(event, false)}
+                onLostPointerCapture={event => endPointer(event, false)}>{reorderable ? <GripVertical size={14} strokeWidth={2.25} /> : null}</span>
+              <button className="playlistTrackMain" type="button" disabled={song.fileExists === false} aria-current={active ? "true" : undefined} aria-keyshortcuts={reorderable ? "Alt+ArrowUp Alt+ArrowDown" : undefined} title={song.fileExists === false ? "Missing local file" : reorderable ? "Play · Alt + ↑/↓ to reorder" : "Play"} onClick={() => onSelectSong(song.id)}>
                 <span className="playlistTrackIndex"><TrackIndex index={virtualRow.index} active={active} playing={isPlaying} /></span>
                 <Cover song={song} className="playlistTrackCover" preferThumbnail />
                 <TrackMetadata song={song} className="playlistTrackText" subtitle={song.fileExists === false ? "Missing local file" : undefined} />

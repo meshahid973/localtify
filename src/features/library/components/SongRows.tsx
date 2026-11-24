@@ -18,6 +18,7 @@ export type SongInteractionHandlers = {
   onOpenSongContextMenu?: (event: ReactMouseEvent<HTMLElement>, song: Song) => void;
   onStartSongDrag: (event: DragEvent<HTMLElement>, songId: string) => void;
   onPointerStartSongDrag?: (event: PointerEvent<HTMLElement>, songId: string) => void;
+  onMoveSong?: (songId: string, targetId: string, side: LibraryDropSide) => void;
   registerLibrarySongElement?: (songId: string, element: HTMLElement | null) => void;
   onDragOverSong: (event: DragEvent<HTMLElement>, songId: string) => void;
   onDragLeaveSong: (event: DragEvent<HTMLElement>, songId: string) => void;
@@ -36,6 +37,7 @@ export type SongRowItemProps = SongInteractionHandlers & {
   draggedSongTitle: string;
   selected?: boolean;
   onToggleSelection?: (id: string) => void;
+  moveAdjacent?: (direction: -1 | 1) => void;
 };
 
 
@@ -50,6 +52,7 @@ export const SongRowItem = memo(function SongRowItem({
   draggedSongTitle,
   selected,
   onToggleSelection,
+  moveAdjacent,
   onSelectSong,
   onToggleLike,
   onOpenPlaylistPicker,
@@ -77,18 +80,22 @@ export const SongRowItem = memo(function SongRowItem({
         if (!(event.target instanceof Element) || !event.target.closest(".songRowDragHandle")) return;
         onPointerStartSongDrag?.(event, song.id);
       }}
+      onKeyDown={event => {
+        if (!moveAdjacent || onToggleSelection || !event.altKey || !["ArrowUp", "ArrowDown"].includes(event.key)) return;
+        event.preventDefault(); event.stopPropagation();
+        moveAdjacent(event.key === "ArrowUp" ? -1 : 1);
+      }}
       onDragStart={(event) => onStartSongDrag(event, song.id)}
       onDragOver={(event) => onDragOverSong(event, song.id)}
       onDragLeave={(event) => onDragLeaveSong(event, song.id)}
       onDrop={(event) => onDropSong(event, song.id)}
       onDragEnd={onDragEnd}
       onContextMenu={(event) => onOpenSongContextMenu?.(event, song)}
-      aria-grabbed={isDragging}
       title={isMissingFile ? "Local audio file missing" : draggedSongTitle ? `dragging ${draggedSongTitle}` : undefined}
       style={{ "--stagger": `${Math.min(index, 20) * 18}ms` } as CSSProperties}
     >
       {!onToggleSelection && onPointerStartSongDrag ? <span className="songRowDragHandle" aria-hidden="true"><GripVertical size={14} strokeWidth={2} /></span> : null}
-      <button className="songButton" type="button" disabled={isMissingFile && !onToggleSelection} aria-pressed={onToggleSelection ? Boolean(selected) : undefined} aria-current={!onToggleSelection && active ? "true" : undefined} aria-label={`${onToggleSelection ? (selected ? "Deselect" : "Select") : "Play"} ${song.title}`} onClick={() => onToggleSelection ? onToggleSelection(song.id) : onSelectSong(song.id, true)}>
+      <button className="songButton" type="button" disabled={isMissingFile && !onToggleSelection} aria-pressed={onToggleSelection ? Boolean(selected) : undefined} aria-current={!onToggleSelection && active ? "true" : undefined} aria-keyshortcuts={moveAdjacent && !onToggleSelection ? "Alt+ArrowUp Alt+ArrowDown" : undefined} aria-label={`${onToggleSelection ? (selected ? "Deselect" : "Select") : "Play"} ${song.title}`} onClick={() => onToggleSelection ? onToggleSelection(song.id) : onSelectSong(song.id, true)}>
         <span className="songIndex"><TrackIndex index={index} active={active} playing={isPlaying} selection={onToggleSelection ? Boolean(selected) : undefined} /></span>
 
         <Cover song={song} className="songArt" />
@@ -142,6 +149,7 @@ export const VirtualSongRows = memo(function VirtualSongRows({
   onOpenSongContextMenu,
   onStartSongDrag,
   onPointerStartSongDrag,
+  onMoveSong,
   registerLibrarySongElement,
   onDragOverSong,
   onDragLeaveSong,
@@ -207,6 +215,10 @@ export const VirtualSongRows = memo(function VirtualSongRows({
                 song={song}
                 selected={selectedIds?.has(song.id)}
                 onToggleSelection={onToggleSelection}
+                moveAdjacent={onMoveSong ? direction => {
+                  const target = list[virtualRow.index + direction];
+                  if (target) onMoveSong(song.id, target.id, direction < 0 ? "before" : "after");
+                } : undefined}
                 index={virtualRow.index}
                 active={active}
                 isPlaying={isPlaying}

@@ -3719,20 +3719,8 @@ function MainModeApp() {
 
   const findPointerLibraryTarget = useCallback(
     (clientX: number, clientY: number, sourceSongId: string): LibraryDropTarget | null => {
-      const getSideAndPull = (rect: DOMRect): Pick<LibraryDropTarget, "side" | "pull"> => {
-        const centerX = rect.left + rect.width / 2;
-        const halfWidth = Math.max(rect.width / 2, 1);
-        const side: LibraryDropSide = clientX < centerX ? "before" : "after";
-        const distanceFromCenter = Math.min(1, Math.abs(clientX - centerX) / halfWidth);
-        const distanceFromEdge = side === "before" ? Math.max(0, clientX - rect.left) : Math.max(0, rect.right - clientX);
-        const edgePull = 1 - Math.min(1, distanceFromEdge / Math.max(rect.width * 0.42, 1));
-        const pull = 10 + distanceFromCenter * 14 + edgePull * 26;
-
-        return { side, pull };
-      };
-
       const readCandidate = (element: Element | null): HTMLElement | null => {
-        const card = element instanceof HTMLElement ? element.closest<HTMLElement>("[data-library-song-id]") : null;
+        const card = element?.closest<HTMLElement>("[data-library-song-id]") ?? null;
         const songId = card?.dataset.librarySongId || "";
         if (!card || !songId || songId === sourceSongId) return null;
         return card;
@@ -3757,8 +3745,7 @@ function MainModeApp() {
       if (!targetCard) return null;
 
       const targetSongId = targetCard.dataset.librarySongId || "";
-      const rect = targetCard.getBoundingClientRect();
-      const { side, pull } = getSideAndPull(rect);
+      const { side, pull } = getLibraryDropSideInfoForElement(clientX, clientY, targetCard);
       return { songId: targetSongId, side, pull };
     },
     []
@@ -3885,6 +3872,12 @@ function MainModeApp() {
     const onUp = (upEvent: globalThis.PointerEvent) => {
       if (pointerLibraryDragRef.current?.pointerId !== upEvent.pointerId) return;
       stopListening();
+      const runtime = pointerLibraryDragRef.current;
+      if (runtime?.active) {
+        const target = findPointerLibraryTarget(upEvent.clientX, upEvent.clientY, runtime.songId);
+        runtime.latestTargetId = target?.songId ?? null;
+        if (target) runtime.latestSide = target.side;
+      }
       finishPointerLibraryDrag(true);
     };
 
@@ -5263,19 +5256,23 @@ function MainModeApp() {
   const libraryAreaDragOver = useStableCallback(handleLibraryAreaDragOver);
   const libraryAreaDragLeave = useStableCallback(handleLibraryAreaDragLeave);
   const libraryAreaDrop = useStableCallback(handleLibraryAreaDrop);
+  const moveLibraryRow = useStableCallback((songId: string, targetId: string, side: LibraryDropSide) => {
+    if (!libraryOrderLocked) moveSongInLibraryByPointer(songId, targetId, side);
+  });
   const libraryRows = useMemo<Omit<VirtualSongRowsProps, "list" | "className">>(() => ({
     currentId, isPlaying, draggedSongId, libraryDragOverSongId, libraryDropSide, draggedSongTitle,
     onAreaDragOver: libraryAreaDragOver, onAreaDragLeave: libraryAreaDragLeave, onAreaDrop: libraryAreaDrop,
     onSelectSong: selectSongCardAction, onTogglePlay: togglePlayCardAction, onToggleLike: toggleLikeCardAction,
     onOpenEditor: openEditorCardAction, onOpenPlaylistPicker: openPlaylistPickerCardAction,
     onOpenSongContextMenu: openSongContextMenuCardAction, onStartSongDrag: startSongDragCardAction,
-    onPointerStartSongDrag: startPointerSongDragCardAction, registerLibrarySongElement,
+    onPointerStartSongDrag: libraryOrderLocked ? undefined : startPointerSongDragCardAction, registerLibrarySongElement,
+    onMoveSong: libraryOrderLocked ? undefined : moveLibraryRow,
     onDragOverSong: dragOverSongCardAction, onDragLeaveSong: dragLeaveSongCardAction,
     onDropSong: dropSongCardAction, onDragEnd: endSongDragCardAction
   }), [currentId, isPlaying, draggedSongId, libraryDragOverSongId, libraryDropSide, draggedSongTitle,
     libraryAreaDragOver, libraryAreaDragLeave, libraryAreaDrop, selectSongCardAction, togglePlayCardAction,
     toggleLikeCardAction, openEditorCardAction, openPlaylistPickerCardAction, openSongContextMenuCardAction,
-    startSongDragCardAction, startPointerSongDragCardAction, registerLibrarySongElement, dragOverSongCardAction,
+    startSongDragCardAction, startPointerSongDragCardAction, libraryOrderLocked, moveLibraryRow, registerLibrarySongElement, dragOverSongCardAction,
     dragLeaveSongCardAction, dropSongCardAction, endSongDragCardAction]);
 
   const localtifyAppViewProps: AppShellProps = {
