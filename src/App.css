@@ -2593,8 +2593,6 @@ body.isResizingPlayer .app *{
 }
 
 
-
-
 .app :is(.mainAction, .heroMain, .circleButton.main:not(.playerBar *), .settingsActionButton.isPrimary, .settingsTinyButton.isPrimary){
   color: var(--accent-contrast) !important;
   text-shadow: none !important;
@@ -2762,7 +2760,6 @@ body.isResizingPlayer .app *{
 }
 
 
-
 .app :is(.active, .selected, .playing, .loggedIn):is(.panel, .ambientSurface){
   border-color: rgba(var(--lt-accent-rgb), .22) !important;
   background:
@@ -2782,8 +2779,6 @@ body.isResizingPlayer .app *{
   overscroll-behavior: contain;
   contain: layout style;
 }
-
-
 
 
 .app .titleBar,
