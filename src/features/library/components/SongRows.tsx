@@ -1,12 +1,11 @@
 import { memo } from "react";
-import { LikeHeartAnimationV443 } from "../../../shared/ui/LikeHeartAnimation";
-import { SolidIcon } from "../../../shared/ui/SolidIcon";
+import { TrackRow, TrackIndex, TrackLike, TrackAdd } from "./TrackRow";
 import { GripVertical } from "lucide-react";
 import type { CSSProperties, DragEvent, MouseEvent as ReactMouseEvent, PointerEvent } from "react";
 import { usePageVirtualizer } from "../../../shared/hooks/usePageVirtualizer";
 import type { Song, LibraryDropSide } from "../song.types";
 import { Cover } from "../../covers/Cover";
-import { MascotStateArt, PlayingBarsIcon } from "../../../shared/ui/LocaltifyViewUi";
+import { MascotStateArt } from "../../../shared/ui/LocaltifyViewUi";
 import { formatTime } from "../../../shared/utils/format";
 import { TrackMetadata } from "../TrackMetadata";
 
@@ -66,9 +65,9 @@ export const SongRowItem = memo(function SongRowItem({
   const isMissingFile = song.fileExists === false;
 
   return (
-    <article
+    <TrackRow song={song} active={active} playing={isPlaying} selected={selected}
       ref={(element) => registerLibrarySongElement?.(song.id, element)}
-      className={`songRow ${selected ? "selected" : ""} ${active ? "active" : ""} ${active && isPlaying ? "playing" : ""} ${isDragging ? "songDragging" : ""} ${isDropTarget ? "songDropTarget" : ""} ${isMissingFile ? "songMissingFileV039" : ""}`}
+      className={`songRow ${isDragging ? "songDragging" : ""} ${isDropTarget ? "songDropTarget" : ""} ${isMissingFile ? "songMissingFileV039" : ""}`}
       data-library-song-id={song.id}
       data-file-exists={isMissingFile ? "false" : "true"}
       data-drop-side={isDropTarget ? libraryDropSide : undefined}
@@ -90,7 +89,7 @@ export const SongRowItem = memo(function SongRowItem({
     >
       {!onToggleSelection && onPointerStartSongDrag ? <span className="songRowDragHandle" aria-hidden="true"><GripVertical size={14} strokeWidth={2} /></span> : null}
       <button className="songButton" type="button" disabled={isMissingFile && !onToggleSelection} aria-pressed={onToggleSelection ? Boolean(selected) : undefined} aria-current={!onToggleSelection && active ? "true" : undefined} aria-label={`${onToggleSelection ? (selected ? "Deselect" : "Select") : "Play"} ${song.title}`} onClick={() => onToggleSelection ? onToggleSelection(song.id) : onSelectSong(song.id, true)}>
-        <span className="songIndex">{onToggleSelection ? (selected ? "✓" : "○") : active && isPlaying ? <PlayingBarsIcon /> : index + 1}</span>
+        <span className="songIndex"><TrackIndex index={index} active={active} playing={isPlaying} selection={onToggleSelection ? Boolean(selected) : undefined} /></span>
 
         <Cover song={song} className="songArt" />
 
@@ -99,30 +98,10 @@ export const SongRowItem = memo(function SongRowItem({
 
       <span className="songInfo songDurationInfo">{isMissingFile ? "missing" : formatTime(song.duration)}</span>
 
-      <button
-        className={`iconAction likeActionV443 noActionHoverV444 ${song.liked ? "liked likeActionActiveV443" : ""}`}
-        onClick={() => onToggleLike(song.id)}
-        aria-label={song.liked ? "unlike song" : "like song"}
-        aria-pressed={song.liked}
-        title={song.liked ? "unlike" : "like"}
-      >
-        <LikeHeartAnimationV443 liked={song.liked} />
-      </button>
+      <TrackLike song={song} onLike={() => onToggleLike(song.id)} />
+      <TrackAdd song={song} className="playlistAddAction noActionHoverV444" onAdd={() => onOpenPlaylistPicker(song)} />
 
-      <button
-        className="iconAction playlistAddAction noActionHoverV444"
-        onPointerDown={(event) => event.stopPropagation()}
-        onClick={(event) => {
-          event.stopPropagation();
-          onOpenPlaylistPicker(song);
-        }}
-        aria-label="add to playlist"
-        title="add to playlist"
-      >
-        <SolidIcon name="add" size={16} />
-      </button>
-
-    </article>
+    </TrackRow>
   );
 });
 

@@ -4,9 +4,10 @@ import { usePageVirtualizer } from "../../../shared/hooks/usePageVirtualizer";
 import { GripVertical, X } from "lucide-react";
 import type { Song, LibraryDropSide } from "../../library/song.types";
 import { Cover } from "../../covers/Cover";
-import { MascotStateArt, PlayingBarsIcon } from "../../../shared/ui/LocaltifyViewUi";
+import { MascotStateArt } from "../../../shared/ui/LocaltifyViewUi";
 import { formatTime } from "../../../shared/utils/format";
 import { TrackMetadata } from "../../library/TrackMetadata";
+import { TrackRow, TrackIndex } from "../../library/components/TrackRow";
 
 function readPlaylistDraggedSongId(event: DragEvent<HTMLElement>, fallbackSongId = "") {
   return (
@@ -116,11 +117,11 @@ export const VirtualPlaylistTrackList = memo(function VirtualPlaylistTrackList({
           const isDropTarget = dropTarget?.songId === song.id && draggedSongId !== song.id;
 
           return (
-            <article
+            <TrackRow song={song} active={active} playing={isPlaying}
               key={virtualRow.key}
               ref={rowVirtualizer.measureElement}
               data-index={virtualRow.index}
-              className={`playlistTrackRow virtualPlaylistTrackRow ${active ? "active" : ""} ${active && isPlaying ? "playing" : ""} ${isDragging ? "songDragging" : ""} ${isDropTarget ? "songDropTarget" : ""}`}
+              className={`playlistTrackRow virtualPlaylistTrackRow ${isDragging ? "songDragging" : ""} ${isDropTarget ? "songDropTarget" : ""}`}
               data-drop-side={isDropTarget ? dropTarget?.side : undefined}
               style={{
                 "--playlist-row-y": `${virtualRow.start - scrollMargin}px`,
@@ -167,7 +168,7 @@ export const VirtualPlaylistTrackList = memo(function VirtualPlaylistTrackList({
             >
               <span className="playlistTrackGrip">{reorderable ? <GripVertical size={14} strokeWidth={2.25} /> : null}</span>
               <button className="playlistTrackMain" type="button" disabled={song.fileExists === false} aria-current={active ? "true" : undefined} onClick={() => onSelectSong(song.id)}>
-                <span className="playlistTrackIndex">{active && isPlaying ? <PlayingBarsIcon /> : virtualRow.index + 1}</span>
+                <span className="playlistTrackIndex"><TrackIndex index={virtualRow.index} active={active} playing={isPlaying} /></span>
                 <Cover song={song} className="playlistTrackCover" preferThumbnail />
                 <TrackMetadata song={song} className="playlistTrackText" subtitle={song.fileExists === false ? "Missing local file" : undefined} />
               </button>
@@ -175,7 +176,7 @@ export const VirtualPlaylistTrackList = memo(function VirtualPlaylistTrackList({
               <button className="iconAction iconActionSvg" type="button" disabled={!editable} onClick={() => onRemoveSong(selectedPlaylistId, song.id)} aria-label={`Remove ${song.title} from playlist`}>
                 <X size={16} strokeWidth={2.5} />
               </button>
-            </article>
+            </TrackRow>
           );
         })}
       </div>
