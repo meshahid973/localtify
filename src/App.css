@@ -3065,5 +3065,10 @@ body.isResizingPlayer .app *{
   box-shadow: none !important;
   background:
     linear-gradient(180deg, rgba(var(--lt-accent-rgb), .10), rgba(var(--lt-accent-rgb), .045)),
-    rgba(255,255,255,.030) !important;
+    var(--lt-fill-subtle) !important;
+}
+
+.app .sidebar .navItem:focus-visible {
+  outline: 2px solid var(--lt-accent) !important;
+  outline-offset: -2px !important;
 }

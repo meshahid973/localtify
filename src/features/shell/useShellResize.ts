@@ -14,7 +14,7 @@ type Options = {
   settingsRef: {current:Settings};
   discordSettingsRef: {current:Settings};
   setSettings: (value:Settings)=>void;
-  saveSettingsSafely: (value:Settings)=>Promise<void>;
+  saveSettingsSafely: (value:Settings)=>Promise<unknown>;
 };
 
 /** One pointer session owns both resize controls, their RAF, handlers and transient CSS. */

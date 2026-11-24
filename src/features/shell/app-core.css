@@ -1562,7 +1562,7 @@ html,
 body,
 #root{
   overflow: hidden !important;
-  background: #000 !important;
+  background: var(--lt-bg) !important;
 }
 
 .app{

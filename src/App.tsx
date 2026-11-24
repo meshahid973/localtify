@@ -2257,14 +2257,26 @@ function MainModeApp() {
     if (minutes <= 0) { setSleepDeadline(0); return; }
     const deadline = Date.now() + Math.max(1, minutes) * 60_000;
     setSleepDeadline(deadline);
+    let finished = false;
     const expire = () => {
-      audioRef.current?.pause();
+      if (finished || settingsRef.current.sleepTimerMinutes !== minutes) return;
+      finished = true;
+      stopFade();
+      stopCrossfadeAuto();
+      playbackTransitionRef.current.requestPause();
+      pendingPlayRef.current = false;
+      const controller = ensurePlayerController();
+      if (controller) controller.pause(); else audioRef.current?.pause();
       setIsPlaying(false);
       void updateSetting("sleepTimerMinutes", 0);
       setStatusText("Sleep timer finished");
     };
+    const checkDeadline = () => { if (Date.now() >= deadline) expire(); };
     sleepTimerRef.current = window.setTimeout(expire, Math.max(0, deadline - Date.now()));
+    document.addEventListener("visibilitychange", checkDeadline);
     return () => {
+      finished = true;
+      document.removeEventListener("visibilitychange", checkDeadline);
       if (sleepTimerRef.current !== null) window.clearTimeout(sleepTimerRef.current);
       sleepTimerRef.current = null;
     };
