@@ -3,18 +3,22 @@
 .app .modalWrap.playlistPickerWrap {
   inset: var(--localtify-titlebar-height, 48px) 0 92px 0 !important;
   z-index: 150 !important;
+  grid-template-rows: minmax(0, 1fr);
   background: var(--lt-overlay-scrim, rgba(0,0,0,.62)) !important;
 }
 
 .app .playlistPickerModal {
   width: min(480px, calc(100vw - 36px));
-  max-height: min(640px, calc(100vh - 168px));
+  max-height: min(640px, 100%);
+  min-height: 0;
+  box-sizing: border-box;
   display: flex; flex-direction: column; gap: 14px;
   padding: 20px;
-  overflow: hidden;
+  overflow: auto;
+  overscroll-behavior: contain;
   color: var(--lt-text);
   border: 1px solid rgba(var(--lt-accent-rgb), .14);
-  border-radius: 18px;
+  border-radius: var(--lt-radius-card, 18px);
   background: var(--lt-surface);
   box-shadow: 0 30px 90px rgba(0,0,0,.55);
 }
@@ -33,10 +37,10 @@
 
 /* List scrolls on its own so the create form stays visible. */
 .playlistPickerList {
-  flex: 1 1 auto; min-height: 0;
+  flex: 1 1 auto; min-height: 76px;
   display: grid; align-content: start; gap: 6px;
   margin: 0 -6px; padding: 0 6px;
-  overflow-y: auto; overscroll-behavior: contain;
+  overflow-y: auto;
 }
 .app .playlistPickerItem {
   width: 100%; min-width: 0;
@@ -102,4 +106,13 @@
 
 @media (max-width: 520px) {
   .playlistPickerCreate { grid-template-columns: 1fr; }
+}
+
+@media (max-height: 480px) {
+  .app .modalWrap.playlistPickerWrap {
+    inset: 0 !important;
+    padding: 8px !important;
+  }
+  .app .playlistPickerModal { padding: 12px; }
+  .playlistPickerList { flex: 0 0 auto; max-height: 160px; }
 }
