@@ -1,4 +1,4 @@
-import type { AnalysisStatus, SimilarSongsResult } from "./features/analysis/analysis.types";
+import type { AnalysisStatus, PromptSoundResult, SimilarSongsResult } from "./features/analysis/analysis.types";
 import type { SimilarSongsQuery } from "./features/analysis/similarSeed";
 import type { DuplicateMerge, DuplicateSet } from "./features/library/duplicates/duplicates.types";
 import type { PlayEvent } from "./features/player/listeningHistory";
@@ -537,18 +537,21 @@ declare global {
 
       getDailyMixes: (payload?: { refresh?: boolean }) => Promise<import("./features/analysis/analysis.types").DailyMixesResult>;
       findSimilarSongs: (payload: SimilarSongsQuery & { limit?: number }) => Promise<SimilarSongsResult>;
+      /** How closely each analyzed song sounds like a text description (needs the optional prompt model). */
+      scorePromptSound: (payload: { text: string }) => Promise<PromptSoundResult>;
       getAnalysisStatus: () => Promise<AnalysisStatus>;
       setAnalysisOnBattery: (allowed: boolean) => Promise<AnalysisStatus>;
       setAnalysisEnabled: (enabled: boolean) => Promise<AnalysisStatus>;
-      downloadAnalysisModel: () => Promise<AnalysisStatus>;
-      cancelAnalysisDownload: () => Promise<AnalysisStatus>;
-      removeAnalysisModel: () => Promise<AnalysisStatus>;
+      downloadAnalysisModel: (target?: "prompt") => Promise<AnalysisStatus>;
+      cancelAnalysisDownload: (target?: "prompt") => Promise<AnalysisStatus>;
+      removeAnalysisModel: (target?: "prompt") => Promise<AnalysisStatus>;
       startAnalysis: (options?: { retry?: boolean }) => Promise<AnalysisStatus>;
       pauseAnalysis: () => Promise<AnalysisStatus>;
       clearAnalysis: () => Promise<AnalysisStatus>;
       setListeningHistoryEnabled: (enabled: boolean) => Promise<AnalysisStatus>;
       clearListeningHistory: () => Promise<AnalysisStatus>;
       /** All-time [songId, finished plays, skips] for songs with listening history. */
+      getListeningCounts: () => Promise<Array<[string, number, number]>>;
       getListeningSummary: (payload: { days: 7 | 30 | 90 }) => Promise<import("./features/analytics/listeningSummary").ListeningSummary | null>;
       getListeningCalendarSummary: (payload: { range: "week" | "month" | "year"; offset: number }) => Promise<import("./features/analytics/listeningSummary").ListeningCalendarSummary | null>;
       recordPlayEvent: (payload: PlayEvent) => Promise<boolean>;

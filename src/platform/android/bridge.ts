@@ -121,6 +121,7 @@ export function createAndroidBridge(): Bridge {
     liveSend: sendLive,
     onLiveEvent: onLiveEvent as Bridge["onLiveEvent"],
     recordPlayEvent: async (event: PlayEvent) => { await phoneLibrary.load(); phoneLibrary.recordPlayEvent(event); await phoneLibrary.flushWrites(); return true; },
+    getListeningCounts: async () => { await phoneLibrary.load(); return phoneLibrary.listeningCounts; },
     getListeningSummary: (payload) => fromMacOrKept<Awaited<ReturnType<Bridge["getListeningSummary"]>>>("listening:summary", payload, `mac:listening-summary:${payload.days}`, null, result => isListeningSummary(result, payload.days)),
     getListeningCalendarSummary: (payload) => fromMacOrKept<Awaited<ReturnType<Bridge["getListeningCalendarSummary"]>>>("listening:calendar-summary", payload, `mac:listening-calendar:${payload.range}:${payload.offset}`, null, result => isListeningCalendarSummary(result, payload)),
     onWatchedFoldersChange: subscribe("songs") as Bridge["onWatchedFoldersChange"],
@@ -132,6 +133,7 @@ export function createAndroidBridge(): Bridge {
     findSimilarSongs: (query) => fromMacOrKept("analysis:similar-songs", query, `mac:similar:${JSON.stringify(query)}`, {
       seedId: "songId" in query ? query.songId : "seedKey" in query ? query.seedKey : "recent", status: "seed-unavailable", matches: [], compared: 0, seedCount: 0
     }),
+    scorePromptSound: (payload) => fromMacOrKept("analysis:prompt-sound", payload, `mac:prompt:${payload.text.trim().toLowerCase()}`, { status: "model-missing", scores: [] }),
     getLyrics: (payload) => !payload.cancel && phoneLibrary.effectiveSettings().lyricsEnabled !== true ? Promise.resolve({ status: "disabled", source: "none", lines: [] }) : payload.cancel ? fromMac<LyricsResult>("lyrics:get", payload) : fromMacOrKept<LyricsResult>("lyrics:get", payload, `mac:lyrics:${payload.id}`, { status: "offline", source: "none", lines: [] }, (result) => ["synced","plain","instrumental"].includes(result.status), 45000),
     searchLyrics: (payload) => fromMac("lyrics:search", payload, 15000),
     selectLyricsMatch: (payload) => keepLyrics(payload.id, fromMac("lyrics:select-match", payload, 15000)),

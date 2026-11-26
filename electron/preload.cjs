@@ -80,6 +80,7 @@ contextBridge.exposeInMainWorld("localitfy", {
 
   getDailyMixes: (payload) => ipcRenderer.invoke("analysis:daily-mixes", payload),
   findSimilarSongs: (payload) => ipcRenderer.invoke("analysis:similar-songs", payload),
+  scorePromptSound: (payload) => ipcRenderer.invoke("analysis:prompt-sound", payload),
   getAnalysisStatus: () => ipcRenderer.invoke("analysis:status"),
   setAnalysisOnBattery: (allowed) => ipcRenderer.invoke("analysis:set-battery", allowed),
   setAnalysisEnabled: (enabled) => ipcRenderer.invoke("analysis:set-enabled", enabled),
@@ -91,6 +92,7 @@ contextBridge.exposeInMainWorld("localitfy", {
   clearAnalysis: () => ipcRenderer.invoke("analysis:clear"),
   setListeningHistoryEnabled: (enabled) => ipcRenderer.invoke("listening:set-enabled", enabled),
   clearListeningHistory: () => ipcRenderer.invoke("listening:clear"),
+  getListeningCounts: () => ipcRenderer.invoke("listening:counts"),
   getListeningSummary: (payload) => ipcRenderer.invoke("listening:summary", payload),
   getListeningCalendarSummary: (payload) => ipcRenderer.invoke("listening:calendar-summary", payload),
   recordPlayEvent: (payload) => ipcRenderer.invoke("listening:record", payload),
