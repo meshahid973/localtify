@@ -169,3 +169,20 @@ test("In-progress calendar period compares to equivalent elapsed UTC time, not t
     assert.equal(isListeningCalendarSummary(feb),true);
   } finally {database.close();}
 });
+
+test("smart playlist SQL counts match the existing listening classification at every threshold", () => {
+  const {database}=fixture();
+  try {
+    database.exec("ALTER TABLE songs ADD COLUMN durationMs REAL DEFAULT 0; ALTER TABLE songs ADD COLUMN duration REAL DEFAULT 0; UPDATE songs SET durationMs=60000 WHERE id='song'; UPDATE songs SET duration=10 WHERE id='other';");
+    const insert=database.prepare("INSERT INTO play_events (id, sessionId, songId, startedAt, updatedAt, endedAt, msListened, outcome) VALUES (?, 'session', ?, 1000, 200000, ?, ?, ?)");
+    let id=0;
+    for (const song of ["song","other"]) for (const outcome of ["active","ended","transition","replaced","interrupted","error"]) for (const ms of [0,4999,5000,7999,8000,29999,30000,47999,48000,60000]) {
+      insert.run(String(++id),song,outcome==="active"?null:200000,ms,outcome);
+    }
+    const {listeningStats,allTimeListeningCounts}=require("../../electron/analysis/listening-signals.cjs");
+    const expected=[...listeningStats(database,200000,{days:0,halfLifeDays:0})].map(([songId,counts])=>[songId,counts.finishes,counts.skips]).sort((a,b)=>a[0].localeCompare(b[0]));
+    assert.deepEqual(allTimeListeningCounts(database),expected);
+    database.exec("DELETE FROM play_events");
+    assert.deepEqual(allTimeListeningCounts(database),[]);
+  } finally {database.close();}
+});

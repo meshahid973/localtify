@@ -79,6 +79,24 @@ function listeningStats(database, now = Date.now(), { days = HISTORY_DAYS, halfL
   }
   return stats;
 }
+// Aggregate in SQLite instead of materializing every historical event in JavaScript on each refresh.
+function allTimeListeningCounts(database) {
+  return database.prepare(`WITH events AS (
+    SELECT e.songId, e.outcome, e.msListened,
+      COALESCE(NULLIF(s.durationMs, 0), COALESCE(s.duration, 0) * 1000) AS duration
+    FROM play_events e JOIN songs s ON s.id = e.songId
+    WHERE e.startedAt >= 0 AND e.outcome <> 'active'
+  ), classified AS (
+    SELECT songId, outcome, msListened, duration,
+      CASE WHEN outcome IN ('ended', 'transition') OR (duration > 0 AND msListened >= duration * 0.8) THEN 1 ELSE 0 END AS finished
+    FROM events
+  )
+  SELECT songId, SUM(finished) AS finishes,
+    SUM(CASE WHEN finished = 0 AND outcome = 'replaced' AND msListened < CASE WHEN duration > 0 THEN MIN(30000, duration * 0.5) ELSE 30000 END THEN 1 ELSE 0 END) AS skips
+  FROM classified GROUP BY songId HAVING finishes > 0 OR skips > 0 ORDER BY songId`).all()
+    .map(row => [row.songId, row.finishes, row.skips]);
+}
+
 /** 0 with no evidence, approaching 1 for songs that are nearly always skipped. */
 function skipRate(stats) {
   const finishes = stats?.finishes || 0; const skips = stats?.skips || 0;
@@ -109,4 +127,4 @@ function notForMe(database) {
 }
 
 module.exports = { DAY_MS, AUDIO_WEIGHT, GENRE_WEIGHT, dot, normalize, genreKey, genreTags, genreTokens, genreSimilarity,
-  libraryMean, centered, classifyPlay, listeningStats, skipRate, artistCredits, artistKeys, notForMeTest, notForMe };
+  libraryMean, centered, classifyPlay, listeningStats, allTimeListeningCounts, skipRate, artistCredits, artistKeys, notForMeTest, notForMe };
