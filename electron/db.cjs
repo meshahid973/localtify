@@ -365,6 +365,12 @@ function playlistRulesJson(value) {
   return rules ? JSON.stringify(rules) : null;
 }
 
+// Legacy database rows may contain unsupported rule formats. Keep their cached
+// membership usable without evaluating or rewriting the original rule payload.
+function readPlaylistRulesJson(value) {
+  try { return playlistRulesJson(value); } catch { return null; }
+}
+
 function cleanPlaylistArtwork(value) { return typeof value === "string" && value.length <= 24576 && /^data:image\/jpeg;base64,\/9j\/[A-Za-z0-9+/]*={0,2}$/.test(value) ? value : null; }
 function normalizePlaylist(input, fallbackIndex = 0) {
   if (!input || typeof input !== "object") return null;
@@ -404,7 +410,7 @@ function rowToPlaylist(row, songIds = []) {
       name: row?.name,
       createdAt: row?.createdAt,
       sortOrder: row?.sortOrder,
-      rules: row?.rules,
+      rules: readPlaylistRulesJson(row?.rules),
       coverArtwork: row?.coverArtwork,
       songIds
     },
@@ -1110,9 +1116,12 @@ function savePlaylists(playlists, expected, finishMigration = false) {
     const addedAt = Date.now();
     for (const [id, {playlist, sortOrder, songPositions}] of targets) {
       const previous = existing.get(id);
+      const previousRules = readPlaylistRulesJson(previous?.rules);
+      if (previousRules && !playlist.rules) throw new TypeError("Cannot remove smart playlist rules");
+      const storedRules = playlist.rules ?? previous?.rules ?? null;
       if (!previous || previous.name !== playlist.name || previous.createdAt !== playlist.createdAt ||
-          previous.sortOrder !== sortOrder || previous.rules !== playlist.rules || previous.coverArtwork !== playlist.coverArtwork) {
-        insertPlaylist.run({id,name:playlist.name,createdAt:playlist.createdAt,sortOrder,rules:playlist.rules,coverArtwork:playlist.coverArtwork});
+          previous.sortOrder !== sortOrder || previous.rules !== storedRules || previous.coverArtwork !== playlist.coverArtwork) {
+        insertPlaylist.run({id,name:playlist.name,createdAt:playlist.createdAt,sortOrder,rules:storedRules,coverArtwork:playlist.coverArtwork});
       }
       const old = members.get(id);
       if (old) for (const songId of old.keys()) if (!songPositions.has(songId)) deleteMember.run(id,songId);

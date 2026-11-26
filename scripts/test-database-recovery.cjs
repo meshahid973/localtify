@@ -103,6 +103,15 @@ try {
     const membershipPlan = inspect.prepare("EXPLAIN QUERY PLAN SELECT playlistId, songId FROM playlist_songs ORDER BY playlistId ASC, position ASC, addedAt ASC").all().map(row => row.detail).join(" ");
     if (!membershipPlan.includes("COVERING INDEX idx_playlist_songs_order_cover") || membershipPlan.includes("TEMP B-TREE")) throw new Error("Playlist membership read requires an unnecessary sort: " + membershipPlan);
     if (inspect.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_playlist_songs_playlistId'").get()) throw new Error("Obsolete playlist index retained");
+    inspect.prepare("UPDATE playlists SET rules = ? WHERE id = ?").run("legacy-invalid-rules","plain");
+    const legacyRules = db.getPlaylists();
+    if ("rules" in legacyRules.find(item=>item.id==="plain") || legacyRules.length !== saved.length) throw new Error("Unsupported legacy rules broke playlist loading");
+    db.savePlaylists(legacyRules.map(item=>item.id==="plain"?{...item,name:"Legacy cached"}:item),legacyRules);
+    if(inspect.prepare("SELECT rules FROM playlists WHERE id=?").get("plain").rules!=="legacy-invalid-rules") throw new Error("Legacy rule payload was discarded");
+    let stripped = false;
+    try { db.savePlaylists(db.getPlaylists().map(item=>item.id==="smart"?{...item,rules:undefined}:item)); }
+    catch(error) { stripped = /Cannot remove smart playlist rules/.test(error.message); }
+    if (!stripped || JSON.stringify(db.getPlaylists().find(item=>item.id==="smart").rules)!==JSON.stringify(rules)) throw new Error("Smart rules were lost by a legacy write");
     inspect.prepare("UPDATE playlist_songs SET addedAt = 1234 WHERE playlistId = ? AND songId = ?").run("smart","legacy-song");
     db.savePlaylists(saved.map(item => item.id === "plain" ? {...item,name:"Renamed"} : item));
     if(inspect.prepare("SELECT addedAt FROM playlist_songs WHERE playlistId=? AND songId=?").get("smart","legacy-song")?.addedAt!==1234) throw new Error("Unchanged membership was rewritten");
