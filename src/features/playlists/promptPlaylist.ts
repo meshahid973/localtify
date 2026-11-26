@@ -100,7 +100,7 @@ function context(tokens: string[], start: number, namesEndingAt: ReadonlyMap<num
     if (previous !== undefined) {
       const inherited = context(tokens, previous, namesEndingAt);
       if (inherited.kind === "exclude" || inherited.kind === "similar") return {kind:inherited.kind,from:index};
-      if (inherited.explicit) return {kind:"include",from:start,explicit:true};
+      if (inherited.kind === "include" && inherited.explicit) return {kind:"include",from:start,explicit:true};
     }
   }
   for (let skipped = 0; index >= 0 && skipped < 3; skipped++) {
@@ -299,7 +299,7 @@ export function buildPromptPlaylist(plan: PromptPlan, songs: readonly Song[], { 
   let pool = songs.filter((song) => song.fileExists !== false && !hidden?.(song) && !has(song, plan.excludeArtists)
     && !genreMatches(song, plan.excludeGenres));
   const durationOf = (song: Song) => {
-    const seconds = Number(song.duration) || Number(song.durationMs) / 1000;
+    const seconds = Number(song.duration);
     return Number.isFinite(seconds) && seconds > 0 ? seconds : 0;
   };
   if (plan.minutes) pool = pool.filter(song=>durationOf(song)>0);
