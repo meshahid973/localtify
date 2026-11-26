@@ -91,9 +91,18 @@ function occurrences(tokens: string[], used: boolean[], target: string[]) {
 }
 
 /** What comes before a name: "no Drake" excludes, "like Drake" seeds by sound, "by Drake" or nothing includes. */
-function context(tokens: string[], start: number) {
+function context(tokens: string[], start: number, namesEndingAt: ReadonlyMap<number, number>): {kind:"include";from:number;explicit:boolean} | {kind:"exclude"|"similar";from:number} {
   let index = start - 1;
   let explicit = false;
+  // Walk coordinated known names, not arbitrary descriptive words. A contrast or new qualifier stops the chain.
+  if (tokens[index] === "and" || tokens[index] === "or") {
+    const previous = namesEndingAt.get(index);
+    if (previous !== undefined) {
+      const inherited = context(tokens, previous, namesEndingAt);
+      if (inherited.kind === "exclude" || inherited.kind === "similar") return {kind:inherited.kind,from:index};
+      if (inherited.explicit) return {kind:"include",from:start,explicit:true};
+    }
+  }
   for (let skipped = 0; index >= 0 && skipped < 3; skipped++) {
     const token = tokens[index];
     if (NEGATIONS.has(token) || (token === "but" && tokens[index + 1] === "no")) return { kind: "exclude" as const, from: index };
@@ -164,6 +173,13 @@ export function parsePrompt(prompt: string, vocabulary: PromptVocabulary): Promp
   const mark = (from: number, to: number) => { for (let index = from; index < to; index++) used[index] = true; };
 
   // "30 songs", "an hour", "45 minutes", "half an hour".
+  let durationMinutes: number | null = null, durationEnd = -1;
+  const addDuration = (from: number, to: number, minutes: number) => {
+    const adjacent = durationEnd === from || (durationEnd === from - 1 && tokens[durationEnd] === "and");
+    durationMinutes = adjacent ? (durationMinutes ?? 0) + minutes : minutes;
+    if (adjacent && durationEnd < from) mark(durationEnd, from);
+    mark(from,to);durationEnd=to;
+  };
   for (let index = 0; index < tokens.length; index++) {
     const amount = /^\d{1,3}$/.test(tokens[index]) ? Number(tokens[index]) : NUMBER_WORDS[tokens[index]];
     const unit = tokens[index + 1] || "";
@@ -171,18 +187,25 @@ export function parsePrompt(prompt: string, vocabulary: PromptVocabulary): Promp
     if (/^(songs?|tracks?|tunes)$/.test(unit) && amount >= 1) { plan.count = Math.min(100, Math.max(5, amount)); mark(index, index + 2); }
     else if (/^(hours?|hrs?|h)$/.test(unit)) {
       const half = tokens[index - 1] === "half";
-      plan.minutes = Math.min(600, Math.max(10, amount * 60 * (half ? .5 : 1)));
-      mark(half ? index - 1 : index, index + 2);
-    } else if (/^(minutes?|mins?|m)$/.test(unit)) { plan.minutes = Math.min(600, Math.max(10, amount)); mark(index, index + 2); }
+      addDuration(half ? index - 1 : index,index + 2,amount * 60 * (half ? .5 : 1));
+    } else if (/^(minutes?|mins?|m)$/.test(unit)) addDuration(index,index+2,amount);
   }
+  if (durationMinutes !== null) plan.minutes = Math.min(600,Math.max(10,durationMinutes));
 
   for (const { tokens: target, apply } of LISTENING_PHRASES) {
     for (const start of occurrences(tokens, used, target)) { apply(plan); mark(start, start + target.length); }
   }
 
+  const namesEndingAt = new Map<number,number>();
+  for (const target of [...vocabulary.artists.map(item=>item.tokens), ...vocabulary.genres.map(item=>item.tokens), ...Object.keys(GENRE_SYNONYMS).map(word=>[word])]) {
+    for (const start of occurrences(tokens,used,target)) {
+      const end=start+target.length;
+      if (!namesEndingAt.has(end) || start < namesEndingAt.get(end)!) namesEndingAt.set(end,start);
+    }
+  }
   for (const artist of vocabulary.artists) {
     for (const start of occurrences(tokens, used, artist.tokens)) {
-      const where = context(tokens, start);
+      const where = context(tokens, start, namesEndingAt);
       if (where.kind === "include" && !where.explicit && artist.tokens.every((token) => COMMON.has(token))) continue;
       const list = where.kind === "exclude" ? plan.excludeArtists : where.kind === "similar" ? plan.similarTo : plan.artists;
       if (!list.includes(artist.name)) list.push(artist.name);
@@ -197,7 +220,7 @@ export function parsePrompt(prompt: string, vocabulary: PromptVocabulary): Promp
     ...Object.entries(GENRE_SYNONYMS).map(([word, terms]) => ({ tokens: [word], terms }))];
   for (const genre of genreTerms) {
     for (const start of occurrences(tokens, genreUsed, genre.tokens)) {
-      const where = context(tokens, start);
+      const where = context(tokens, start, namesEndingAt);
       const end = start + genre.tokens.length;
       if (where.kind === "exclude") { addGenre(plan.excludeGenres, genre.terms); mark(where.from, end); }
       else { addGenre(plan.genres, genre.terms); addGenre(plan.genreNames, [genre.tokens.join(" ")]); }
@@ -275,6 +298,11 @@ export function buildPromptPlaylist(plan: PromptPlan, songs: readonly Song[], { 
   };
   let pool = songs.filter((song) => song.fileExists !== false && !hidden?.(song) && !has(song, plan.excludeArtists)
     && !genreMatches(song, plan.excludeGenres));
+  const durationOf = (song: Song) => {
+    const seconds = Number(song.duration) || Number(song.durationMs) / 1000;
+    return Number.isFinite(seconds) && seconds > 0 ? seconds : 0;
+  };
+  if (plan.minutes) pool = pool.filter(song=>durationOf(song)>0);
   const target = plan.minutes ? 200 : plan.count;
   // What the prompt names is required: a short playlist is better than one padded with songs it didn't ask for.
   const narrow = (keep: (song: Song) => boolean) => { pool = pool.filter(keep); };
@@ -297,7 +325,8 @@ export function buildPromptPlaylist(plan: PromptPlan, songs: readonly Song[], { 
     const seeds = songs.filter((song) => has(song, plan.similarTo));
     similarScores = new Map(similar?.size ? similar : relatedSongScores(seeds, songs));
     // A few songs by the named artist belong in "songs like them".
-    const top = Math.max(0, ...similarScores.values());
+    let top = 0;
+    for (const score of similarScores.values()) top = Math.max(top,score);
     for (const song of seeds) similarScores.set(song.id, top * .8);
     narrow((song) => similarScores?.has(song.id) === true);
   }
@@ -329,17 +358,19 @@ export function buildPromptPlaylist(plan: PromptPlan, songs: readonly Song[], { 
   const perArtist = plan.artists.length ? Infinity : Math.max(2, Math.ceil(plan.count / 5));
   const counts = new Map<string, number>();
   const picked: string[] = [];
+  const selected = new Set<string>();
   let seconds = 0;
-  const full = () => plan.minutes ? seconds >= plan.minutes * 60 : picked.length >= plan.count;
+  const full = () => plan.minutes ? seconds >= plan.minutes * 60 || picked.length >= target : picked.length >= plan.count;
   // The artist cap spreads the list out; when too few artists match, it fills past the cap in score order.
   for (const capped of [true, false]) {
     for (const { song } of ranked) {
       if (full()) break;
       const lead = songArtistKeys(song)[0] || "";
-      if (picked.includes(song.id) || (capped && (counts.get(lead) || 0) >= perArtist)) continue;
+      if (selected.has(song.id) || (capped && (counts.get(lead) || 0) >= perArtist)) continue;
       counts.set(lead, (counts.get(lead) || 0) + 1);
       picked.push(song.id);
-      seconds += Number(song.duration) || 0;
+      selected.add(song.id);
+      seconds += durationOf(song);
     }
   }
   return picked;

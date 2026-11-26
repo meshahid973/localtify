@@ -197,3 +197,31 @@ test("cached zero genre matches preserve artist suggestions and refresh with cha
   assert.equal(next.get("unrelated"), 1);
   assert.ok(next.get("artist") > first.get("artist"));
 });
+
+test("coordinated exclusions, combined durations and bounded timed results", () => {
+  const excluded = parse("no Kanye and Kendrick but by Phoebe Bridgers");
+  assert.deepEqual([...excluded.excludeArtists].sort(), ["Kanye West","Kendrick Lamar"]);
+  assert.deepEqual([...excluded.artists], ["Phoebe Bridgers"]);
+  assert.deepEqual([...parse("by Kanye and Kendrick").artists].sort(), ["Kanye West","Kendrick Lamar"]);
+  const genres = parse("no hip hop and indie rock but folk");
+  assert.ok(genres.excludeGenres.includes("hip hop") && genres.excludeGenres.includes("indie rock"));
+  assert.ok(genres.genres.includes("folk"));
+  assert.equal(parse("indie rock 1 hour 30 minutes").minutes,90);
+  assert.equal(parse("indie rock 1 hour and 5 minutes").minutes,65);
+  assert.equal(parse("indie rock half an hour").minutes,30);
+  const timed = [...prompts.buildPromptPlaylist(parse("indie rock 10 minutes"), [
+    ...Array.from({length:500},(_,i)=>song("unknown-"+i,"Unknown","Indie Rock",{duration:0})),
+    ...Array.from({length:500},(_,i)=>song("short-"+i,"Short","Indie Rock",{duration:1})),
+    {...song("ms-only","Other","Indie Rock",{duration:0}),durationMs:200000}
+  ])];
+  assert.ok(timed.length>0 && timed.length<=200);
+  assert.ok(timed.every(id=>!id.startsWith("unknown-")));
+});
+
+test("generated playlist retries reuse exact membership under a collision suffix",()=>{
+  const generated=compile("src/features/playlists/generatedPlaylist.ts");
+  const songs=new Map(library.map(item=>[item.id,item]));
+  const playlists=[{id:"smart",name:"Mix",songIds:["kanye"],rules:{}},{id:"saved",name:"Mix (2)",songIds:["kanye"]}];
+  assert.equal(generated.prepareGeneratedPlaylist("Mix",["kanye"],songs,playlists).existingId,"saved");
+  assert.equal(generated.prepareGeneratedPlaylist("Mix",["punk"],songs,playlists).name,"Mix (3)");
+});
