@@ -1,19 +1,13 @@
-/* Smart playlist + prompt playlist composer. Owned here and imported by PlaylistComposer, because upstream
-   retired these features and removed their rules from the shared playlist stylesheets (d05e7d15). */
 .app .playlistComposerBackdrop {
   position: fixed; inset: var(--localtify-titlebar-height, 48px) 0 0; z-index: 220;
-  display: grid; place-items: center; padding: 16px; background: rgba(0,0,0,.64);
+  display: grid; grid-template-rows: minmax(0,1fr); place-items: center; padding: 16px; background: var(--lt-overlay-scrim); overflow: auto;
 }
 .app .playlistComposer {
-  --lt-bg: #000; --lt-surface: #080808; --lt-surface-soft: #101010; --lt-surface-raised: #171717;
-  --lt-text: #f5f5f5; --lt-muted: #aaa; --lt-faint: #888; --lt-border: #272727;
-  --lt-border-strong: #454545; --lt-fill-hover: #1b1b1b; --lt-fill-selected: #292929; --lt-fill-subtle: #121212;
-  --lt-accent: #e8e8e8; --lt-accent-rgb: 232,232,232;
   display: flex; flex-direction: column; width: min(620px,100%);
   max-height: calc(100dvh - var(--localtify-titlebar-height,48px) - 32px);
-  overflow: hidden; box-sizing: border-box; border: 1px solid var(--lt-border);
-  border-radius: 16px; background: var(--lt-surface); color: var(--lt-text);
-  color-scheme: dark; box-shadow: 0 20px 64px rgba(0,0,0,.5); outline: none;
+  min-height: 0; overflow: auto; box-sizing: border-box; border: 1px solid var(--lt-border);
+  border-radius: var(--lt-radius-md); background: var(--lt-surface); color: var(--lt-text);
+  box-shadow: var(--lt-shadow-menu); outline: none;
 }
 .app .playlistComposerHeader { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; padding: 22px 22px 18px; }
 .app .playlistComposerHeader h2 { margin: 0; font-size: 21px; font-weight: 650; letter-spacing: -.035em; line-height: 1.25; }
@@ -26,16 +20,16 @@
   border-radius: 8px; background: transparent; color: var(--lt-muted);
   font-size: 12px; font-weight: 570; line-height: 1.3; box-shadow: none; text-shadow: none; cursor: pointer;
 }
-.app .playlistComposer .playlistComposerButton[data-variant="primary"] { background: #f0f0f0; color: #141414; border-color: #f0f0f0; }
+.app .playlistComposer .playlistComposerButton[data-variant="primary"] { background: var(--lt-accent); color: var(--button-text-on-accent); border-color: var(--lt-accent); }
 .app .playlistComposer .playlistComposerButton[data-variant="secondary"] { background: var(--lt-surface-raised); border-color: var(--lt-border); color: var(--lt-text); }
 .app .playlistComposer .playlistComposerButton[data-size="sm"] { height: 29px; padding: 0 9px; }
 .app .playlistComposer .playlistComposerButton[data-size="icon"] { width: 32px; height: 32px; padding: 0; }
 .app .playlistComposer .playlistComposerButton:not(:disabled):hover { filter: brightness(1.12); }
 .app .playlistComposer .playlistComposerButton[data-variant="ghost"]:hover { background: var(--lt-fill-hover); color: var(--lt-text); }
 .app .playlistComposer .playlistComposerButton:disabled { opacity: .38; cursor: not-allowed; }
-.app .playlistComposer :is(button,input,textarea):focus-visible { outline: 2px solid #e8e8e8; outline-offset: 2px; }
+.app .playlistComposer :is(button,input,textarea):focus-visible { outline: 2px solid var(--lt-accent); outline-offset: 2px; }
 .app .playlistPromptBox { display: grid; gap: 4px; padding: 11px; border: 1px solid var(--lt-border-strong); border-radius: 12px; background: var(--lt-surface-soft); }
-.app .playlistPromptBox:focus-within { border-color: #777; }
+.app .playlistPromptBox:focus-within { border-color: var(--lt-accent); }
 .app .playlistPromptBox textarea { box-sizing: border-box; width: 100%; min-height: 86px; max-height: 200px; resize: vertical; padding: 7px; color: var(--lt-text); background: transparent; border: 0; border-radius: 5px; outline: none; font: inherit; font-size: 14px; line-height: 1.65; box-shadow: none; }
 .app .playlistPromptBar { display: flex; gap: 10px; justify-content: space-between; align-items: center; }
 .app .playlistComposerHint { color: var(--lt-muted); font-size: 11px; font-weight: 500; }
@@ -56,7 +50,7 @@
 .app .playlistComposer .arcDropdownTrigger { min-width: 0; min-height: 38px; width: 100%; border-radius: 8px; background: var(--lt-surface-soft); border: 1px solid var(--lt-border); color: var(--lt-text); box-shadow: none; }
 .app .playlistComposerNumber { display: flex; align-items: center; gap: 5px; min-width: 0; font-size: 11px; color: var(--lt-muted); }
 .app .playlistComposerOptions { display: grid; grid-template-columns: minmax(0,2fr) minmax(0,1fr); gap: 12px; padding-top: 12px; border-top: 1px solid var(--lt-border); }
-.app .playlistComposerFooter { display: grid; gap: 13px; flex-shrink: 0; padding: 16px 22px; border-top: 1px solid var(--lt-border); background: #0b0b0b; }
+.app .playlistComposerFooter { display: grid; gap: 13px; flex-shrink: 0; padding: 16px 22px; border-top: 1px solid var(--lt-border); background: var(--lt-surface); }
 .app .playlistComposerActions { display: flex; align-items: center; justify-content: flex-end; gap: 7px; flex-wrap: wrap; }
 .app .playlistComposerSmartFooter { display: flex; justify-content: space-between; align-items: center; }
 .app .playlistComposerCount { flex: 1; min-width: 0; display: grid; gap: 3px; }
@@ -89,3 +83,11 @@
 html.platformAndroid .playlistComposerBackdrop { inset: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px); padding: 12px; }
 html.platformAndroid .playlistComposer { min-width: 0; max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 24px); }
 html.platformAndroid .playlistComposerChips button { max-width: 100%; white-space: normal; text-align: left; }
+
+@media (max-height: 480px) {
+  .app .playlistComposerBackdrop { inset: 0; padding: 8px; }
+  .app .playlistComposer { max-height: 100%; }
+  .app .playlistComposerForm { flex: 0 0 auto; }
+  .app .playlistComposerBody { flex: 0 0 auto; overflow: visible; }
+  .app .playlistComposerHeader { padding: 12px 16px; }
+}

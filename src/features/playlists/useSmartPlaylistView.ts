@@ -12,6 +12,7 @@ export function useSmartPlaylistView(stored: Playlist[], songs: Song[]) {
   useEffect(() => {
     if (!requiresCounts) return;
     let active = true, busy = false;
+    setListeningCounts(null);
     async function refresh() {
       if (!active || busy || document.hidden) return;
       busy = true;

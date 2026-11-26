@@ -68,7 +68,7 @@ export type PlaylistsViewProps = {
   songs: any;
   startPlaylistSongDragAction: any;
   startRenamePlaylist: any;
-  saveSmartPlaylist: (playlistId: string | null, name: string, rules: SmartRules) => Promise<string | null>;
+  saveSmartPlaylist: (playlistId: string | null, name: string, rules: SmartRules, creationId?: string) => Promise<string | null>;
   listeningCounts: ListeningCounts | null;
   setSmartPreviewOpen: (open: boolean) => void;
   /** The playlist page being shown; null shows every playlist. */
@@ -142,8 +142,8 @@ export default function PlaylistsView(props: PlaylistsViewProps) {
   const smartDialog = smartEditing !== undefined ? (
     <Suspense fallback={null}>
       <SmartPlaylistDialog playlist={smartEditing} songs={songs} listeningCounts={props.listeningCounts}
-        onSave={async (playlistId, name, rules) => {
-          const id = await props.saveSmartPlaylist(playlistId, name, rules);
+        onSave={async (playlistId, name, rules, creationId) => {
+          const id = await props.saveSmartPlaylist(playlistId, name, rules, creationId);
           if (id && !playlistId) actions.nav.open({ kind: "playlist", id });
           return id;
         }} onClose={() => setSmartEditing(undefined)} />

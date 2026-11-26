@@ -70,7 +70,9 @@ export function phonePlaylistChanges(base: SyncPlaylist[], mac: SyncPlaylist[], 
   for (const id of new Set([...baseById.keys(), ...macById.keys(), ...phoneById.keys()])) {
     const b = baseById.get(id);
     const m = macById.get(id);
-    const p = phoneById.get(id);
+    const local = phoneById.get(id);
+    // No supported action converts a smart playlist to a manual playlist.
+    const p = local && b?.rules && !local.rules ? { ...local, rules: b.rules, songIds: b.songIds } : local;
     if (!p) {
       // Deleted on the phone: delete on the Mac too, unless the Mac edited it since.
       if (b && m && samePlaylist(m, b)) remove.push(id);

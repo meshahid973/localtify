@@ -203,22 +203,23 @@ export function usePlaylistsController({
     return playlist.id;
   }, [confirmSaved, newPlaylistName, normalizePlaylistName, persistence, setStatusText, showAppToast]);
 
-  const saveSmartPlaylist = useCallback(async (playlistId: string | null, sourceName: string, sourceRules: SmartRules) => {
+  const saveSmartPlaylist = useCallback(async (playlistId: string | null, sourceName: string, sourceRules: SmartRules, creationId?: string) => {
     const rules = cleanSmartRules(sourceRules);
     if (!rules) { showAppToast("Complete all smart playlist rules before saving", "error"); return null; }
     const name = normalizePlaylistName(sourceName, "smart playlist");
     const current = persistence.current();
-    const existing = current.find(item => item.id === playlistId);
+    const id = playlistId || creationId || makeLocalId("playlist");
+    const existing = current.find(item => item.id === id);
     if (playlistId && !existing?.rules) { showAppToast("This smart playlist no longer exists", "error"); return null; }
-    if (current.some(item => item.id !== playlistId && item.name.trim().toLowerCase() === name.toLowerCase())) {
+    if (existing && !existing.rules) return null;
+    if (current.some(item => item.id !== id && item.name.trim().toLowerCase() === name.toLowerCase())) {
       showAppToast("Playlist name already exists", "info"); return null;
     }
     if (listeningCounts === null && needsListeningCounts(rules)) {
       showAppToast("Listening counts are unavailable. Sync or retry before saving these rules.", "error"); return null;
     }
     const songIds = evaluateSmartRules(rules, songs, listeningCounts ?? new Map());
-    const id = playlistId || makeLocalId("playlist");
-    setPlaylists(items => playlistId
+    setPlaylists(items => existing
       ? items.map(item => item.id === id ? { ...item, name, rules, songIds } : item)
       : [{id, name, rules, songIds, createdAt: Date.now()}, ...items]);
     const saved = await confirmSaved(playlistId ? "Smart playlist updated" : "Smart playlist created",

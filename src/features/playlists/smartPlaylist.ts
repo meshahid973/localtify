@@ -160,7 +160,8 @@ export function describeSmartRules(rules: SmartRules) {
   return [conditions, rules.sort === "library" ? "" : SMART_SORTS[rules.sort], rules.limit ? `up to ${rules.limit}` : ""].filter(Boolean).join(" · ");
 }
 
-export function materializeSmartPlaylists(playlists: readonly import("./playlist.types").Playlist[], songs: readonly Song[], counts: ListeningCounts | null, now: number) {
+export function materializeSmartPlaylists(playlists: import("./playlist.types").Playlist[], songs: readonly Song[], counts: ListeningCounts | null, now: number) {
+  if (!playlists.some(playlist => playlist.rules)) return playlists;
   return playlists.map(playlist => {
     if (!playlist.rules || (counts === null && needsListeningCounts(playlist.rules))) return playlist;
     const songIds = evaluateSmartRules(playlist.rules, songs, counts ?? new Map(), now);

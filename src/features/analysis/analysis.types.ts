@@ -8,7 +8,7 @@ export type AnalysisStatus = {
   model: AnalysisModel;
   download: ModelDownload;
   /** Optional text encoder used to match playlist prompts to saved audio profiles. */
-  promptModel: AnalysisModel & { download: ModelDownload };
+  promptModel?: AnalysisModel & { download: ModelDownload };
   paused: boolean;
   running: boolean;
   scanning: boolean;

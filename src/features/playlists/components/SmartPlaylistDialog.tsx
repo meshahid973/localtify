@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { makeLocalId } from "../../../shared/storage/localStorage";
 import PlaylistComposer, { ComposerButton } from "./PlaylistComposer";
 import SegmentedControl from "../../../vendor/arc/segmented-control/segmented-control";
 import { Plus, Trash2 } from "lucide-react";
@@ -15,7 +16,7 @@ export type SmartPlaylistDialogProps = {
   playlist: Playlist | null;
   songs: readonly Song[];
   listeningCounts: ListeningCounts | null;
-  onSave: (playlistId: string | null, name: string, rules: SmartRules) => Promise<string | null>;
+  onSave: (playlistId: string | null, name: string, rules: SmartRules, creationId?: string) => Promise<string | null>;
   onClose: () => void;
 };
 
@@ -29,6 +30,7 @@ export default function SmartPlaylistDialog({ playlist, songs, listeningCounts, 
   const [name, setName] = useState(playlist?.name || "");
   const [rules, setRules] = useState<SmartRules>(() => playlist?.rules || EMPTY_RULES);
   const [saving, setSaving] = useState(false);
+  const [creationId] = useState(() => makeLocalId("playlist"));
   const saved = useMemo(() => cleanSmartRules(rules), [rules]);
   const matched = useMemo(() => !saved || (listeningCounts === null && needsListeningCounts(saved)) ? null : evaluateSmartRules(saved, songs, listeningCounts ?? new Map()).length, [saved, songs, listeningCounts]);
   const updateRule = (index: number, patch: Partial<SmartRule>) =>
@@ -36,8 +38,8 @@ export default function SmartPlaylistDialog({ playlist, songs, listeningCounts, 
 
   return (
     <PlaylistComposer kind="smart" title={playlist ? "Edit smart playlist" : "New smart playlist"}
-      description="Automatically update this playlist as your library changes." onClose={onClose}>
-      <form className="playlistComposerForm" onSubmit={async event => { event.preventDefault(); if (!saved || matched === null || saving) return; setSaving(true); try { if (await onSave(playlist?.id || null,name,saved)) onClose(); } finally { setSaving(false); } }}>
+      description="Automatically update this playlist as your library changes." onClose={onClose} busy={saving}>
+      <form className="playlistComposerForm" onSubmit={async event => { event.preventDefault(); if (!saved || matched === null || saving) return; setSaving(true); try { if (await onSave(playlist?.id || null,name,saved,creationId)) onClose(); } finally { setSaving(false); } }}>
         <div className="playlistComposerBody">
           <label className="playlistComposerField"><span>Playlist name</span>
             <input aria-label="Playlist name" value={name} onChange={event => setName(event.currentTarget.value)} placeholder="My smart playlist" maxLength={120} autoFocus/>
@@ -67,12 +69,12 @@ export default function SmartPlaylistDialog({ playlist, songs, listeningCounts, 
             onClick={() => setRules(current => ({...current,rules:[...current.rules,defaultSmartRule()]}))}><Plus size={16}/> Add rule</ComposerButton></div>
           <div className="playlistComposerOptions">
             <div className="playlistComposerField"><span>Sort by</span><ArcDropdownMenu ariaLabel="Order" value={rules.sort} items={SORT_ITEMS} onValueChange={sort => setRules(current => ({...current,sort}))}/></div>
-            <label className="playlistComposerField"><span>Song limit</span><input aria-label="Song limit" type="number" min={1} max={5000} placeholder="No limit" value={rules.limit ?? ""} onChange={event => setRules(current => ({...current,limit:Number(event.currentTarget.value) || null}))}/></label>
+            <label className="playlistComposerField"><span>Song limit</span><input aria-label="Song limit" type="number" min={1} max={5000} step={1} placeholder="No limit" value={rules.limit ?? ""} onChange={event => setRules(current => ({...current,limit:event.currentTarget.value === "" ? null : Number(event.currentTarget.value)}))}/></label>
           </div>
         </div>
         <footer className="playlistComposerFooter playlistComposerSmartFooter">
           <div role="status" className="playlistComposerCount"><strong>{matched === null ? "Preview unavailable" : `${matched.toLocaleString()} ${matched === 1 ? "song" : "songs"}`}</strong><small>{!saved ? "Complete each rule with a valid value." : matched === null ? "Listening counts are not available yet. Sync or retry." : describeSmartRules(saved)}</small></div>
-          <ComposerButton variant="primary" type="submit" disabled={matched === null || saving}>{playlist ? "Save rules" : "Create playlist"}</ComposerButton>
+          <ComposerButton variant="primary" type="submit" disabled={matched === null || saving}>{saving ? "Saving…" : playlist ? "Save rules" : "Create playlist"}</ComposerButton>
         </footer>
       </form>
     </PlaylistComposer>

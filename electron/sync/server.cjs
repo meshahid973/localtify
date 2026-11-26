@@ -215,7 +215,11 @@ function createSyncServer({ repositories, coverPath, statePath, serverName = "co
         error.code = "PLAYLIST_CONFLICT";
         throw error;
       }
-      for (const item of smartPuts) if (item?.rules != null) requireSmartRules(item.rules);
+      const current = new Map(repositories.playlists.get().map(item => [item.id, item]));
+      for (const item of smartPuts) {
+        if (item?.rules != null) requireSmartRules(item.rules);
+        else if (current.get(item?.id)?.rules) throw new Error("Cannot remove smart playlist rules through sync");
+      }
     }
     // The receipt transaction checks the exact playlist baseline before changing any songs or events.
     if (body?.playlistExpected !== undefined) {
