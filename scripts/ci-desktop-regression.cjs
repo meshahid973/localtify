@@ -310,7 +310,7 @@ server.listen(5173,async()=>{
             await screenshot(win,`glass-${mode}-downloads-menu`);
             win.webContents.sendInputEvent({type:"keyDown",keyCode:"Escape"});
             win.webContents.sendInputEvent({type:"keyUp",keyCode:"Escape"});
-            await until(()=>win.webContents.executeJavaScript("!document.querySelector(\x27.ltOpticalMenu[data-open]\x27)"),"dismiss download glass menu");
+            await until(()=>win.webContents.executeJavaScript("!Array.from(document.querySelectorAll(\x27.ltOpticalMenu\x27)).some(menu=>menu.getClientRects().length>0)"),"dismiss download glass menu");
           }
         }
       }

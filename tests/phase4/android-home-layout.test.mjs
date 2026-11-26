@@ -19,13 +19,24 @@ function compile(file, dependencies = {}) {
 
 function home(android, songs, hidden = []) {
   const layout = compile("src/features/home/homeLayout.ts");
-  const appearance = compile("src/shared/appearance/appearance.tsx");
+  const appearance = compile("src/shared/appearance/appearance.tsx", {
+    "../../vendor/liquid-glass/localtify-optics": compile("src/vendor/liquid-glass/localtify-optics.ts"),
+  });
+  const glassButton = compile("src/vendor/liquid-glass/glass-button.tsx", {
+    "@ui-sdk/react/button": { Button: props => React.createElement("button", props) },
+    "./glass-layer-slot": { GlassLayerSlot: () => null },
+  });
+  const opticalButton = compile("src/shared/appearance/OpticalButton.tsx", {
+    "./appearance": appearance,
+    "../../vendor/liquid-glass/glass-button": glassButton,
+  });
   const Home = compile("src/features/home/HomeView.tsx", {
     "./home.css": {},
     "../../shared/appearance/appearance": appearance,
+    "../../shared/appearance/OpticalButton": opticalButton,
     "../../shared/ui/IconButton": compile("src/shared/ui/IconButton.tsx", {
       "./icon-button.css": {},
-      "../appearance/OpticalButton": compile("src/shared/appearance/OpticalButton.tsx", { "./appearance": appearance }),
+      "../appearance/OpticalButton": opticalButton,
     }),
     "../../app/platform": { isAndroidApp: () => android },
     "../covers/Cover": { Cover: () => null },
@@ -41,7 +52,7 @@ function home(android, songs, hidden = []) {
     "./homeShelfPicks": compile("src/features/home/homeShelfPicks.ts")
   }).default;
   return renderToStaticMarkup(React.createElement(Home, {
-    albums: [], songs, currentSong: songs[0] || null, currentId: songs[0]?.id || null,
+    albums: [], songs, songsById: new Map(songs.map(song => [song.id, song])), currentSong: songs[0] || null, currentId: songs[0]?.id || null,
     homeListenNowSongs: songs, homeFreshShelfSongs: [], heroDisplayTitle: "Test song",
     heroDisplayArtist: "Test artist", settings: { volume: 0.5, heroExpanded: true, homeSectionOrder: [], homeHiddenSections: hidden },
     ambientStyle: {}, playableSongCount: songs.length

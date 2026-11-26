@@ -1,3 +1,4 @@
+import { compileGlassView } from './viewCompilation'
 // One shared WebGL2 renderer (three.js WebGPURenderer, WebGL backend + TSL) draws
 // every glass control and copies the result into each control's own <canvas>, so a
 // page full of controls never runs into the browser's GPU context limit.
@@ -767,11 +768,11 @@ async function createRuntime(onLost: () => void) {
         renderMs: 0,
       }
       let released = false
-      let cancelCompile: (() => void) | undefined
+      const compilation = new AbortController()
       const release = () => {
         if (released) return
         released = true
-        cancelCompile?.()
+        compilation.abort()
         signal?.removeEventListener('abort', release)
         views.delete(view)
         disposers.delete(view)
@@ -791,19 +792,7 @@ async function createRuntime(onLost: () => void) {
         io.observe(canvas)
         resizeLayers(view, spec())
         wake()
-        let timeout: number | undefined
-        try {
-          await Promise.race([
-            renderer.compileAsync(scene, camera),
-            new Promise<never>((_, reject) => {
-              cancelCompile = () => reject(new Error('Glass view cancelled'))
-              timeout = window.setTimeout(() => reject(new Error('Glass shader compilation timed out')), 15000)
-            }),
-          ])
-        } finally {
-          window.clearTimeout(timeout)
-          cancelCompile = undefined
-        }
+        await compileGlassView(() => renderer.compileAsync(scene, camera), release, compilation.signal)
         if (released || disposed || signal?.aborted) throw new Error('Glass view cancelled')
         view.ready = true
         wake()

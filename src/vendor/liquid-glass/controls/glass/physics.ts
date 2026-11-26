@@ -100,7 +100,7 @@ export const sliderOptics: GlassOptics = {
   blurCenter: 0.35,
   blurEdge: 2.2,
   frostBlur: 4,
-  rimIntensity: 0.55,
+  rimIntensity: 0.18,
   topReflection: 0.3,
   innerShading: 0.1,
   causticStrength: 0.08,

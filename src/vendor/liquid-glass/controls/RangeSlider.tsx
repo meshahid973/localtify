@@ -67,7 +67,7 @@ export function RangeSlider({
   restFrost = 1,
   refraction = 37,
   dispersion = 0.12,
-  rimIntensity = 0.55,
+  rimIntensity = 0.18,
   magnification = 0,
   motionStretch = 3,
   motionSmoothing = 30,

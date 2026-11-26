@@ -13,7 +13,7 @@ function compile(file, dependencies = {}) {
   const js = ts.transpileModule(fs.readFileSync(file, "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 }
   }).outputText;
-  runInNewContext(js, { exports, require: name => name in dependencies ? dependencies[name] : require(name) });
+  runInNewContext(js, { exports, setTimeout, clearTimeout, require: name => name in dependencies ? dependencies[name] : require(name) });
   return exports;
 }
 
@@ -30,8 +30,17 @@ test("menu typeahead cycles matches, refines prefixes and handles empty menus", 
 });
 
 test("shared icon buttons retain names, form safety and disabled semantics", () => {
-  const appearance = compile("src/shared/appearance/appearance.tsx");
-  const opticalButton = compile("src/shared/appearance/OpticalButton.tsx", { "./appearance": appearance });
+  const appearance = compile("src/shared/appearance/appearance.tsx", {
+    "../../vendor/liquid-glass/localtify-optics": compile("src/vendor/liquid-glass/localtify-optics.ts"),
+  });
+  const glassButton = compile("src/vendor/liquid-glass/glass-button.tsx", {
+    "@ui-sdk/react/button": { Button: props => React.createElement("button", props) },
+    "./glass-layer-slot": { GlassLayerSlot: () => null },
+  });
+  const opticalButton = compile("src/shared/appearance/OpticalButton.tsx", {
+    "./appearance": appearance,
+    "../../vendor/liquid-glass/glass-button": glassButton,
+  });
   const { IconButton } = compile("src/shared/ui/IconButton.tsx", { "./icon-button.css": {}, "../appearance/OpticalButton": opticalButton });
   const html = renderToStaticMarkup(React.createElement(IconButton, { "aria-label": "Shuffle", "aria-pressed": true, disabled: true, className: "transport" }));
   assert.match(html, /type="button"/);
@@ -57,4 +66,20 @@ test("import progress distinguishes picker, processing and errors without claimi
   assert.match(error, /Import interrupted/);
   assert.match(error, /Could not read the folder/);
   assert.doesNotMatch(error, /safe rollback/);
+});
+
+test("failed or aborted GPU compilation releases the registered view", async () => {
+  const {compileGlassView}=compile("src/vendor/liquid-glass/controls/glass/viewCompilation.ts");
+  let releases=0;
+  const release=()=>{ releases++; };
+  const failure=new AbortController();
+  await assert.rejects(compileGlassView(async()=>{throw new Error("shader failed");},release,failure.signal),/shader failed/);
+  assert.equal(releases,1);
+  const cancelled=new AbortController();
+  const pending=compileGlassView(()=>new Promise(()=>{}),release,cancelled.signal);
+  cancelled.abort();
+  await assert.rejects(pending,/cancelled/);
+  assert.equal(releases,2);
+  await compileGlassView(async()=>{},release,new AbortController().signal);
+  assert.equal(releases,2,"successful views remain registered until their owner releases them");
 });
