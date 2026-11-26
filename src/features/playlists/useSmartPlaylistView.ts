@@ -40,5 +40,5 @@ export function useSmartPlaylistView(stored: Playlist[], songs: Song[]) {
     return () => { clearInterval(timer); document.removeEventListener("visibilitychange", refresh); };
   }, [requiresClock]);
   const playlists = useMemo(() => materializeSmartPlaylists(stored, songs, listeningCounts, requiresClock ? now : Date.now()), [stored, songs, listeningCounts, requiresClock, now]);
-  return {playlists, listeningCounts, setSmartPreviewOpen: setPreviewOpen};
+  return {playlists, listeningCounts, smartNow: now, setSmartPreviewOpen: setPreviewOpen};
 }

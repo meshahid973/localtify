@@ -1,4 +1,4 @@
-import { cleanSmartRules } from "../../features/playlists/smartPlaylist";
+import { addPendingListeningCounts, cleanSmartRules } from "../../features/playlists/smartPlaylist";
 import type { Song } from "../../features/library/song.types";
 import type { Settings } from "../../features/settings/settings.types";
 import type { PlayEvent } from "../../features/player/listeningHistory";
@@ -241,6 +241,13 @@ export class PhoneLibrary {
     if (finishMigration) this.settings = {...this.settings, playlistMigrationCompleted: true};
     void this.save(finishMigration ? ["playlists", "settings"] : ["playlists"]).catch(() => undefined);
     return this.playlists;
+  }
+
+  getListeningCounts() {
+    return addPendingListeningCounts(this.listeningCounts, this.pendingEvents, id => {
+      const song = this.remoteSong(id);
+      return song ? Number(song.durationMs) || (Number(song.duration) || 0) * 1000 : null;
+    });
   }
 
   recordPlayEvent(event: PlayEvent) {

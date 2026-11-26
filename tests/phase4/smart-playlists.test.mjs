@@ -99,3 +99,26 @@ test("smart membership is derived without changing the stored rules or cache", (
   assert.deepEqual([...materializeSmartPlaylists(source, library, new Map([["recent-fave",{finishes:3,skips:0}]]), NOW)[0].songIds], ["recent-fave"]);
   assert.deepEqual(source[0].songIds, ["cached"]);
 });
+
+test("offline finished and skipped events extend the last synced counts without altering it", () => {
+  const {addPendingListeningCounts} = loadSmart();
+  const rows = [["a",2,1]];
+  const events = [
+    {songId:"a",outcome:"ended",msListened:5000},
+    {songId:"a",outcome:"active",msListened:1000},
+    {songId:"a",outcome:"replaced",msListened:1000},
+    {songId:"b",outcome:"replaced",msListened:90000}
+  ];
+  assert.deepEqual(JSON.parse(JSON.stringify(addPendingListeningCounts(rows,events,()=>100000))), [["a",3,2],["b",1,0]]);
+  assert.deepEqual(rows,[["a",2,1]]);
+  assert.equal(addPendingListeningCounts(null,events,()=>100000),null);
+});
+test("date rules and daily shuffle refresh from time rather than persisted membership", () => {
+  const {materializeSmartPlaylists,SMART_PRESETS} = loadSmart();
+  const fresh = [{id:"p",name:"fresh",createdAt:1,songIds:["never"],rules:SMART_PRESETS[2].rules}];
+  assert.deepEqual([...materializeSmartPlaylists(fresh,library,new Map(),NOW)[0].songIds],["never"]);
+  assert.deepEqual([...materializeSmartPlaylists(fresh,library,new Map(),NOW+31*DAY)[0].songIds],[]);
+  const shuffled = [{...fresh[0],rules:{match:"all",rules:[],sort:"random",limit:null}}];
+  const all = Array.from({length:50},(_,i)=>song("s"+i));
+  assert.notDeepEqual([...materializeSmartPlaylists(shuffled,all,new Map(),NOW)[0].songIds],[...materializeSmartPlaylists(shuffled,all,new Map(),NOW+DAY)[0].songIds]);
+});

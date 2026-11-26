@@ -160,6 +160,25 @@ server.listen(5173,async()=>{
     await win.webContents.executeJavaScript("document.querySelector('.playlistPickerModal').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");
     await until(()=>win.webContents.executeJavaScript("!document.querySelector('.playlistPickerModal')"),"playlist picker Escape");
     win.setMinimumSize(...originalMinSize);
+    await win.webContents.executeJavaScript("document.querySelector('.librarySectionNav [data-library-section=playlists]').click()");
+    await until(()=>win.webContents.executeJavaScript("[...document.querySelectorAll('.playlistToolbar button')].some(e=>e.textContent.trim()==='Smart playlist')"),"smart playlist action");
+    await win.webContents.executeJavaScript("[...document.querySelectorAll('.playlistToolbar button')].find(e=>e.textContent.trim()==='Smart playlist').click()");
+    await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.smartPlaylistComposer input[aria-label=\"Playlist name\"]')"),"smart playlist composer");
+    await win.webContents.executeJavaScript(`(()=>{const input=document.querySelector('.smartPlaylistComposer input[aria-label="Playlist name"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(input,"qa smart playlist");input.dispatchEvent(new Event("input",{bubbles:true}));})()`);
+    await until(()=>win.webContents.executeJavaScript("document.querySelector('.smartPlaylistComposer .playlistComposerCount strong')?.textContent==='1 song'"),"smart playlist preview");
+    await win.webContents.executeJavaScript("document.querySelector('.smartPlaylistComposer button[type=submit]').click()");
+    await until(()=>win.webContents.executeJavaScript("!document.querySelector('.smartPlaylistComposer') && document.querySelector('.playlistDetailPage .collectionHero')?.textContent.includes('qa smart playlist')"),"smart playlist saved and opened");
+    const savedSmart=await win.webContents.executeJavaScript("window.localitfy.getPlaylists().then(items=>items.find(item=>item.name==='qa smart playlist'))");
+    assert.equal(savedSmart.rules.rules[0].field,"liked");
+    assert.deepEqual(savedSmart.songIds,["qa-0"]);
+    await win.webContents.executeJavaScript("document.querySelector('.playlistDetailPage [aria-label=\"edit rules\"]').click()");
+    await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.smartPlaylistComposer')"),"edit saved smart rules");
+    await win.webContents.executeJavaScript(`(()=>{const input=document.querySelector('.smartPlaylistComposer input[aria-label="Song limit"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(input,"1");input.dispatchEvent(new Event("input",{bubbles:true}));})()`);
+    await win.webContents.executeJavaScript("document.querySelector('.smartPlaylistComposer button[type=submit]').click()");
+    await until(()=>win.webContents.executeJavaScript("!document.querySelector('.smartPlaylistComposer')"),"smart playlist rule edit committed");
+    assert.equal(await win.webContents.executeJavaScript("window.localitfy.getPlaylists().then(items=>items.find(item=>item.name==='qa smart playlist').rules.limit)"),1);
+    await win.webContents.executeJavaScript("(()=>{const original=window.confirm;window.confirm=()=>true;try{document.querySelector('.playlistDetailPage .playlistManageActions button.danger').click()}finally{window.confirm=original}})()");
+    await until(()=>win.webContents.executeJavaScript("window.localitfy.getPlaylists().then(items=>!items.some(item=>item.name==='qa smart playlist'))"),"remove fixture smart playlist");
     await win.webContents.executeJavaScript("document.querySelector('.sidebar [data-nav-id=home]').click()");
     await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.homeStartButton')"),"return home after picker");
     async function assertShellChrome() {

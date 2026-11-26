@@ -15,7 +15,7 @@ export type PromptPlaylistDialogProps = {
   hidden: (song: Song) => boolean;
   playSongs: (ids: string[], label: string) => unknown;
   selectSong: (id: string, autoplay?: boolean) => unknown;
-  savePlaylist: (name: string, ids: string[]) => string | null;
+  savePlaylist: (name: string, ids: string[]) => Promise<string | null>;
   openAnalysisSettings: () => void;
   onClose: () => void;
 };
@@ -28,6 +28,7 @@ export default function PromptPlaylistDialog({ songs, currentId, hidden, playSon
   const [prompt, setPrompt] = useState("");
   const [result, setResult] = useState<Result | null>(null);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
   const [name, setName] = useState("");
   const seed = useRef(1);
@@ -37,7 +38,7 @@ export default function PromptPlaylistDialog({ songs, currentId, hidden, playSon
   const songsById = useMemo(() => new Map(songs.map((song) => [song.id, song])), [songs]);
 
   async function generate(text: string, again = false) {
-    if (!text.trim()) return;
+    if (!text.trim() || saving) return;
     const token = ++request.current;
     seed.current = again ? seed.current + 1 : 1;
     setLoading(true);
@@ -70,7 +71,7 @@ export default function PromptPlaylistDialog({ songs, currentId, hidden, playSon
     setLoading(false);
   }
 
-  const picked = result ? result.ids.filter((id) => selected.has(id)) : [];
+  const picked = result ? result.ids.filter(id => selected.has(id) && songsById.get(id) && songsById.get(id)?.fileExists !== false) : [];
   const seconds = picked.reduce((total, id) => total + (Number(songsById.get(id)?.duration) || 0), 0);
   const toggle = (id: string) => setSelected((current) => {
     const next = new Set(current);
@@ -85,7 +86,7 @@ export default function PromptPlaylistDialog({ songs, currentId, hidden, playSon
     : !result.ids.length ? "Nothing in your library matches that. Try fewer or different words." : null;
 
   return (
-    <PlaylistComposer kind="prompt" title="Describe a playlist" description="Find songs in your library that fit your idea." onClose={onClose}>
+    <PlaylistComposer kind="prompt" title="Describe a playlist" description="Find songs in your library that fit your idea." onClose={onClose} busy={saving}>
       <div className="playlistComposerBody">
         <form className="playlistPromptBox" onSubmit={event => { event.preventDefault(); void generate(prompt); }}>
           <textarea autoFocus aria-label="Prompt" value={prompt} onChange={event => setPrompt(event.currentTarget.value)}
@@ -142,7 +143,7 @@ export default function PromptPlaylistDialog({ songs, currentId, hidden, playSon
         <div className="playlistComposerActions">
           <ComposerButton variant="ghost" disabled={loading} onClick={() => void generate(prompt,true)}><RefreshCw size={15}/> Regenerate</ComposerButton>
           <ComposerButton disabled={!picked.length} onClick={() => playSongs(picked,name || result.plan.name)}><Play size={15}/> Play</ComposerButton>
-          <ComposerButton variant="primary" disabled={!picked.length || loading} onClick={() => { if (savePlaylist(name || result.plan.name,picked)) onClose(); }}><Save size={15}/> Save playlist</ComposerButton>
+          <ComposerButton variant="primary" disabled={!picked.length || loading || saving} onClick={async () => { if (saving) return; setSaving(true); try { if (await savePlaylist(name || result.plan.name,picked)) onClose(); } finally { setSaving(false); } }}><Save size={15}/> {saving ? "Saving…" : "Save playlist"}</ComposerButton>
         </div>
       </footer> : null}
     </PlaylistComposer>

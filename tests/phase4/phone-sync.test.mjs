@@ -292,6 +292,7 @@ test("smart rule changes rebase with concurrent metadata and never merge generat
   const remote = {...old, name:"desktop", songIds:["c"]};
   assert.deepEqual(plain(merge.phonePlaylistChanges([old],[remote],[changed]).put), [{...remote,rules:changed.rules,songIds:["b"]}]);
   assert.deepEqual(plain(merge.phonePlaylistChanges([old],[remote],[{...old,songIds:["phone"]}]).put), []);
+  assert.deepEqual(plain(merge.phonePlaylistChanges([old],[remote],[{...old,rules:undefined,songIds:["phone"],name:"renamed"}]).put), [{...remote,name:"renamed"}]);
 });
 
 test("server rejects old phone smart edits and stale rules before applying any changes", () => {
@@ -305,6 +306,7 @@ test("server rejects old phone smart edits and stale rules before applying any c
     assert.throws(() => sync.applyChanges({playlists:{put:[playlist("p",["a"],"legacy")],delete:[]}}), /update Android/i);
     assert.throws(() => sync.applyChanges({smartPlaylists:1,playlistExpected:[["p",{...original,rules:{...rules,limit:5}}]],playlists:{put:[original],delete:[]}}), /rebase required/);
     assert.throws(() => sync.applyChanges({smartPlaylists:1,playlistExpected:[["p",original]],playlists:{put:[{...original,rules:{...rules,sort:"invalid"}}],delete:[]}}), /Invalid smart playlist rules/);
+    assert.throws(() => sync.applyChanges({smartPlaylists:1,playlistExpected:[["p",original]],playlists:{put:[playlist("p",["a"])],delete:[]}}), /Cannot remove smart playlist rules/);
     assert.deepEqual(library.playlists,[original]);
     sync.applyChanges({smartPlaylists:1,playlistExpected:[["p",original]],playlists:{put:[{...original,rules:{...rules,limit:5}}],delete:[]}});
     assert.equal(library.playlists[0].rules.limit,5);

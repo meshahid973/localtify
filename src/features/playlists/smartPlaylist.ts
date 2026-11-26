@@ -168,3 +168,25 @@ export function materializeSmartPlaylists(playlists: import("./playlist.types").
     return songIds.length === playlist.songIds.length && songIds.every((id, index) => id === playlist.songIds[index]) ? playlist : { ...playlist, songIds };
   });
 }
+
+export type ListeningCountRows = Array<[string, number, number]>;
+
+export function addPendingListeningCounts(rows: ListeningCountRows | null,
+  events: readonly import("../player/listeningHistory").PlayEvent[],
+  durationFor: (songId: string) => number | null): ListeningCountRows | null {
+  if (rows === null) return null;
+  const counts = new Map(rows.map(([id, finishes, skips]) => [id, { finishes, skips }]));
+  for (const event of events) {
+    if (event.outcome === "active") continue;
+    const duration = durationFor(event.songId);
+    if (duration === null) continue;
+    const early = duration > 0 ? Math.min(30_000, duration * .5) : 30_000;
+    const finished = event.outcome === "ended" || event.outcome === "transition" || (duration > 0 && event.msListened >= duration * .8);
+    const skipped = !finished && event.outcome === "replaced" && event.msListened < early;
+    if (!finished && !skipped) continue;
+    const current = counts.get(event.songId) ?? { finishes: 0, skips: 0 };
+    if (finished) current.finishes += 1; else current.skips += 1;
+    counts.set(event.songId, current);
+  }
+  return [...counts].map(([id, {finishes, skips}]) => [id, finishes, skips]);
+}

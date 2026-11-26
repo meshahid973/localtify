@@ -44,7 +44,7 @@ export function usePlaylistsController({
   showAppToast
 }: PlaylistsControllerOptions) {
   const [storedPlaylists, publishPlaylists] = useState<Playlist[]>([]);
-  const { playlists, listeningCounts, setSmartPreviewOpen } = useSmartPlaylistView(storedPlaylists, songs);
+  const { playlists, listeningCounts, smartNow, setSmartPreviewOpen } = useSmartPlaylistView(storedPlaylists, songs);
   const [persistence] = useState(() => createPlaylistPersistence({
     read: async () => {
       if (!window.localitfy.getPlaylists) throw new Error("Playlist storage unavailable");
@@ -180,6 +180,12 @@ export function usePlaylistsController({
     void confirmSaved(prepared.existingId ? "playlist already saved" : "mix saved to playlists", items => items.some(item => item.id === id && prepared.songIds.every(songId => item.songIds.includes(songId))));
     return id;
   }, [confirmSaved, persistence, songsById, showAppToast]);
+
+  const savePromptPlaylist = useCallback(async (name: string, ids: string[]) => {
+    const id = createPlaylistFromSongs(name, ids);
+    if (!id || !await flushPlaylists()) return null;
+    return persistence.committed().some(item => item.id === id && ids.every(songId => item.songIds.includes(songId))) ? id : null;
+  }, [createPlaylistFromSongs, flushPlaylists, persistence]);
 
   const createPlaylist = useCallback((forcedName?: string) => {
     const sourceName = typeof forcedName === "string" ? forcedName : newPlaylistName;
@@ -405,7 +411,7 @@ export function usePlaylistsController({
     createPlaylist,
     createPlaylistWithSong,
     createPlaylistFromSongs,
-    saveSmartPlaylist, listeningCounts, setSmartPreviewOpen,
+    saveSmartPlaylist, listeningCounts, smartNow, setSmartPreviewOpen, savePromptPlaylist,
     removePlaylist,
     startRenamePlaylist,
     cancelRenamePlaylist,

@@ -524,7 +524,7 @@ function MainModeApp() {
     renamingPlaylistName,
     setRenamingPlaylistName,
     createPlaylist,
-    saveSmartPlaylist, listeningCounts, setSmartPreviewOpen,
+    saveSmartPlaylist, listeningCounts, smartNow, setSmartPreviewOpen, savePromptPlaylist,
     createPlaylistWithSong,
     createPlaylistFromSongs,
     removePlaylist,
@@ -4751,7 +4751,7 @@ function MainModeApp() {
       songs,
       startPlaylistSongDragAction,
       startRenamePlaylist,
-      saveSmartPlaylist, listeningCounts, setSmartPreviewOpen, addSongToPlaylist, notForMe
+      saveSmartPlaylist, listeningCounts, smartNow, setSmartPreviewOpen, savePromptPlaylist, addSongToPlaylist, notForMe
     },
     discover: {
       settings, updateSetting, notForMe, songs, selectLocalSong: (id: string) => void selectSong(id, true),

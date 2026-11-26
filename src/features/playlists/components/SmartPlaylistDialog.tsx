@@ -16,6 +16,7 @@ export type SmartPlaylistDialogProps = {
   playlist: Playlist | null;
   songs: readonly Song[];
   listeningCounts: ListeningCounts | null;
+  now: number;
   onSave: (playlistId: string | null, name: string, rules: SmartRules, creationId?: string) => Promise<string | null>;
   onClose: () => void;
 };
@@ -26,13 +27,13 @@ const SORT_ITEMS = toItems(SMART_SORTS) as { value: SmartSort; label: string }[]
 const MATCH_ITEMS = [{ value: "all", label: "All rules" }, { value: "any", label: "Any rule" }];
 const EMPTY_RULES: SmartRules = { match: "all", rules: [defaultSmartRule("liked")], sort: "library", limit: null };
 
-export default function SmartPlaylistDialog({ playlist, songs, listeningCounts, onSave, onClose }: SmartPlaylistDialogProps) {
+export default function SmartPlaylistDialog({ playlist, songs, listeningCounts, now, onSave, onClose }: SmartPlaylistDialogProps) {
   const [name, setName] = useState(playlist?.name || "");
   const [rules, setRules] = useState<SmartRules>(() => playlist?.rules || EMPTY_RULES);
   const [saving, setSaving] = useState(false);
   const [creationId] = useState(() => makeLocalId("playlist"));
   const saved = useMemo(() => cleanSmartRules(rules), [rules]);
-  const matched = useMemo(() => !saved || (listeningCounts === null && needsListeningCounts(saved)) ? null : evaluateSmartRules(saved, songs, listeningCounts ?? new Map()).length, [saved, songs, listeningCounts]);
+  const matched = useMemo(() => !saved || (listeningCounts === null && needsListeningCounts(saved)) ? null : evaluateSmartRules(saved, songs, listeningCounts ?? new Map(), now).length, [saved, songs, listeningCounts, now]);
   const updateRule = (index: number, patch: Partial<SmartRule>) =>
     setRules((current) => ({ ...current, rules: current.rules.map((rule, at) => at === index ? { ...rule, ...patch } : rule) }));
 

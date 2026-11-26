@@ -70,6 +70,8 @@ export type PlaylistsViewProps = {
   startRenamePlaylist: any;
   saveSmartPlaylist: (playlistId: string | null, name: string, rules: SmartRules, creationId?: string) => Promise<string | null>;
   listeningCounts: ListeningCounts | null;
+  smartNow: number;
+  savePromptPlaylist: (name: string, ids: string[]) => Promise<string | null>;
   setSmartPreviewOpen: (open: boolean) => void;
   /** The playlist page being shown; null shows every playlist. */
   detailPlaylistId?: string | null;
@@ -141,7 +143,7 @@ export default function PlaylistsView(props: PlaylistsViewProps) {
   const filteredDetailSongs = useMemo(()=>filterCollectionSongs(sortedDetailSongs,trackQuery),[sortedDetailSongs,trackQuery]);
   const smartDialog = smartEditing !== undefined ? (
     <Suspense fallback={null}>
-      <SmartPlaylistDialog playlist={smartEditing} songs={songs} listeningCounts={props.listeningCounts}
+      <SmartPlaylistDialog playlist={smartEditing} songs={songs} listeningCounts={props.listeningCounts} now={props.smartNow}
         onSave={async (playlistId, name, rules, creationId) => {
           const id = await props.saveSmartPlaylist(playlistId, name, rules, creationId);
           if (id && !playlistId) actions.nav.open({ kind: "playlist", id });
@@ -153,7 +155,7 @@ export default function PlaylistsView(props: PlaylistsViewProps) {
   const promptDialog = prompting ? (
     <Suspense fallback={null}>
       <PromptPlaylistDialog songs={songs} currentId={currentId} hidden={hidden} playSongs={props.playSongs}
-        selectSong={props.selectSong} savePlaylist={props.dailyMixes.savePlaylist}
+        selectSong={props.selectSong} savePlaylist={props.savePromptPlaylist}
         openAnalysisSettings={() => { setPrompting(false); props.dailyMixes.openAnalysisSettings(); }} onClose={() => setPrompting(false)} />
     </Suspense>
   ) : null;
