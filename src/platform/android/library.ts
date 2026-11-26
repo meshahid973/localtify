@@ -1,3 +1,4 @@
+import { cleanSmartRules } from "../../features/playlists/smartPlaylist";
 import type { Song } from "../../features/library/song.types";
 import type { Settings } from "../../features/settings/settings.types";
 import type { PlayEvent } from "../../features/player/listeningHistory";
@@ -32,7 +33,7 @@ export class PhoneLibrary {
   /** Feature switches set on the Mac (lyrics, analysis, discover); they win over the phone's own settings. */
   macFeatures: Partial<Settings> = {};
   pendingEvents: PlayEvent[] = [];
-  listeningCounts: Array<[string, number, number]> = [];
+  listeningCounts: Array<[string, number, number]> | null = null;
   files: LocalFiles = {};
   pairing: Pairing | null = null;
   detachedPairing: { pairing: Pairing; batch: SyncBatch } | null = null;
@@ -87,7 +88,7 @@ export class PhoneLibrary {
         readValue<Partial<Settings>>("settings", { idleScreensaverEnabled: false, minimizeToTray: false, startWithWindows: false }),
         readValue<Partial<Settings>>("macFeatures", {}),
         readValue<PlayEvent[]>("pendingEvents", []),
-        readValue<Array<[string, number, number]>>("listeningCounts", []),
+        readValue<Array<[string, number, number]> | null>("listeningCounts", null),
         readValue<LocalFiles>("files", {}),
         readValue<Pairing | null>("pairing", null),
         readValue<SyncRecord | null>("lastSync", null),
@@ -231,7 +232,11 @@ export class PhoneLibrary {
   }
 
   savePlaylists(playlists: SyncPlaylist[], finishMigration = false) {
-    this.playlists = playlists.map(({ id, name, songIds, createdAt, rules, coverArtwork }) => ({ id, name, songIds: [...songIds], createdAt, ...(rules ? { rules } : {}), ...(coverArtwork ? { coverArtwork } : {}) }));
+    this.playlists = playlists.map(({ id, name, songIds, createdAt, rules, coverArtwork }) => {
+      const cleaned = cleanSmartRules(rules);
+      if (rules != null && !cleaned) throw new TypeError("Invalid smart playlist rules");
+      return { id, name, songIds: [...songIds], createdAt, ...(cleaned ? { rules: cleaned } : {}), ...(coverArtwork ? { coverArtwork } : {}) };
+    });
     this.revision += 1;
     if (finishMigration) this.settings = {...this.settings, playlistMigrationCompleted: true};
     void this.save(finishMigration ? ["playlists", "settings"] : ["playlists"]).catch(() => undefined);

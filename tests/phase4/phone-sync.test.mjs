@@ -293,3 +293,20 @@ test("smart rule changes rebase with concurrent metadata and never merge generat
   assert.deepEqual(plain(merge.phonePlaylistChanges([old],[remote],[changed]).put), [{...remote,rules:changed.rules,songIds:["b"]}]);
   assert.deepEqual(plain(merge.phonePlaylistChanges([old],[remote],[{...old,songIds:["phone"]}]).put), []);
 });
+
+test("server rejects old phone smart edits and stale rules before applying any changes", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "localtify-smart-sync-"));
+  try {
+    const library = fakeLibrary(dir);
+    const rules = {match:"all",rules:[],sort:"library",limit:null};
+    const original = {...playlist("p",["a"]),rules};
+    library.repositories.playlists.save([original]);
+    const sync = createSyncServer({repositories:library.repositories, coverPath:()=>"", statePath:path.join(dir,"state.json")});
+    assert.throws(() => sync.applyChanges({playlists:{put:[playlist("p",["a"],"legacy")],delete:[]}}), /update Android/i);
+    assert.throws(() => sync.applyChanges({smartPlaylists:1,playlistExpected:[["p",{...original,rules:{...rules,limit:5}}]],playlists:{put:[original],delete:[]}}), /rebase required/);
+    assert.throws(() => sync.applyChanges({smartPlaylists:1,playlistExpected:[["p",original]],playlists:{put:[{...original,rules:{...rules,sort:"invalid"}}],delete:[]}}), /Invalid smart playlist rules/);
+    assert.deepEqual(library.playlists,[original]);
+    sync.applyChanges({smartPlaylists:1,playlistExpected:[["p",original]],playlists:{put:[{...original,rules:{...rules,limit:5}}],delete:[]}});
+    assert.equal(library.playlists[0].rules.limit,5);
+  } finally { fs.rmSync(dir,{recursive:true,force:true}); }
+});

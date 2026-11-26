@@ -1,3 +1,4 @@
+const { requireSmartRules } = require("../playlist-rules.cjs");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
 const http = require("node:http");
@@ -79,7 +80,7 @@ function cleanPlaylist(value) {
     name: cleanText(value.name) || "playlist",
     songIds: [...new Set(songIds)],
     createdAt: Number.isSafeInteger(value.createdAt) ? value.createdAt : Date.now(),
-    ...(value.rules && typeof value.rules === "object" ? { rules: value.rules } : {}),
+    ...(value.rules != null ? { rules: requireSmartRules(value.rules) } : {}),
     ...(typeof value.coverArtwork === "string" && value.coverArtwork.length <= 24576 && /^data:image\/jpeg;base64,\/9j\/[A-Za-z0-9+/]*={0,2}$/.test(value.coverArtwork) ? { coverArtwork: value.coverArtwork } : {})
   };
 }
@@ -136,7 +137,7 @@ function createSyncServer({ repositories, coverPath, statePath, serverName = "co
     });
     const settings = repositories.settings?.get?.() || {};
     return {
-      protocol: PROTOCOL,
+      protocol: PROTOCOL, smartPlaylists: 1,
       // Phones that know the live connection use it; older ones ignore the field and keep syncing in batches.
       live: LIVE_VERSION,
       // So the phone can say "Mac" or "PC"; a pairing made before this was sent learns it at the next sync.
@@ -145,7 +146,7 @@ function createSyncServer({ repositories, coverPath, statePath, serverName = "co
       features: Object.fromEntries(FEATURE_SETTINGS.filter((key) => settings[key] !== undefined).map((key) => [key, settings[key]])),
       songs,
       playlists: repositories.playlists.get(),
-      listeningCounts: repositories.listening.counts()
+      listeningCounts: repositories.listening.counts?.() ?? null
     };
   }
 
@@ -154,6 +155,7 @@ function createSyncServer({ repositories, coverPath, statePath, serverName = "co
   async function snapshotAsync() {
     const source = repositories.songs.list();
     const playlists = repositories.playlists.get();
+    const listeningCounts = repositories.listening.counts?.() ?? null;
     const songs = [];
     for (let offset = 0; offset < source.length; offset += 32) {
       const chunk = await Promise.all(source.slice(offset, offset + 32).map(async (song) => {
@@ -167,9 +169,9 @@ function createSyncServer({ repositories, coverPath, statePath, serverName = "co
     }
     const settings = repositories.settings?.get?.() || {};
     return {
-      protocol: PROTOCOL, live: LIVE_VERSION, platform, serverTime: now(),
+      protocol: PROTOCOL, smartPlaylists: 1, live: LIVE_VERSION, platform, serverTime: now(),
       features: Object.fromEntries(FEATURE_SETTINGS.filter(key => settings[key] !== undefined).map(key => [key, settings[key]])),
-      songs, playlists
+      songs, playlists, listeningCounts
     };
   }
 
@@ -202,12 +204,25 @@ function createSyncServer({ repositories, coverPath, statePath, serverName = "co
   }
 
   function applyChanges(body) {
+    // An old phone must never replace rules it cannot represent.
+    const smartPuts = Array.isArray(body?.playlists?.put) ? body.playlists.put : [];
+    const smartDeletes = Array.isArray(body?.playlists?.delete) ? body.playlists.delete : [];
+    const touchedIds = new Set([...smartPuts.map(item => item?.id), ...smartDeletes]);
+    if (touchedIds.size) {
+      const touchesSmart = smartPuts.some(item => item?.rules != null) || repositories.playlists.get().some(item => item.rules && touchedIds.has(item.id));
+      if (touchesSmart && (body.smartPlaylists !== 1 || !Array.isArray(body.playlistExpected))) {
+        const error = new Error("Smart playlist changed; update Android before editing smart playlists");
+        error.code = "PLAYLIST_CONFLICT";
+        throw error;
+      }
+      for (const item of smartPuts) if (item?.rules != null) requireSmartRules(item.rules);
+    }
     // The receipt transaction checks the exact playlist baseline before changing any songs or events.
     if (body?.playlistExpected !== undefined) {
       if (!Array.isArray(body.playlistExpected)) throw new Error("Invalid playlist baseline");
       const current = new Map(repositories.playlists.get().map(item => [item.id, item]));
       const touched = new Set([...((body.playlists?.put || []).map(item => item.id)), ...(body.playlists?.delete || [])]);
-      const canonical = item => item ? [item.id, item.name, item.songIds, item.createdAt, item.coverArtwork || ""] : null;
+      const canonical = item => item ? [item.id, item.name, item.songIds, item.createdAt, item.coverArtwork || "", item.rules == null ? null : requireSmartRules(item.rules)] : null;
       const expected = new Map(body.playlistExpected);
       if (expected.size !== touched.size || [...touched].some(id => !expected.has(id) || JSON.stringify(canonical(current.get(id))) !== JSON.stringify(canonical(expected.get(id))))) {
         const error = new Error("Playlist changed while syncing; rebase required");

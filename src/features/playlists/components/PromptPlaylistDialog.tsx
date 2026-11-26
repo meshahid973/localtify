@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import PlaylistComposer, { ComposerButton } from "./PlaylistComposer";
 import FadeContent from "../../../vendor/react-bits/FadeContent";
 import { Play, RefreshCw, Save, WandSparkles, ArrowUpRight } from "lucide-react";
@@ -32,8 +32,7 @@ export default function PromptPlaylistDialog({ songs, currentId, hidden, playSon
   const [name, setName] = useState("");
   const seed = useRef(1);
   const request = useRef(0);
-  // Prompt model scores depend only on the description, so regenerating reuses them.
-  const soundCache = useRef(new Map<string, Map<string, number>>());
+  useEffect(() => () => { request.current += 1; }, []);
   const vocabulary = useMemo(() => promptVocabulary(songs), [songs]);
   const songsById = useMemo(() => new Map(songs.map((song) => [song.id, song])), [songs]);
 
@@ -43,15 +42,16 @@ export default function PromptPlaylistDialog({ songs, currentId, hidden, playSon
     seed.current = again ? seed.current + 1 : 1;
     setLoading(true);
     const plan = parsePrompt(text, vocabulary);
-    let sound: Map<string, number> | undefined = soundCache.current.get(plan.sound);
-    let soundState: SoundState = sound ? "used" : null;
-    if (plan.sound && !sound) {
+    let sound: Map<string, number> | undefined;
+    let soundState: SoundState = null;
+    if (plan.sound) {
       try {
         const scored = await window.localitfy.scorePromptSound({ text: plan.sound });
-        if (scored.status === "ready") { sound = new Map(scored.scores); soundCache.current.set(plan.sound, sound); soundState = "used"; }
+        if (scored.status === "ready") { sound = new Map(scored.scores); soundState = "used"; }
         else soundState = scored.status;
       } catch { soundState = "error"; }
     }
+    if (token !== request.current) return;
     let similar: Map<string, number> | undefined;
     if (plan.similarTo.length) {
       const names = new Set(plan.similarTo.map(artistKey));

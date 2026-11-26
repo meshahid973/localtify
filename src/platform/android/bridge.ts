@@ -105,7 +105,7 @@ export function createAndroidBridge(): Bridge {
     savePlaylists: async (playlists, expected, finishMigration) => {
       await phoneLibrary.load();
       if (finishMigration && phoneLibrary.settings.playlistMigrationCompleted === true) { await phoneLibrary.flushWrites(true); return phoneLibrary.playlists; }
-      const canonical = (items: SyncPlaylist[]) => items.map(({id, name, songIds, createdAt, coverArtwork}) => [id, name, songIds, createdAt, coverArtwork || ""]);
+      const canonical = (items: SyncPlaylist[]) => items.map(({id, name, songIds, createdAt, coverArtwork, rules}) => [id, name, songIds, createdAt, coverArtwork || "", rules ?? null]);
       if (expected !== undefined && JSON.stringify(canonical(expected)) !== JSON.stringify(canonical(phoneLibrary.playlists))) throw new Error("Playlist conflict: library changed");
       const next = phoneLibrary.savePlaylists(playlists as SyncPlaylist[], finishMigration === true);
       await phoneLibrary.flushWrites();
@@ -133,7 +133,7 @@ export function createAndroidBridge(): Bridge {
     findSimilarSongs: (query) => fromMacOrKept("analysis:similar-songs", query, `mac:similar:${JSON.stringify(query)}`, {
       seedId: "songId" in query ? query.songId : "seedKey" in query ? query.seedKey : "recent", status: "seed-unavailable", matches: [], compared: 0, seedCount: 0
     }),
-    scorePromptSound: (payload) => fromMacOrKept("analysis:prompt-sound", payload, `mac:prompt:${payload.text.trim().toLowerCase()}`, { status: "model-missing", scores: [] }),
+    scorePromptSound: (payload) => fromMac("analysis:prompt-sound", payload, 60000),
     getLyrics: (payload) => !payload.cancel && phoneLibrary.effectiveSettings().lyricsEnabled !== true ? Promise.resolve({ status: "disabled", source: "none", lines: [] }) : payload.cancel ? fromMac<LyricsResult>("lyrics:get", payload) : fromMacOrKept<LyricsResult>("lyrics:get", payload, `mac:lyrics:${payload.id}`, { status: "offline", source: "none", lines: [] }, (result) => ["synced","plain","instrumental"].includes(result.status), 45000),
     searchLyrics: (payload) => fromMac("lyrics:search", payload, 15000),
     selectLyricsMatch: (payload) => keepLyrics(payload.id, fromMac("lyrics:select-match", payload, 15000)),
