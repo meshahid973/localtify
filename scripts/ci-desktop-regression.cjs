@@ -11,6 +11,10 @@ fs.mkdirSync(path.join(dir,"localitfy"),{recursive:true});
 app.setPath("userData",path.join(dir,"localitfy"));
 const root=path.resolve(__dirname,"..");
 const version=JSON.parse(fs.readFileSync(path.join(root,"package.json"),"utf8")).version;
+const scrollTracks=Number(process.env.LOCALTIFY_QA_SCROLL_TRACKS||0);
+assert.ok([0,10000,50000,100000].includes(scrollTracks),"Supported scroll fixtures are 10k, 50k, or 100k tracks");
+const glassFallback=process.env.LOCALTIFY_QA_GLASS_FALLBACK==="1";
+const liquidGlassToggle="Array.from(document.querySelectorAll('.toggleRow')).find(row=>row.textContent.includes('Liquid Glass'))?.querySelector('input')";
 function wav(name){
   const samples=48000*20,buf=Buffer.alloc(44+samples*2);
   buf.write("RIFF",0);buf.writeUInt32LE(buf.length-8,4);buf.write("WAVEfmt ",8);buf.writeUInt32LE(16,16);
@@ -39,6 +43,26 @@ const seed=spawnSync(process.execPath,["-e",
   "const db=require(process.argv[1]);db.initDatabase(process.argv[2]);const songs=JSON.parse(process.argv[3]);db.insertSongs(songs);for(let i=0;i<180;i++){const startedAt=Date.now()-i*86400000-60000,msListened=1000+(i%7)*4000;db.recordPlayEvent({id:'qa-listen-'+i,sessionId:'qa-session',songId:songs[i%songs.length].id,startedAt,updatedAt:startedAt+msListened,endedAt:startedAt+msListened,msListened,outcome:'ended',contextType:'library',contextId:null});}db.savePlaylists([{id:'qa-playlist',name:'qa playlist',songIds:songs.map(s=>s.id),createdAt:Date.now()}]);db.saveSettings({startWithWindows:false,idleScreensaverEnabled:false,discordRpcEnabled:false,reducedMotion:false,discoverEnabled:true,lyricsEnabled:true,lyricsOnlineLookup:false,coverColorSyncMode:'strong',homeBannerType:'dynamic',showAmbientGradient:true,playerBackgroundStyle:'coverBlur',homeHiddenSections:['dailyMixes','likedSongs','rediscover','notPlayedYet']});",
   path.join(root,"electron/db.cjs"),path.join(app.getPath("userData"),"localitfy.sqlite"),JSON.stringify(songs)],{env:{...process.env,ELECTRON_RUN_AS_NODE:"1"},encoding:"utf8"});
 if(seed.status!==0)throw Error("Synthetic database seed failed: "+seed.stderr);
+if(scrollTracks){
+  const scrollSeed=spawnSync(process.execPath,["-e",`
+    const fs=require("node:fs"),path=require("node:path"),db=require(process.argv[1]);
+    db.initDatabase(process.argv[2]);
+    const song=JSON.parse(process.argv[3]),count=Number(process.argv[4]);
+    const folder=path.join(path.dirname(song.filePath),"scroll-fixture");
+    fs.mkdirSync(folder);
+    for(let start=12;start<count;start+=1000){
+      const batchSource=path.join(folder,"seed-"+start+".wav");
+      fs.copyFileSync(song.filePath,batchSource);
+      const tracks=Array.from({length:Math.min(1000,count-start)},(_,offset)=>{
+        const index=start+offset,filePath=path.join(folder,"scroll-"+index+".wav");
+        fs.linkSync(batchSource,filePath);
+        return {...song,id:"scroll-"+index,title:"Track "+index,filePath,liked:false,playCount:0};
+      });
+      db.insertSongs(tracks);
+    }
+  `,path.join(root,"electron/db.cjs"),path.join(app.getPath("userData"),"localitfy.sqlite"),JSON.stringify(songs[0]),String(scrollTracks)],{env:{...process.env,ELECTRON_RUN_AS_NODE:"1"},encoding:"utf8"});
+  if(scrollSeed.status!==0)throw Error("Large-library seed failed: "+scrollSeed.stderr);
+}
 const recoveryStore=require("../electron/download-jobs.cjs").createDownloadJobStore(app.getPath("userData"));
 const recoveryJob=recoveryStore.prepare({source:"youtube",url:"https://www.youtube.com/watch?v=abcdefghijk",folder:dir,options:{autoAdd:false}});
 recoveryStore.update(recoveryJob.id,{status:"downloading",progress:37,message:"Recover this interrupted download"});
@@ -137,6 +161,71 @@ server.listen(5173,async()=>{
     await until(()=>win.webContents.executeJavaScript("!document.querySelector('.appCrashBoundary') && !!document.querySelector('.appShell')").catch(()=>false),"desktop shell",35000,16);
     const reloadMs=performance.now()-reloadStarted;
     win.setSize(1280,800);await sleep(700);
+    if(glassFallback){
+      await win.webContents.executeJavaScript(`(()=>{
+        const getContext=HTMLCanvasElement.prototype.getContext;
+        HTMLCanvasElement.prototype.getContext=function(type,...options){
+          return type==="webgl2" ? null : getContext.call(this,type,...options);
+        };
+      })()`);
+      assert.equal(await win.webContents.executeJavaScript("!!document.createElement('canvas').getContext('webgl2')"),false,"WebGL2 is disabled");
+      await win.webContents.executeJavaScript("document.querySelector('.sidebar [data-nav-id=settings]').click()");
+      await until(()=>win.webContents.executeJavaScript(`Boolean(${liquidGlassToggle})`),"fallback appearance toggle");
+      await win.webContents.executeJavaScript(`${liquidGlassToggle}.click()`);
+      await until(()=>win.webContents.executeJavaScript("document.querySelector('.app')?.dataset.liquidGlass==='true' && Boolean(document.querySelector('.ltOpticalPanelMaterial'))"),"glass CSS fallback");
+      assert.equal(await win.webContents.executeJavaScript("document.querySelectorAll('[data-glass-ready]').length"),0);
+      await screenshot(win,"glass-no-webgl-settings");
+      await win.webContents.executeJavaScript("document.querySelector('.sidebar [data-nav-id=library]').click()");
+      await until(()=>win.webContents.executeJavaScript("Boolean(document.querySelector('.libraryPage .songRow'))"),"fallback Library");
+      await win.webContents.executeJavaScript("document.querySelector('.songButton').click()");
+      await until(()=>win.webContents.executeJavaScript("Array.from(document.querySelectorAll('audio')).some(audio=>!audio.paused && audio.currentTime>0)"),"fallback playback");
+      assert.ok(await win.webContents.executeJavaScript("Boolean(document.querySelector('.playerBar input[aria-label=\"volume level\"]'))"),"native volume stays usable without a canvas");
+      await screenshot(win,"glass-no-webgl-library");
+      clearTimeout(watchdog);server.close();app.exit(0);
+      return;
+    }
+    if(scrollTracks){
+      const runScroll=async()=>{
+        const start=performance.now();
+        await win.webContents.executeJavaScript("document.querySelector('.sidebar [data-nav-id=library]').click()");
+        await until(()=>win.webContents.executeJavaScript(`Number(document.querySelector('.libraryCount')?.textContent.split(' ')[0])===${scrollTracks} && !!document.querySelector('.songRow')`),"large Library ready",60000,16);
+        const navigationMs=performance.now()-start;
+        const scrolling=await win.webContents.executeJavaScript(`(async()=>{
+          const content=document.querySelector('.content');
+          const frame=()=>new Promise(resolve=>requestAnimationFrame(resolve));
+          const height=content.scrollHeight-content.clientHeight;
+          content.scrollTop=0;
+          let previous=await frame(),mounts=0,canvases=0;
+          const deltas=[];
+          for(let index=1;index<=120;index++){
+            content.scrollTop=Math.round(index*height/120);
+            const time=await frame();
+            deltas.push(time-previous);
+            previous=time;
+            mounts=Math.max(mounts,document.querySelectorAll('.libraryPage .songRow').length);
+            canvases=Math.max(canvases,document.querySelectorAll('.libraryPage .songRow canvas').length);
+          }
+          deltas.sort((left,right)=>left-right);
+          return {height,mounts,canvases,p50Ms:deltas[59],p95Ms:deltas[113],maxMs:deltas.at(-1)};
+        })()`);
+        assert.ok(scrolling.height>10000 && scrolling.mounts>0 && scrolling.mounts<100 && scrolling.canvases===0,`large Library remains virtualized: ${JSON.stringify(scrolling)}`);
+        return {navigationMs,scrolling};
+      };
+      const disabled=await runScroll();
+      let enabled;
+      if(process.env.LOCALTIFY_QA_LIQUID_GLASS==="1"){
+        await win.webContents.executeJavaScript("document.querySelector('.sidebar [data-nav-id=settings]').click()");
+        await until(()=>win.webContents.executeJavaScript(`Boolean(${liquidGlassToggle})`),"large fixture appearance toggle");
+        await win.webContents.executeJavaScript(`${liquidGlassToggle}.click()`);
+        await until(()=>win.webContents.executeJavaScript("Boolean(document.querySelector('[data-glass-ready]'))"),"large fixture optics");
+        enabled=await runScroll();
+      }
+      const result={scrollTracks,startupMs,reloadMs,disabled,enabled};
+      fs.writeFileSync(path.join(output,"large-library-scroll.json"),JSON.stringify(result,null,2));
+      console.log("[desktop-scroll]",JSON.stringify(result));
+      clearTimeout(watchdog);server.close();app.exit(0);
+      return;
+    }
     assert.equal(await win.webContents.executeJavaScript("document.querySelector('.app').dataset.sidebarBehavior"), "slim", "fresh installs use collapsed navigation");
     const originalMinSize=win.getMinimumSize();
     await win.webContents.executeJavaScript("document.querySelector('.sidebar [data-nav-id=library]').click()");
@@ -825,7 +914,7 @@ server.listen(5173,async()=>{
         await win.webContents.executeJavaScript(`document.querySelector(${JSON.stringify(selector)}).click()`);
         await until(()=>win.webContents.executeJavaScript(`(()=>{const page=document.querySelector('.pageTransition[data-view="${view}"]');return !!page?.firstElementChild&&!page.querySelector('.collectionLoading')&&Number(getComputedStyle(page).opacity)>=.99})()`),"glass view "+view);
       };
-      const toggle="Array.from(document.querySelectorAll('.toggleRow')).find(row=>row.textContent.includes('Liquid Glass')).querySelector('input')";
+      const toggle=liquidGlassToggle;
       await openView("settings");
       await until(()=>win.webContents.executeJavaScript(`Boolean(${toggle})`).catch(()=>false),"Liquid Glass switch");
       const before=await win.webContents.executeJavaScript("document.querySelector('.app').dataset.liquidGlass");
