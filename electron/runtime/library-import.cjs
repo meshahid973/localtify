@@ -77,8 +77,8 @@ function createLibraryImportRuntime({getSongs, getSong, insertSongs, patchSong, 
       }
     };
     walk(root, 0);
-    out.sort((a, b) => (getFileInfoCached(b).mtimeMs || 0) - (getFileInfoCached(a).mtimeMs || 0));
-    return out;
+    return out.map(file => ({file, mtime: getFileInfoCached(file).mtimeMs || 0}))
+      .sort((a,b) => b.mtime - a.mtime).map(entry => entry.file);
   }
 
   async function makeSongFromFileWithMetadata(filePath, tracks = [], pixelArtFiles = [], usedCovers = new Set()) {

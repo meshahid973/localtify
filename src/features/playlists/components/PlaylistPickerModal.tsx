@@ -42,7 +42,12 @@ export function PlaylistMembershipDialog({label, title, subtitle, songIds, name,
     let addedCount = 0;
     if (requestedIds.size === 1) addedCount = playlist.songIds.includes(requestedIds.values().next().value!) ? 1 : 0;
     else if (requestedIds.size) {
-      for (const id of playlist.songIds) if (requestedIds.has(id) && ++addedCount === requestedIds.size) break;
+      const matched = new Set<string>();
+      for (const id of playlist.songIds) {
+        if (requestedIds.has(id)) matched.add(id);
+        if (matched.size === requestedIds.size) break;
+      }
+      addedCount = matched.size;
     }
     const previewSongs = playlist.songIds.slice(0, 4).map(id=>songsById.get(id)).filter((song): song is Song=>Boolean(song));
     return {playlist, addedCount, previewSongs};

@@ -230,14 +230,9 @@ export function buildLocalAlbumEntries(inputSongs: Song[]): LocalAlbumEntry[] {
   return [...groups.values()].map((album) => ({
     ...album,
     coverSong: pickAlbumCoverSong(album.songs),
-    songs: [...album.songs].sort((a, b) => {
-      const trackA = albumTrackNumber(a);
-      const trackB = albumTrackNumber(b);
-      if (trackA && trackB && trackA !== trackB) return trackA - trackB;
-      if (trackA && !trackB) return -1;
-      if (trackB && !trackA) return 1;
-      return getSongAddedTime(a) - getSongAddedTime(b);
-    })
+    songs: album.songs.map(song => ({song, track: albumTrackNumber(song), added: getSongAddedTime(song)}))
+      .sort((a,b) => (a.track || Infinity) - (b.track || Infinity) || a.added - b.added)
+      .map(entry => entry.song)
   })).sort((a, b) => b.latestAdded - a.latestAdded || a.title.localeCompare(b.title));
 }
 

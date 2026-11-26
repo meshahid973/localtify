@@ -4669,7 +4669,7 @@ function MainModeApp() {
       playerError,
       playSongs: homePlaySongs,
       selectSong: homeSelectSong,
-      songs,
+      songs, songsById,
       settings: homeSettings,
       shuffleLibrarySongsAction: homeShuffle,
       toggleHeroExpanded: homeToggleHero,

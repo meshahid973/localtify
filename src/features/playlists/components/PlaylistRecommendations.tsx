@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Plus, RefreshCw } from "lucide-react";
+import { isAndroidApp } from "../../../app/platform";
 import { Cover } from "../../covers/Cover";
 import type { Song } from "../../library/song.types";
 import { prettyMeta, prettyTitle } from "../../search";
@@ -30,7 +31,8 @@ export default function PlaylistRecommendations({ playlist, songs, songsById, pl
 
   useEffect(() => {
     let cancelled = false;
-    const requestId = crypto.randomUUID();
+    // Android retains offline answers under stable query keys.
+    const requestId = isAndroidApp() ? undefined : crypto.randomUUID();
     let requesting = false;
     setSeen(new Set());
     void (async () => {
@@ -51,7 +53,7 @@ export default function PlaylistRecommendations({ playlist, songs, songsById, pl
     })();
     return () => {
       cancelled = true;
-      if (requesting) void window.localitfy.cancelRecommendation?.(requestId).catch(() => undefined);
+      if (requesting && requestId) void window.localitfy.cancelRecommendation?.(requestId).catch(() => undefined);
     };
   }, [playlist.id, reload, songsById, hidden]);
 

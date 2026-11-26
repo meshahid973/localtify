@@ -692,7 +692,7 @@ const ALBUM_FOLDER_IMPORT_PROGRESS_EVERY_TRACKS = 5;
 const ALBUM_FOLDER_DISC_FOLDER_RE = /^(?:cd|disc|disk|side|volume|vol)\s*[-_ ]?\d{1,2}$/i;
 
 function findAlbumFolderCoverPath(folderPath) { return findFolderCover(folderPath); }
-function folderHasAudioFiles(folderPath) { return listAudioFilesInDirectory(folderPath, { maxDepth: 0, maxFiles: 8 }).length > 0; }
+function folderHasAudioFiles(folderPath) { return listAudioFilesInDirectory(folderPath, { maxDepth: 0, maxFiles: 1 }).length > 0; }
 function isDiscLikeAlbumSubfolderName(name = "") { return ALBUM_FOLDER_DISC_FOLDER_RE.test(String(name || "").trim()); }
 function folderHasDiscAudioFiles(folderPath) {
   let entries = [];
@@ -701,14 +701,16 @@ function folderHasDiscAudioFiles(folderPath) {
 }
 function isAlbumFolderCandidate(folderPath) { return folderHasAudioFiles(folderPath) || folderHasDiscAudioFiles(folderPath); }
 function isIgnoredAlbumLibraryFolderName(name = "") { return String(name || "").startsWith(".") || name === "localitfy-bin" || name === "spotify-covers" || name === "node_modules" || name === "release" || name === "dist"; }
-function findAlbumFoldersFromRoot(rootPath, mode = "single") {
+async function findAlbumFoldersFromRoot(rootPath, mode = "single") {
   const root = String(rootPath || "");
   if (!root || !path.isAbsolute(root) || !fs.existsSync(root)) return [];
   const folders = [];
   const queue = [{ folderPath: root, depth: 0 }];
   const seen = new Set();
-  while (queue.length && folders.length < ALBUM_FOLDER_MAX_ALBUMS) {
-    const current = queue.shift();
+  let cursor = 0;
+  while (cursor < queue.length && folders.length < ALBUM_FOLDER_MAX_ALBUMS) {
+    if (cursor % 8 === 0) await yieldToMainLoop();
+    const current = queue[cursor++];
     const folderPath = current?.folderPath || "";
     const depth = Number(current?.depth || 0);
     const folderKey = filePathKey(folderPath);
@@ -728,9 +730,8 @@ function findAlbumFoldersFromRoot(rootPath, mode = "single") {
   return folders.slice(0, ALBUM_FOLDER_MAX_ALBUMS);
 }
 
-async function buildAlbumFolderPreview(folderPath, index = 0) {
+async function buildAlbumFolderPreview(folderPath, index, existingPaths) {
   const folderTitle = cleanAlbumFolderText(path.basename(folderPath), `album ${index + 1}`);
-  const existingPaths = new Set(getSongs().map((song) => filePathKey(String(song.filePath || ""))).filter(Boolean));
   const audioFiles = listAudioFilesInDirectory(folderPath, { maxDepth: 1, maxFiles: ALBUM_FOLDER_MAX_TRACKS_PER_ALBUM });
   const folderCoverPath = findAlbumFolderCoverPath(folderPath);
   let albumEmbeddedCoverPath = "";
@@ -817,12 +818,14 @@ async function handleAlbumFolderScan(event, payload = {}) {
   if (result.canceled || !result.filePaths?.[0]) return { ok: true, canceled: true, mode, albums: [], albumCount: 0, trackCount: 0, duplicateCount: 0, message: "album folder picker cancelled" };
   const rootPath = result.filePaths[0];
   event.sender.send("album-folder-import:progress", { type: "scan-start", mode, rootPath, message: "Scanning album folders..." });
-  const folderPaths = findAlbumFoldersFromRoot(rootPath, mode);
+  const folderPaths = await findAlbumFoldersFromRoot(rootPath, mode);
+  // A scan uses a consistent duplicate snapshot; importing rechecks the library.
+  const existingPaths = new Set(getSongs().map(song => filePathKey(String(song.filePath || ""))).filter(Boolean));
   const albums = [];
   for (let index = 0; index < folderPaths.length; index += 1) {
     const folderPath = folderPaths[index];
     event.sender.send("album-folder-import:progress", { type: "scan-progress", mode, index: index + 1, total: folderPaths.length, folder: folderPath, folderPath, message: `Scanning ${path.basename(folderPath)}` });
-    const preview = await buildAlbumFolderPreview(folderPath, index);
+    const preview = await buildAlbumFolderPreview(folderPath, index, existingPaths);
     if (preview.trackCount > 0) albums.push(preview);
     await yieldToMainLoop();
   }
