@@ -93,31 +93,47 @@ export function usesClock(rules: SmartRules) {
   return rules.sort === "random" || rules.rules.some(rule => rule.field === "added" || rule.field === "lastPlayed");
 }
 
-function textMatches(haystack: string | undefined, needle: string) {
-  const query = normalizeSearchText(needle);
-  // Non-Latin text normalizes to nothing, so compare it as typed.
-  return query ? normalizeSearchText(haystack).includes(query) : String(haystack || "").toLowerCase().includes(needle.toLowerCase());
-}
-
 function timeOf(value: string | null | undefined) { const time = Date.parse(value || ""); return Number.isFinite(time) ? time : null; }
 
-function ruleMatches(song: Song, rule: SmartRule, counts: ListeningCounts, now: number) {
-  const kind = SMART_FIELDS[rule.field].kind;
-  if (kind === "text") {
-    const found = textMatches(song[rule.field as "genre" | "artist" | "album" | "title"], String(rule.value));
-    return rule.op === "contains" ? found : !found;
+function compileRules(rules: SmartRules, counts: ListeningCounts, now: number) {
+  const checks = rules.rules.map(rule => {
+    const kind = SMART_FIELDS[rule.field].kind;
+    if (kind === "text") {
+      const field = rule.field as "genre" | "artist" | "album" | "title";
+      const needle = String(rule.value);
+      const query = normalizeSearchText(needle);
+      const fallback = needle.toLowerCase();
+      return (song: Song) => {
+        const found = query ? normalizeSearchText(song[field]).includes(query) : String(song[field] || "").toLowerCase().includes(fallback);
+        return rule.op === "contains" ? found : !found;
+      };
+    }
+    if (kind === "flag") return (song: Song) => rule.op === "is" ? song.liked : !song.liked;
+    const limit = Number(rule.value);
+    if (kind === "count") return (song: Song) => {
+      const count = rule.field === "plays" ? Number(song.playCount) || 0 :
+        rule.field === "finishes" ? counts.get(song.id)?.finishes || 0 : counts.get(song.id)?.skips || 0;
+      return rule.op === "atLeast" ? count >= limit : count <= limit;
+    };
+    const windowMs = limit * DAY_MS;
+    return (song: Song) => {
+      const time = timeOf(rule.field === "added" ? song.dateAdded : song.lastPlayed);
+      const recent = time !== null && time <= now && now - time <= windowMs;
+      return rule.op === "within" ? recent : !recent;
+    };
+  });
+  return (song: Song) => song.fileExists !== false &&
+    (rules.match === "all" ? checks.every(check => check(song)) : !checks.length || checks.some(check => check(song)));
+}
+
+/** A preview needs only the capped count, never sorted IDs or a full result array. */
+export function countSmartMatches(rules: SmartRules, songs: readonly Song[], counts: ListeningCounts = new Map(), now = Date.now()) {
+  const matches = compileRules(rules, counts, now);
+  let count = 0;
+  for (const song of songs) {
+    if (matches(song) && ++count === rules.limit) break;
   }
-  if (kind === "flag") return rule.op === "is" ? song.liked : !song.liked;
-  const limit = Number(rule.value);
-  if (kind === "count") {
-    const stats = counts.get(song.id);
-    const count = rule.field === "plays" ? Number(song.playCount) || 0 : rule.field === "finishes" ? stats?.finishes || 0 : stats?.skips || 0;
-    return rule.op === "atLeast" ? count >= limit : count <= limit;
-  }
-  const time = timeOf(rule.field === "added" ? song.dateAdded : song.lastPlayed);
-  const recent = time !== null && time <= now && now - time <= limit * DAY_MS;
-  // A song that was never played counts as "not played in the last N days".
-  return rule.op === "within" ? recent : !recent;
+  return count;
 }
 
 function dailyShuffleKey(id: string, day: number) {
@@ -128,23 +144,32 @@ function dailyShuffleKey(id: string, day: number) {
 
 /** Song IDs for a smart playlist, in its chosen order. Songs whose files are missing are left out. */
 export function evaluateSmartRules(rules: SmartRules, songs: readonly Song[], counts: ListeningCounts = new Map(), now = Date.now()) {
-  const matches = (song: Song) => rules.match === "all"
-    ? rules.rules.every((rule) => ruleMatches(song, rule, counts, now))
-    : !rules.rules.length || rules.rules.some((rule) => ruleMatches(song, rule, counts, now));
-  const picked = songs.filter((song) => song.fileExists !== false && matches(song));
+  const matches = compileRules(rules, counts, now);
+  if (rules.sort === "library") {
+    const ids: string[] = [];
+    for (const song of songs) {
+      if (matches(song)) {
+        ids.push(song.id);
+        if (ids.length === rules.limit) break;
+      }
+    }
+    return ids;
+  }
   const day = Math.floor(now / DAY_MS);
-  const plays = (song: Song) => Number(song.playCount) || 0;
-  const order: Record<SmartSort, ((a: Song, b: Song) => number) | null> = {
-    library: null,
-    mostPlayed: (a, b) => plays(b) - plays(a),
-    leastPlayed: (a, b) => plays(a) - plays(b),
-    recentlyAdded: (a, b) => (timeOf(b.dateAdded) || 0) - (timeOf(a.dateAdded) || 0),
-    recentlyPlayed: (a, b) => (timeOf(b.lastPlayed) || 0) - (timeOf(a.lastPlayed) || 0),
-    random: (a, b) => dailyShuffleKey(a.id, day) - dailyShuffleKey(b.id, day)
+  const key = (song: Song) => {
+    switch (rules.sort) {
+      case "mostPlayed": return -(Number(song.playCount) || 0);
+      case "leastPlayed": return Number(song.playCount) || 0;
+      case "recentlyAdded": return -(timeOf(song.dateAdded) || 0);
+      case "recentlyPlayed": return -(timeOf(song.lastPlayed) || 0);
+      case "random": return dailyShuffleKey(song.id, day);
+      default: return 0;
+    }
   };
-  const compare = order[rules.sort];
-  if (compare) picked.sort((a, b) => compare(a, b) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-  return (rules.limit ? picked.slice(0, rules.limit) : picked).map((song) => song.id);
+  const picked: {id: string; key: number}[] = [];
+  for (const song of songs) if (matches(song)) picked.push({id: song.id, key: key(song)});
+  picked.sort((a,b) => a.key - b.key || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return (rules.limit ? picked.slice(0, rules.limit) : picked).map(song => song.id);
 }
 
 /** "liked · last played not in the last 60 days · shuffled daily · up to 50" */
@@ -160,7 +185,8 @@ export function describeSmartRules(rules: SmartRules) {
   return [conditions, rules.sort === "library" ? "" : SMART_SORTS[rules.sort], rules.limit ? `up to ${rules.limit}` : ""].filter(Boolean).join(" · ");
 }
 
-type SmartMaterialization = {rules: string; songs: readonly Song[]; counts: ListeningCounts | null; clock: number; ids: string[]};
+type Playlist = import("./playlist.types").Playlist;
+type SmartMaterialization = {rules: string; songs: readonly Song[]; counts: ListeningCounts | null; clock: number; ids: string[]; input: Playlist; result: Playlist};
 export type SmartMaterializationCache = Map<string, SmartMaterialization>;
 export function materializeSmartPlaylists(playlists: import("./playlist.types").Playlist[], songs: readonly Song[], counts: ListeningCounts | null, now: number, cache?: SmartMaterializationCache) {
   if(cache){const ids=new Set(playlists.filter(item=>item.rules).map(item=>item.id));for(const id of cache.keys())if(!ids.has(id))cache.delete(id);}
@@ -172,8 +198,10 @@ export function materializeSmartPlaylists(playlists: import("./playlist.types").
     const clock = playlist.rules.rules.some(rule=>SMART_FIELDS[rule.field].kind==="days") ? now : playlist.rules.sort === "random" ? Math.floor(now / DAY_MS) : 0;
     const prior = cache?.get(playlist.id);
     const songIds = prior && prior.rules===rules && prior.songs===songs && prior.counts===relevantCounts && prior.clock===clock ? prior.ids : evaluateSmartRules(playlist.rules, songs, counts ?? new Map(), now);
-    cache?.set(playlist.id,{rules,songs,counts:relevantCounts,clock,ids:songIds});
-    return songIds.length === playlist.songIds.length && songIds.every((id, index) => id === playlist.songIds[index]) ? playlist : { ...playlist, songIds };
+    const result = prior && prior.input === playlist && prior.ids === songIds ? prior.result :
+      songIds.length === playlist.songIds.length && songIds.every((id, index) => id === playlist.songIds[index]) ? playlist : { ...playlist, songIds };
+    cache?.set(playlist.id,{rules,songs,counts:relevantCounts,clock,ids:songIds,input:playlist,result});
+    return result;
   });
 }
 

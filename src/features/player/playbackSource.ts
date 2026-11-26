@@ -105,11 +105,14 @@ export function repeatButtonTitleFor(repeatMode: RepeatMode, inPlaylist: boolean
 /** Normalize queued songs without changing the saved library order. */
 export function getPlayableUniqueSongIds(ids: string[], songsById: Map<string, Song>): string[] {
   const seen = new Set<string>();
-  return ids.map((id) => songsById.get(id)).filter(isPlayableSong).filter((song) => {
-    if (seen.has(song.id)) return false;
+  const result: string[] = [];
+  for (const id of ids) {
+    const song = songsById.get(id);
+    if (!isPlayableSong(song) || seen.has(song.id)) continue;
     seen.add(song.id);
-    return true;
-  }).map((song) => song.id);
+    result.push(song.id);
+  }
+  return result;
 }
 
 /** Keep the selected view order without persisting it or retaining removed tracks. */

@@ -154,3 +154,17 @@ test("sorted playback retains membership changes without rewriting saved order",
   assert.equal(exports.resolvePlaylistPlaybackIds(playlist,{id:"other",songIds:[]}),playlist.songIds);
   assert.deepEqual(playlist.songIds,["a","b","c"]);
 });
+
+test("smart preview counts equal materialized lengths across sorts, limits and match modes", () => {
+  const {countSmartMatches,evaluateSmartRules,materializeSmartPlaylists} = loadSmart();
+  const counts = new Map([["never",{finishes:4,skips:2}]]);
+  for(const sort of ["library","mostPlayed","leastPlayed","recentlyAdded","recentlyPlayed","random"]) for(const limit of [null,1,3,100]) for(const match of ["all","any"]) {
+    const rules={match,sort,limit,rules:[{field:"genre",op:"contains",value:"pop"},{field:"finishes",op:"atLeast",value:2}]};
+    assert.equal(countSmartMatches(rules,library,counts,NOW),evaluateSmartRules(rules,library,counts,NOW).length);
+  }
+  const playlist={id:"p",name:"test",songIds:[],rules:{match:"all",sort:"random",limit:2,rules:[]}};
+  const cache=new Map();
+  const first=materializeSmartPlaylists([playlist],library,counts,NOW,cache)[0];
+  const second=materializeSmartPlaylists([playlist],library,counts,NOW+1000,cache)[0];
+  assert.equal(first,second,"unchanged derived playlist keeps object identity");
+});

@@ -10,6 +10,7 @@ import { RECOMMENDATION_PAGE, audioRecommendationSeeds, pickRecommendations, ran
 export type PlaylistRecommendationsProps = {
   playlist: Playlist;
   songs: Song[];
+  songsById: Map<string, Song>;
   playlists: Playlist[];
   currentId: string;
   /** Songs marked "not for me" are never suggested. */
@@ -21,8 +22,7 @@ export type PlaylistRecommendationsProps = {
 type Pool = { playlistId: string; ids: string[]; bySound: boolean };
 
 /** Spotify-style "Recommended songs" under a playlist: a short list with an add button per song and a refresh. */
-export default function PlaylistRecommendations({ playlist, songs, playlists, currentId, hidden, addSongToPlaylist, selectSong }: PlaylistRecommendationsProps) {
-  const songsById = useMemo(() => new Map(songs.map((song) => [song.id, song])), [songs]);
+export default function PlaylistRecommendations({ playlist, songs, songsById, playlists, currentId, hidden, addSongToPlaylist, selectSong }: PlaylistRecommendationsProps) {
   const [pool, setPool] = useState<Pool | null>(null);
   const [seen, setSeen] = useState<ReadonlySet<string>>(() => new Set());
   const [reload, setReload] = useState(0);
@@ -30,22 +30,29 @@ export default function PlaylistRecommendations({ playlist, songs, playlists, cu
 
   useEffect(() => {
     let cancelled = false;
+    const requestId = crypto.randomUUID();
+    let requesting = false;
     setSeen(new Set());
     void (async () => {
       const members = playlist.songIds.map((id) => songsById.get(id)).filter((song): song is Song => !!song && song.fileExists !== false);
       if (!members.length) { setPool({ playlistId: playlist.id, ids: [], bySound: false }); return; }
       let bySound: string[] = [];
       try {
+        requesting = true;
         const result = await window.localitfy.findSimilarSongs({ songIds: audioRecommendationSeeds(members),
-          seedKey: `recommend:${playlist.id}`.slice(0, 200), limit: 50 });
+          seedKey: `recommend:${playlist.id}`.slice(0, 200), limit: 50, requestId });
         if (result.status === "ready") bySound = result.matches.map((match) => match.songId);
       } catch { /* Without saved audio analysis, library relationships still give suggestions. */ }
+      finally { requesting = false; }
       if (cancelled) return;
       const related = rankScores(relatedSongScores(members, songs, playlists)).slice(0, 120);
       const ids = [...new Set([...bySound, ...related])].filter((id) => { const song = songsById.get(id); return !!song && !hidden(song); });
       setPool({ playlistId: playlist.id, ids, bySound: bySound.length >= RECOMMENDATION_PAGE / 2 });
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (requesting) void window.localitfy.cancelRecommendation?.(requestId).catch(() => undefined);
+    };
   }, [playlist.id, reload, songsById, hidden]);
 
   const current = pool?.playlistId === playlist.id ? pool : null;

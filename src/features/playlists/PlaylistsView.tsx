@@ -276,7 +276,7 @@ export default function PlaylistsView(props: PlaylistsViewProps) {
             onRemoveSong={removePlaylistSongAction}
           />}
           {!detailPlaylist.rules && detailSongs.length > 0 ? (
-            <PlaylistRecommendations playlist={detailPlaylist} songs={songs} playlists={playlists} currentId={currentId} hidden={hidden}
+            <PlaylistRecommendations playlist={detailPlaylist} songs={songs} songsById={songsById} playlists={playlists} currentId={currentId} hidden={hidden}
               addSongToPlaylist={props.addSongToPlaylist} selectSong={props.selectSong} />
           ) : null}
         </section>

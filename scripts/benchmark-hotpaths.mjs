@@ -131,3 +131,11 @@ for (const [i,[active,delay]] of lookup().entries()) {
   assert.ok(delay>=16 && delay<=250);
 }
 console.log("[lyrics-clock] 10k line/word boundary calculations across 2k lines:",bench(lookup).toFixed(2),"ms (algorithm only)");
+
+const smart = loadTs("src/features/playlists/smartPlaylist.ts", {"../search/search.utils":search});
+const smartRules = {match:"all", rules:[{field:"genre",op:"contains",value:"rock"}],sort:"recentlyAdded",limit:100};
+const smartFixture = largeLibrary.map((song,index)=>({...song,dateAdded:new Date(1700000000000+index*864000).toISOString()}));
+const preview = () => smart.countSmartMatches(smartRules,smartFixture);
+const materialize = () => smart.evaluateSmartRules(smartRules,smartFixture);
+assert.equal(preview(),materialize().length);
+console.log("[smart-playlists] 50k-track capped count / materialized result:",bench(preview).toFixed(2),"/",bench(materialize).toFixed(2),"ms");

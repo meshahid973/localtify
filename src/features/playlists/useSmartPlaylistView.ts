@@ -22,7 +22,7 @@ export function useSmartPlaylistView(stored: Playlist[], songs: Song[]) {
         if (!Array.isArray(rows)) return;
         const next = new Map(rows.map(([id, finishes, skips]) => [id, { finishes, skips }]));
         setListeningCounts(previous => previous && previous.size === next.size &&
-          [...next].every(([id, row]) => previous.get(id)?.finishes === row.finishes && previous.get(id)?.skips === row.skips) ? previous : next);
+          rows.every(([id, finishes, skips]) => previous.get(id)?.finishes === finishes && previous.get(id)?.skips === skips) ? previous : next);
       } catch { /* Keep the last successful counts until the next refresh. */ }
       finally { busy = false; }
     }
