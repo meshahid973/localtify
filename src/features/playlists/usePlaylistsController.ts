@@ -204,6 +204,8 @@ export function usePlaylistsController({
     if (existingPlaylist) {
       if (!await confirmSaved("Playlist already exists", items => items.some(item => item.id === existingPlaylist.id))) return null;
       setSelectedPlaylistId(existingPlaylist.id);
+      if (typeof forcedName === "string") setPlaylistPickerName("");
+      else setNewPlaylistName("");
       return existingPlaylist.id;
     }
 
@@ -284,7 +286,7 @@ export function usePlaylistsController({
     setRenamingPlaylistName("");
   }, []);
 
-  const savePlaylistRename = useCallback((playlistId: string) => {
+  const savePlaylistRename = useCallback(async (playlistId: string) => {
     const current = persistence.current().find((playlist) => playlist.id === playlistId);
     if (!current) return;
     const nextName = renamingPlaylistName.trim().slice(0, 120) || current.name;
@@ -300,19 +302,20 @@ export function usePlaylistsController({
     setPlaylists((items) => items.map((playlist) =>
       playlist.id === playlistId ? { ...playlist, name: nextName } : playlist
     ));
+    if (!await confirmSaved(`renamed playlist to ${nextName}`, items => items.some(item => item.id === playlistId && item.name === nextName))) return false;
     setRenamingPlaylistId(null);
     setRenamingPlaylistName("");
-    void confirmSaved(`renamed playlist to ${nextName}`, items => items.some(item => item.id === playlistId && item.name === nextName));
+    return true;
   }, [confirmSaved, persistence, renamingPlaylistName, setStatusText, showAppToast]);
 
-  const setPlaylistArtwork = useCallback((id: string, value: string | null) => {
+  const setPlaylistArtwork = useCallback(async (id: string, value: string | null) => {
     const coverArtwork = cleanPlaylistArtwork(value);
-    if (value && !coverArtwork) return;
+    if (value && !coverArtwork) return false;
     setPlaylists(items => items.map(item => item.id === id ? { ...item, coverArtwork: coverArtwork || undefined } : item));
-    void confirmSaved(coverArtwork ? "playlist artwork saved" : "playlist artwork removed", items => items.some(item => item.id === id && (item.coverArtwork || null) === coverArtwork));
+    return confirmSaved(coverArtwork ? "playlist artwork saved" : "playlist artwork removed", items => items.some(item => item.id === id && (item.coverArtwork || null) === coverArtwork));
   }, [confirmSaved, setPlaylists]);
 
-  const duplicatePlaylist = useCallback((playlistId: string) => {
+  const duplicatePlaylist = useCallback(async (playlistId: string) => {
     const source = persistence.current().find((playlist) => playlist.id === playlistId);
     if (!source) return;
     const existingNames = new Set(persistence.current().map((playlist) => playlist.name.trim().toLowerCase()));
@@ -326,8 +329,7 @@ export function usePlaylistsController({
 
     const copy: Playlist = { id: makeLocalId("playlist"), name, songIds: [...source.songIds], createdAt: Date.now(), ...(source.rules ? { rules: source.rules } : {}), ...(source.coverArtwork ? { coverArtwork: source.coverArtwork } : {}) };
     setPlaylists((items) => [copy, ...items]);
-    setSelectedPlaylistId(copy.id);
-    void confirmSaved(`duplicated ${source.name}`, items => items.some(item => item.id === copy.id));
+    if (await confirmSaved(`duplicated ${source.name}`, items => items.some(item => item.id === copy.id))) setSelectedPlaylistId(copy.id);
   }, [confirmSaved, persistence, setStatusText, showAppToast]);
 
   const openPlaylist = useCallback((playlistId: string) => {

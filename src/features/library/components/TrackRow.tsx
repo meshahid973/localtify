@@ -4,6 +4,7 @@ import { LikeHeartAnimationV443 } from "../../../shared/ui/LikeHeartAnimation";
 import { PlayingBarsIcon } from "../../../shared/ui/LocaltifyViewUi";
 import { SolidIcon } from "../../../shared/ui/SolidIcon";
 import "./track-row.css";
+import { openContextMenuFromKeyboard } from "../../../shared/ui/contextMenuPosition";
 
 type TrackRowProps = HTMLAttributes<HTMLElement> & {
   song: Song;
@@ -13,8 +14,8 @@ type TrackRowProps = HTMLAttributes<HTMLElement> & {
   ref?: Ref<HTMLElement>;
 };
 
-export function TrackRow({ song, active, playing, selected, className = "", children, ...props }: TrackRowProps) {
-  return <article {...props} className={`ltTrackRow ${className} ${active ? "active" : ""} ${active && playing ? "playing" : ""} ${selected ? "selected" : ""}`.trim()}
+export function TrackRow({ song, active, playing, selected, className = "", children, onKeyDown, ...props }: TrackRowProps) {
+  return <article {...props} onKeyDown={event=>{onKeyDown?.(event);if(props.onContextMenu)openContextMenuFromKeyboard(event);}} className={`ltTrackRow ${className} ${active ? "active" : ""} ${active && playing ? "playing" : ""} ${selected ? "selected" : ""}`.trim()}
     data-track-id={song.id} data-track-missing={song.fileExists === false ? "true" : "false"}>{children}</article>;
 }
 

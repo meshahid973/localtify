@@ -1,6 +1,7 @@
 import type { HTMLAttributes, ReactNode } from "react";
 import { SolidIcon } from "./SolidIcon";
 import "./media-card.css";
+import { openContextMenuFromKeyboard } from "./contextMenuPosition";
 
 export type MediaCardProps = Omit<HTMLAttributes<HTMLDivElement>, "onClick" | "children"> & {
   /** Opens the artist, genre, playlist or mix page. */
@@ -20,9 +21,9 @@ export type MediaCardProps = Omit<HTMLAttributes<HTMLDivElement>, "onClick" | "c
  * One card for every collection: click opens its page, the round button plays it, right-click (onContextMenu)
  * opens its menu. Each page keeps its own card look through className.
  */
-export function MediaCard({ onOpen, onPlay, openLabel, playLabel, cover, coverClassName = "", active = false, className = "", children, ...rest }: MediaCardProps) {
+export function MediaCard({ onOpen, onPlay, openLabel, playLabel, cover, coverClassName = "", active = false, className = "", children, onKeyDown, ...rest }: MediaCardProps) {
   return (
-    <div {...rest} className={`mediaCard ${active ? "active" : ""} ${className}`} onClick={() => void onOpen()}>
+    <div {...rest} onKeyDown={event=>{onKeyDown?.(event);if(rest.onContextMenu)openContextMenuFromKeyboard(event);}} className={`mediaCard ${active ? "active" : ""} ${className}`} onClick={() => void onOpen()}>
       <span className={`mediaCardCover ${coverClassName}`}>
         {cover}
         <button className="mediaCardOpen" type="button" aria-label={openLabel}

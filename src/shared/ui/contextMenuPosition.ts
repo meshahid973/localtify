@@ -15,3 +15,12 @@ export function clampContextMenuPosition(
     top: Math.max(margin, Math.min(point.y, maxTop))
   };
 }
+
+export function openContextMenuFromKeyboard(event: import("react").KeyboardEvent<HTMLElement>) {
+  if (event.defaultPrevented || (event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10"))) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const anchor = event.target instanceof HTMLElement ? event.target : event.currentTarget;
+  const rect = anchor.getBoundingClientRect();
+  anchor.dispatchEvent(new MouseEvent("contextmenu",{bubbles:true,cancelable:true,clientX:rect.left+Math.min(16,rect.width/2),clientY:rect.bottom}));
+}

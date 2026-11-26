@@ -66,13 +66,13 @@ export default function SongContextMenu({
         <button type="button" role="menuitem" onClick={() => { onClose(); void selectSong(song.id, true); }}>
           <span className="songContextMenuIcon"><Play size={13} strokeWidth={3} /></span> play now
         </button>
-        <button type="button" role="menuitem" onClick={() => { onClose(); queueSong(song.id, true); }}>
+        <button type="button" role="menuitem" disabled={song.fileExists === false} onClick={() => { onClose(); queueSong(song.id, true); }}>
           <span className="songContextMenuIcon"><SkipForward size={13} strokeWidth={3} /></span> play next
         </button>
         <button type="button" role="menuitem" onClick={() => { onClose(); openSimilarSongs(song); }}>
           <span className="songContextMenuIcon"><Radio size={13} strokeWidth={3} /></span> similar songs
         </button>
-        <button type="button" role="menuitem" onClick={() => { onClose(); queueSong(song.id, false); }}>
+        <button type="button" role="menuitem" disabled={song.fileExists === false} onClick={() => { onClose(); queueSong(song.id, false); }}>
           <span className="songContextMenuIcon"><ListEnd size={13} strokeWidth={3} /></span> add to queue
         </button>
         <div className="songContextMenuDivider" aria-hidden="true" />

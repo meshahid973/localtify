@@ -30,14 +30,16 @@ export function PlaylistMembershipDialog({title, subtitle, songIds, name, setNam
   const [busy,setBusy] = useState(false);
   const [error,setError] = useState("");
   const lock = useRef(false);
+  const retryAction = useRef<(() => Promise<boolean>) | null>(null);
   const manualPlaylists = useMemo(() => playlists.filter((playlist) => !playlist.rules), [playlists]);
   const matching = useMemo(() => manualPlaylists.filter(item => item.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())), [manualPlaylists,query]);
   const collision = playlists.some(item => item.rules && item.name.trim().toLocaleLowerCase() === name.trim().toLocaleLowerCase());
   async function save(action: () => Promise<boolean>) {
     if (lock.current || !songIds.length) return;
+    retryAction.current = action;
     lock.current = true; setBusy(true); setError("");
     try {
-      if (await action()) onClose();
+      if (await action()) { retryAction.current = null; onClose(); }
       else setError("Could not confirm the playlist save. Your changes may still be pending. Retry.");
     } catch { setError("Could not save playlist. Retry."); }
     finally { lock.current = false; setBusy(false); }
@@ -70,6 +72,7 @@ export function PlaylistMembershipDialog({title, subtitle, songIds, name, setNam
           {matching.length > visibleCount && <Button type="button" variant="secondary" disabled={busy} onClick={()=>setVisibleCount(count=>count+PAGE_SIZE)}>Show more playlists ({matching.length-visibleCount} remaining)</Button>}
         </div>
         {error || collision || !songIds.length ? <p className="playlistPickerStatus" role="alert">{error || (collision ? "That name belongs to a smart playlist. Choose another name." : "No tracks are available to add.")}</p> : null}
+        {error && <Button type="button" variant="secondary" disabled={busy} onClick={()=>{if(retryAction.current)void save(retryAction.current);}}>Retry save</Button>}
         <form className="playlistPickerCreate" onSubmit={event=>{event.preventDefault();if(name.trim()&&!collision)void save(()=>onCreate(name));}}>
           <input value={name} disabled={busy} maxLength={120} onChange={event=>setName(event.currentTarget.value)} placeholder="new playlist name" aria-label="New playlist name"/>
           <Button className="mainAction" type="submit" disabled={busy||!name.trim()||collision||!songIds.length}>{busy ? "Saving…" : "create and add"}</Button>

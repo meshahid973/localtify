@@ -36,7 +36,7 @@ import { pickRecentlyAdded, pickListenNow } from "./features/home/homeShelfPicks
 import { createMetadataCleanPreview } from "./features/library/metadataCleanPreview";
 import {
   getPlayableUniqueSongIds, getRepeatPreview, getSourceLoopRestart, getSourcePreviousStep,
-  repeatButtonTitleFor, resolveNowPlayingContext
+  repeatButtonTitleFor, resolveNowPlayingContext, resolvePlaylistPlaybackIds
 } from "./features/player/playbackSource";
 import type { PlaybackSource, PlaybackSourceRef } from "./features/player/playbackSource";
 import { makeShuffledPlayableSongs } from "./features/player/shuffleSongs";
@@ -925,9 +925,13 @@ function MainModeApp() {
     [activePlaylistId, playlists]
   );
 
+  const [playlistPlaybackOrder, setPlaylistPlaybackOrder] = useState<{ id: string; songIds: string[] } | null>(null);
+  useEffect(() => {
+    setPlaylistPlaybackOrder(order => order && order.id !== activePlaylistId ? null : order);
+  }, [activePlaylistId]);
   const activePlaylistSongs = useMemo(
-    () => activePlaylist?.songIds.map((songId) => songsById.get(songId)).filter(isPlayableSong) ?? [],
-    [activePlaylist, songsById]
+    () => activePlaylist ? resolvePlaylistPlaybackIds(activePlaylist, playlistPlaybackOrder).map(id => songsById.get(id)).filter(isPlayableSong) : [],
+    [activePlaylist, playlistPlaybackOrder, songsById]
   );
 
   const currentPlaybackPlaylist = useMemo(() => {
@@ -939,16 +943,6 @@ function MainModeApp() {
   const selectedPlaylist = useMemo(
     () => playlists.find((playlist) => playlist.id === selectedPlaylistId) ?? playlists[0] ?? null,
     [selectedPlaylistId, playlists]
-  );
-
-  const selectedPlaylistSongs = useMemo(
-    () => view === "playlists" ? selectedPlaylist?.songIds.map((songId) => songsById.get(songId)).filter(isPlayableSong) ?? [] : [],
-    [selectedPlaylist, songsById, view]
-  );
-
-  const selectedPlaylistDuration = useMemo(
-    () => selectedPlaylistSongs.reduce((total, song) => total + (song.duration || 0), 0),
-    [selectedPlaylistSongs]
   );
 
   const playlistSummaries = useMemo<PlaylistSummary[]>(
@@ -3446,6 +3440,8 @@ function MainModeApp() {
       return;
     }
     const ordered = shuffled ? makeShuffledPlayableSongs(playable) : playable;
+    const canonical = playlists.find(item => item.id === playlist.id);
+    setPlaylistPlaybackOrder(canonical && canonical.songIds.length === playlist.songIds.length && canonical.songIds.every((id,index)=>id===playlist.songIds[index]) ? null : {id:playlist.id,songIds:playlist.songIds});
     setPlaybackSource(null);
     setActivePlaylistId(playlist.id);
     setSelectedPlaylistId(playlist.id);
@@ -3454,14 +3450,15 @@ function MainModeApp() {
     setStatusText(`${shuffled ? "shuffling" : "playing"} ${playlist.name}`);
   }
 
-  async function playSongFromPlaylist(playlistId: string, songId: string, shouldPlay = true) {
+  async function playSongFromPlaylist(playlistId: string, songId: string, shouldPlay = true, songOrder?: string[]) {
     const playlist = playlists.find((item) => item.id === playlistId);
     if (!playlist || !playlist.songIds.includes(songId)) {
       await selectSong(songId, shouldPlay);
       return;
     }
 
-    const orderedSongs = playlist.songIds
+    const order = songOrder ? {id:playlist.id,songIds:songOrder} : null;
+    const orderedSongs = resolvePlaylistPlaybackIds(playlist, order)
       .map((id) => songsById.get(id))
       .filter(isPlayableSong);
     const startIndex = orderedSongs.findIndex((song) => song.id === songId);
@@ -3474,6 +3471,7 @@ function MainModeApp() {
     setPlaybackSource(null);
     setActivePlaylistId(playlist.id);
     setSelectedPlaylistId(playlist.id);
+    setPlaylistPlaybackOrder(order);
     setPlayQueue(orderedSongs.slice(startIndex + 1).map((song) => song.id));
     await selectSong(songId, shouldPlay, { playlistId: playlist.id });
     setStatusText(`playing ${playlist.name}`);
@@ -4273,8 +4271,8 @@ function MainModeApp() {
     endSongDrag();
   });
 
-  const selectPlaylistSongAction = useStableCallback((songId: string, playlistId?: string) => {
-    void playSongFromPlaylist(playlistId || selectedPlaylist?.id || "", songId, true);
+  const selectPlaylistSongAction = useStableCallback((songId: string, playlistId?: string, songOrder?: string[]) => {
+    void playSongFromPlaylist(playlistId || selectedPlaylist?.id || "", songId, true, songOrder);
   });
 
   const startPlaylistSongDragAction = useStableCallback((event: DragEvent<HTMLElement>, songId: string) => {
@@ -4743,12 +4741,10 @@ function MainModeApp() {
       setPlaylistArtwork,
       selectPlaylistSongAction,
       selectedPlaylist,
-      selectedPlaylistDuration,
-      selectedPlaylistSongs,
       setNewPlaylistName,
       setRenamingPlaylistName,
       setSelectedPlaylistId,
-      songs,
+      songs, songsById,
       startPlaylistSongDragAction,
       startRenamePlaylist,
       saveSmartPlaylist, listeningCounts, smartNow, setSmartPreviewOpen, savePromptPlaylist, addSongToPlaylist, notForMe

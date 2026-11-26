@@ -3,7 +3,7 @@ import "./playlists.css";
 import "./playlist-oled.css";
 import { isAndroidApp } from "../../app/platform";
 import DailyMixesShelf, { type DailyMixesShelfProps } from "../analysis/DailyMixesShelf";
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent } from "react";
 import { Check, Copy, ImagePlus, Pencil, Plus, Radio, SlidersHorizontal, Sparkles, Trash2, WandSparkles, X } from "lucide-react";
 import type { SimilarSeedRequest } from "../analysis/similarSeed";
 import { notForMeTest, type NotForMeMarks } from "../analysis/notForMe";
@@ -16,8 +16,9 @@ import { VirtualPlaylistTrackList } from "./components/VirtualPlaylistTrackList"
 import PlaylistCoverCollage from "./components/PlaylistCoverCollage";
 import { preparePlaylistArtwork } from "./playlistArtwork";
 import { formatTime } from "../../shared/utils/format";
-import type { Playlist } from "./playlist.types";
-import type { Song } from "../library/song.types";
+import type { usePlaylistsController } from "./usePlaylistsController";
+import type { Playlist, PlaylistSummary } from "./playlist.types";
+import type { Song, LibraryDropSide } from "../library/song.types";
 import { filterCollectionSongs, sortLibrarySongs, type LibrarySortMode } from "../library/librarySort";
 import { describeSmartRules, type ListeningCounts, type SmartRules } from "./smartPlaylist";
 import { MediaCard } from "../../shared/ui/MediaCard";
@@ -28,46 +29,46 @@ import CollectionHero from "../pages/CollectionHero";
 const SmartPlaylistDialog = lazy(() => import("./components/SmartPlaylistDialog"));
 const PromptPlaylistDialog = lazy(() => import("./components/PromptPlaylistDialog"));
 
+type Controller = ReturnType<typeof usePlaylistsController>;
 export type PlaylistsViewProps = {
   dailyMixes: DailyMixesShelfProps;
   playSongs: (ids: string[], label: string) => unknown;
   selectSong: (id: string, autoplay?: boolean) => unknown;
-  activePlaylistId: any;
-  appendPlaylistSongAction: any;
-  cancelRenamePlaylist: any;
-  createPlaylist: any;
-  currentId: any;
-  draggedSongId: any;
-  dropPlaylistSongAction: any;
-  duplicatePlaylist: any;
-  endPlaylistSongDragAction: any;
-  handlePlaylistShelfDragLeave: any;
-  handlePlaylistShelfDragOver: any;
-  handlePlaylistShelfDrop: any;
-  importSongs: any;
-  isPlaying: any;
-  newPlaylistName: any;
-  openPlaylistSongContextMenuAction: any;
-  playPlaylist: any;
+  activePlaylistId: string | null;
+  appendPlaylistSongAction: (playlistId: string, songId: string) => void;
+  cancelRenamePlaylist: Controller["cancelRenamePlaylist"];
+  createPlaylist: Controller["createPlaylist"];
+  currentId: string | null;
+  draggedSongId: string;
+  dropPlaylistSongAction: (playlistId: string, songId: string, targetSongId: string, side: LibraryDropSide) => void;
+  duplicatePlaylist: Controller["duplicatePlaylist"];
+  endPlaylistSongDragAction: () => void;
+  handlePlaylistShelfDragLeave: (event: DragEvent<HTMLElement>, playlistId: string) => void;
+  handlePlaylistShelfDragOver: (event: DragEvent<HTMLElement>, playlistId: string) => void;
+  handlePlaylistShelfDrop: (event: DragEvent<HTMLElement>, playlistId: string) => void;
+  importSongs: () => unknown;
+  isPlaying: boolean;
+  newPlaylistName: string;
+  openPlaylistSongContextMenuAction: (event: MouseEvent<HTMLElement>, song: Song) => void;
+  playPlaylist: (playlist: Playlist, shuffled?: boolean) => unknown;
   openSimilarSongs: (request: SimilarSeedRequest) => unknown;
-  playlistDragOverPlaylistId: any;
-  playlistSummaries: any;
-  removePlaylist: any;
-  removePlaylistSongAction: any;
-  renamingPlaylistId: any;
-  renamingPlaylistName: any;
-  savePlaylistRename: any;
-  setPlaylistArtwork: (id: string, value: string | null) => void;
-  selectPlaylistSongAction: (songId: string, playlistId?: string) => void;
-  selectedPlaylist: any;
-  selectedPlaylistDuration: any;
-  selectedPlaylistSongs: any;
-  setNewPlaylistName: any;
-  setRenamingPlaylistName: any;
-  setSelectedPlaylistId: any;
-  songs: any;
-  startPlaylistSongDragAction: any;
-  startRenamePlaylist: any;
+  playlistDragOverPlaylistId: string;
+  playlistSummaries: PlaylistSummary[];
+  removePlaylist: Controller["removePlaylist"];
+  removePlaylistSongAction: (playlistId: string, songId: string) => void;
+  renamingPlaylistId: string | null;
+  renamingPlaylistName: string;
+  savePlaylistRename: Controller["savePlaylistRename"];
+  setPlaylistArtwork: Controller["setPlaylistArtwork"];
+  selectPlaylistSongAction: (songId: string, playlistId?: string, songOrder?: string[]) => void;
+  selectedPlaylist: Playlist | null;
+  songsById: Map<string, Song>;
+  setNewPlaylistName: Controller["setNewPlaylistName"];
+  setRenamingPlaylistName: Controller["setRenamingPlaylistName"];
+  setSelectedPlaylistId: Controller["setSelectedPlaylistId"];
+  songs: Song[];
+  startPlaylistSongDragAction: (event: DragEvent<HTMLElement>, songId: string) => void;
+  startRenamePlaylist: Controller["startRenamePlaylist"];
   saveSmartPlaylist: (playlistId: string | null, name: string, rules: SmartRules, creationId?: string) => Promise<string | null>;
   listeningCounts: ListeningCounts | null;
   smartNow: number;
@@ -127,6 +128,9 @@ export default function PlaylistsView(props: PlaylistsViewProps) {
   const createLock = useRef(false);
   const [removing, setRemoving] = useState(false);
   const removalLock = useRef(false);
+  const [pendingRemovalId, setPendingRemovalId] = useState<string | null>(null);
+  const [renamingBusy, setRenamingBusy] = useState(false);
+  const renameLock = useRef(false);
   const [coverBusy, setCoverBusy] = useState(false);
   const [coverError, setCoverError] = useState("");
   const coverInput = useRef<HTMLInputElement>(null);
@@ -135,7 +139,7 @@ export default function PlaylistsView(props: PlaylistsViewProps) {
   const hidden = useMemo(() => notForMeTest(props.notForMe.marks), [props.notForMe.marks]);
   const playlists = useMemo(() => playlistSummaries.map((summary: { playlist: Playlist }) => summary.playlist), [playlistSummaries]);
   const actions = useAppActions();
-  const songsById = useMemo(() => new Map<string, Song>((songs as Song[]).map((song) => [song.id, song])), [songs]);
+  const songsById = props.songsById;
   const detailId = props.detailPlaylistId || null;
   // Adding a song to another playlist selects that one; the page keeps the selection on its own playlist,
   // which the track list's play, drop and remove actions act on.
@@ -168,16 +172,14 @@ export default function PlaylistsView(props: PlaylistsViewProps) {
     if (!detailPlaylist) {
       return (
         <section data-page-section="playlists" className="playlistsPage playlistPageV029">
-          <LocaltifyStateCard centered tone="info" eyebrow="playlist" title="This playlist is gone" message="It was removed since you opened it."
-            actions={<><button className="softButton" type="button" onClick={() => actions.nav.go("playlists")}>all playlists</button><button className="softButton" type="button" disabled={removing} onClick={async()=>{setRemoving(true);try{if(await removePlaylist(detailId))actions.nav.go("playlists");}finally{setRemoving(false);}}}>Retry save</button></>} />
+          <LocaltifyStateCard centered tone="info" eyebrow="playlist" title={pendingRemovalId === detailId ? "Playlist removal" : "This playlist is gone"} message={pendingRemovalId === detailId ? removing ? "Saving removal…" : "Could not confirm removal. Retry saving." : "It was removed since you opened it."}
+            actions={<><button className="softButton" type="button" onClick={() => actions.nav.go("playlists")}>all playlists</button>{pendingRemovalId === detailId && <button className="softButton" type="button" disabled={removing} onClick={async()=>{setRemoving(true);try{if(await removePlaylist(detailId)){setPendingRemovalId(null);actions.nav.go("playlists");}}finally{setRemoving(false);}}}>Retry save</button>}</>} />
         </section>
       );
     }
     const target = playlistTarget(detailPlaylist, detailSongs);
-    // Give the existing playlist playback owner the sorted snapshot. Never modify saved songIds.
-    // Sorting changes the view and explicit add-to-queue order, not the saved playlist
-    // or its repeat/playback context.
-    const playbackTarget = trackSort === "library" ? target : playlistTarget(detailPlaylist,sortedDetailSongs);
+    const playbackPlaylist = trackSort === "library" ? detailPlaylist : {...detailPlaylist,songIds:sortedDetailSongs.map(song=>song.id)};
+    const playbackTarget = playlistTarget(playbackPlaylist, sortedDetailSongs);
     return (
       <section data-page-section="playlists" className="playlistsPage playlistPageV029 playlistDetailPage">
       <PageAtmosphere songs={detailSongs} custom={detailPlaylist.coverArtwork} />
@@ -189,10 +191,10 @@ export default function PlaylistsView(props: PlaylistsViewProps) {
           byline={detailPlaylist.rules ? <span className="smartPlaylistSummary">{describeSmartRules(detailPlaylist.rules)}</span> : undefined}
           stats={`${detailSongs.length} song${detailSongs.length === 1 ? "" : "s"} · ${formatTime(detailSongs.reduce((total, song) => total + (Number(song.duration) || 0), 0))}`}
           playable={playableIds(detailSongs).length}
-          onPlay={() => void playPlaylist(detailPlaylist, false)}
-          onShuffle={() => void playPlaylist(detailPlaylist, true)}
+          onPlay={() => void playPlaylist(playbackPlaylist, false)}
+          onShuffle={() => void playPlaylist(playbackPlaylist, true)}
           onQueue={() => actions.queueCollection(playbackTarget)}
-          onMore={(event) => actions.openCollectionMenu(event, target)}
+          onMore={(event) => actions.openCollectionMenu(event, playbackTarget)}
           sort={{value:trackSort,onChange:setTrackSort,defaultLabel:"Playlist order"}}
           search={<input type="search" className="pageHeaderSearch" aria-label="Search playlist tracks" placeholder="Search tracks" value={trackQuery} onChange={event => setTrackQuery(event.currentTarget.value)} />}
         >
@@ -205,12 +207,12 @@ export default function PlaylistsView(props: PlaylistsViewProps) {
             event.currentTarget.value = "";
             if (!file) return;
             setCoverError(""); setCoverBusy(true);
-            try { props.setPlaylistArtwork(detailPlaylist.id, await preparePlaylistArtwork(file)); }
+            try { if(!await props.setPlaylistArtwork(detailPlaylist.id, await preparePlaylistArtwork(file))) setCoverError("Could not confirm artwork save. Retry."); }
             catch { setCoverError("Could not load that image. Choose a JPG, PNG or WebP under 12 MB."); }
             finally { setCoverBusy(false); }
           }} />
           <button className="collectionIconButton" type="button" disabled={coverBusy} aria-label="Upload playlist artwork" title="Upload playlist artwork" onClick={() => coverInput.current?.click()}><ImagePlus size={16} /></button>
-          {detailPlaylist.coverArtwork ? <button className="collectionIconButton" type="button" disabled={coverBusy} aria-label="Reset playlist artwork" title="Reset playlist artwork" onClick={() => props.setPlaylistArtwork(detailPlaylist.id, null)}><X size={16} /></button> : null}
+          {detailPlaylist.coverArtwork ? <button className="collectionIconButton" type="button" disabled={coverBusy} aria-label="Reset playlist artwork" title="Reset playlist artwork" onClick={async () => {setCoverBusy(true);setCoverError("");try{if(!await props.setPlaylistArtwork(detailPlaylist.id,null))setCoverError("Could not confirm artwork removal. Retry.");}finally{setCoverBusy(false);}}}><X size={16} /></button> : null}
           {detailPlaylist.rules ? (
             <button className="collectionIconButton" type="button" onClick={() => setSmartEditing(detailPlaylist)} aria-label="edit rules" title="Edit rules">
               <SlidersHorizontal size={16} strokeWidth={2.2} aria-hidden="true" />
@@ -225,23 +227,25 @@ export default function PlaylistsView(props: PlaylistsViewProps) {
               {renamingPlaylistId === detailPlaylist.id ? (
                 <form
                   className="playlistRenameForm"
-                  onSubmit={(event) => {
+                  onSubmit={async (event) => {
                     event.preventDefault();
-                    savePlaylistRename(detailPlaylist.id);
+                    if(renameLock.current)return;
+                    renameLock.current=true;setRenamingBusy(true);
+                    try{await savePlaylistRename(detailPlaylist.id);}finally{renameLock.current=false;setRenamingBusy(false);}
                   }}
                 >
                   <input
-                    value={renamingPlaylistName}
+                    value={renamingPlaylistName} disabled={renamingBusy}
                     onChange={(event) => setRenamingPlaylistName(event.currentTarget.value)}
                     onKeyDown={(event) => {
-                      if (event.key === "Escape") cancelRenamePlaylist();
+                      if (event.key === "Escape" && !renamingBusy) cancelRenamePlaylist();
                     }}
                     aria-label="Playlist name"
                     placeholder="playlist name"
                     autoFocus
                   />
-                  <button className="settingsTinyButton" type="submit"><ActionLabel icon={Check}>save</ActionLabel></button>
-                  <button className="settingsTinyButton" type="button" onClick={cancelRenamePlaylist}><ActionLabel icon={X}>cancel</ActionLabel></button>
+                  <button className="settingsTinyButton" type="submit" disabled={renamingBusy}><ActionLabel icon={Check}>{renamingBusy ? "Saving…" : "save"}</ActionLabel></button>
+                  <button className="settingsTinyButton" type="button" disabled={renamingBusy} onClick={cancelRenamePlaylist}><ActionLabel icon={X}>cancel</ActionLabel></button>
                 </form>
               ) : (
                 <h3>Tracks</h3>
@@ -249,9 +253,9 @@ export default function PlaylistsView(props: PlaylistsViewProps) {
             </div>
 
             <div className="playlistManageActions">
-              <button className="settingsTinyButton" type="button" onClick={() => startRenamePlaylist(detailPlaylist)}><ActionLabel icon={Pencil}>rename</ActionLabel></button>
+              <button className="settingsTinyButton" type="button" disabled={renamingBusy} onClick={() => startRenamePlaylist(detailPlaylist)}><ActionLabel icon={Pencil}>rename</ActionLabel></button>
               <button className="settingsTinyButton" type="button" onClick={() => duplicatePlaylist(detailPlaylist.id)}><ActionLabel icon={Copy}>duplicate</ActionLabel></button>
-              <button className="settingsTinyButton danger" type="button" disabled={removing} onClick={async () => { if(removalLock.current)return;removalLock.current=true;setRemoving(true);try{if(await removePlaylist(detailPlaylist.id))actions.nav.go("playlists");}finally{removalLock.current=false;setRemoving(false);} }}><ActionLabel icon={Trash2}>remove</ActionLabel></button>
+              <button className="settingsTinyButton danger" type="button" disabled={removing} onClick={async () => { if(removalLock.current)return;removalLock.current=true;setRemoving(true);setPendingRemovalId(detailPlaylist.id);try{if(await removePlaylist(detailPlaylist.id)){setPendingRemovalId(null);actions.nav.go("playlists");}}finally{removalLock.current=false;setRemoving(false);} }}><ActionLabel icon={Trash2}>remove</ActionLabel></button>
             </div>
           </div>
 
@@ -263,7 +267,7 @@ export default function PlaylistsView(props: PlaylistsViewProps) {
             currentId={currentId}
             isPlaying={isPlaying}
             draggedSongId={draggedSongId}
-            onSelectSong={(id) => selectPlaylistSongAction(id, detailPlaylist.id)}
+            onSelectSong={(id) => selectPlaylistSongAction(id, detailPlaylist.id, trackSort === "library" ? undefined : playbackPlaylist.songIds)}
             onStartSongDrag={startPlaylistSongDragAction}
             onDropSong={dropPlaylistSongAction}
             onAppendSong={appendPlaylistSongAction}
@@ -272,7 +276,7 @@ export default function PlaylistsView(props: PlaylistsViewProps) {
             onRemoveSong={removePlaylistSongAction}
           />}
           {!detailPlaylist.rules && detailSongs.length > 0 ? (
-            <PlaylistRecommendations playlist={detailPlaylist} songs={songs as Song[]} playlists={playlists} currentId={currentId} hidden={hidden}
+            <PlaylistRecommendations playlist={detailPlaylist} songs={songs} playlists={playlists} currentId={currentId} hidden={hidden}
               addSongToPlaylist={props.addSongToPlaylist} selectSong={props.selectSong} />
           ) : null}
         </section>
@@ -337,7 +341,7 @@ export default function PlaylistsView(props: PlaylistsViewProps) {
                 openLabel={`open ${playlist.name}`}
                 playLabel={`play ${playlist.name}`}
                 onOpen={() => actions.openCollection(playlistTarget(playlist, previewSongs))}
-                onPlay={() => void playPlaylist(playlist, false)}
+                onPlay={songCount ? () => void playPlaylist(playlist, false) : undefined}
                 onContextMenu={(event) => actions.openCollectionMenu(event, playlistTarget(playlist, playlist.songIds.flatMap((id: string) => songsById.get(id) ?? [])))}
                 onDragOver={(event) => handlePlaylistShelfDragOver(event, playlist.id)}
                 onDragLeave={(event) => handlePlaylistShelfDragLeave(event, playlist.id)}

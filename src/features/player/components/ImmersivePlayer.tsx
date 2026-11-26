@@ -40,6 +40,8 @@ export default function ImmersivePlayer({ player, song, queue, lyrics, backgroun
   const [lyricsOnly, setLyricsOnly] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [fullscreenError, setFullscreenError] = useState(false);
+  const [fullscreenBusy, setFullscreenBusy] = useState(false);
+  const fullscreenLock = useRef(false);
   const ownedFullscreen = useRef<HTMLElement | null>(null);
   useEffect(() => {
     const changed = () => setFullscreen(document.fullscreenElement === ownedFullscreen.current && !!ownedFullscreen.current);
@@ -48,12 +50,14 @@ export default function ImmersivePlayer({ player, song, queue, lyrics, backgroun
   }, []);
   const toggleFullscreen = async () => {
     const root = dialog.current;
-    if (!root) return;
+    if (!root || fullscreenLock.current || !document.fullscreenEnabled) return;
+    fullscreenLock.current = true;setFullscreenBusy(true);
     setFullscreenError(false);
     try {
       if (document.fullscreenElement === root) await document.exitFullscreen();
       else { ownedFullscreen.current = root; await root.requestFullscreen(); }
     } catch { setFullscreenError(true); }
+    finally {fullscreenLock.current=false;setFullscreenBusy(false);}
   };
   const {
     isPlaying, isShuffle, repeatMode, repeatButtonAriaLabel, repeatButtonStateText,
@@ -92,7 +96,7 @@ export default function ImmersivePlayer({ player, song, queue, lyrics, backgroun
       <IconButton type="button" className="immersiveIcon" aria-label="Close immersive player" title="Exit immersive player (Esc)" onClick={onClose}><Minimize2 size={20} aria-hidden="true" /></IconButton>
       <div className="immersiveContext"><small>Now playing</small><strong>{nowPlayingContextLabel || "Your library"}</strong></div>
       <div className="immersiveTopActions">
-      <IconButton type="button" className="immersiveIcon" aria-label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"} onClick={() => void toggleFullscreen()}>{fullscreen ? <Minimize size={20} /> : <Maximize size={20} />}</IconButton>
+      <IconButton type="button" className="immersiveIcon" aria-label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"} aria-pressed={fullscreen} disabled={fullscreenBusy || !document.fullscreenEnabled} title={!document.fullscreenEnabled ? "Fullscreen unavailable" : undefined} onClick={() => void toggleFullscreen()}>{fullscreen ? <Minimize size={20} /> : <Maximize size={20} />}</IconButton>
       <IconButton type="button" className="immersiveIcon" aria-label={minimal ? "Show extra controls" : "Hide extra controls"}
         aria-pressed={minimal} title="Distraction-free mode" onClick={toggleMinimal}>{minimal ? <Eye size={20} aria-hidden="true" /> : <EyeOff size={20} aria-hidden="true" />}</IconButton>
       </div>
