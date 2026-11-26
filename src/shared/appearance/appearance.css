@@ -107,7 +107,8 @@
 }
 
 .app[data-liquid-glass="true"] .ltOpticalTabSelection {
-  background: var(--lt-fill-selected);
+  /* GlassLens samples RGB only, so resolve the fill against the theme first. */
+  background: color-mix(in srgb, var(--lt-text) 14%, var(--lt-bg-elevated));
 }
 
 .app[data-liquid-glass="true"] .librarySectionNav .ltOpticalTabs {
@@ -161,6 +162,8 @@
 .ltOpticalPopoverPanel.homeCustomizePanel {
   position: static;
   width: auto;
+  max-width: 100%;
+  overflow-x: hidden;
   background: transparent;
   box-shadow: none;
   border: 0;
@@ -277,15 +280,17 @@
 .app[data-liquid-glass="true"]:is([data-player-background="flat"], [data-player-background="oledBlack"]) .playerBar .ltOpticalTransport {
   --glass-tint: var(--lt-transport-base);
 }
-/* Menus are anchored by the UI SDK, not by the optical animation. Keep their content
-   readable at the real menu geometry while the glass travels or falls back. */
 html:has(.app[data-liquid-glass="true"]) [data-glass-popup] {
   outline: none;
   border: 0;
-  background: color-mix(in srgb, var(--lt-bg-elevated) 90%, var(--cover-average, var(--lt-bg-elevated)));
+  background: transparent;
   color: var(--lt-text);
   --tw-ring-shadow: 0 0 transparent;
   --tw-ring-offset-shadow: 0 0 transparent;
+  box-shadow: none;
+}
+html:has(.app[data-liquid-glass="true"]) [data-glass-popup][data-glass-off] {
+  background: color-mix(in srgb, var(--lt-bg-elevated) 90%, var(--cover-average, var(--lt-bg-elevated)));
   box-shadow: var(--lt-shadow-menu);
 }
 html:has(.app[data-liquid-glass="true"]) [data-glass-popup]:is(:focus, :focus-visible) {
@@ -296,18 +301,13 @@ html:has(.app[data-liquid-glass="true"]) [data-glass-popup]:is(:focus, :focus-vi
 html:has(.app[data-liquid-glass="true"]) [data-glass-popup] :is([role="menu"], [role="listbox"], [data-glass-list]) {
   position: relative;
   z-index: 1;
-  opacity: 1;
-  translate: none;
-  scale: none;
-  clip-path: none;
-  filter: none;
 }
-html:has(.app[data-liquid-glass="true"]) [data-glass-popup] :is([role="menuitem"], [role="option"], [data-glass-item]) {
-  opacity: 1;
-  translate: none;
-}
-html:has(.app[data-liquid-glass="true"]) [data-glass-popup] :is([data-disabled], [aria-disabled="true"]) {
+html:has(.app[data-liquid-glass="true"]) [data-glass-popup][data-glass-off] :is([data-disabled], [aria-disabled="true"]) {
   opacity: .45;
+}
+html:has(.app[data-liquid-glass="true"]) [data-glass-popup] [data-slot="popover-close"] {
+  border: 0;
+  --lt-control-focus-outline: 1px solid var(--lt-text);
 }
 html:has(.app[data-liquid-glass="true"]) [data-glass-popup] :is([role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"], [role="option"], [data-glass-item]) {
   --lt-control-focus-outline: none;

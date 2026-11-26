@@ -1358,13 +1358,13 @@ function createMorph(matchWidth: boolean, opening: GlassPopupOpening, from: Glas
   const setPanel = (canvas: HTMLCanvasElement | null, hold: HTMLElement | null, cardShadow: HTMLElement | null) => {
     const el = canvas?.parentElement
     const ctx = canvas?.getContext('2d')
-    if (!canvas || !el || !ctx) return () => {}
-    el.dataset.glassOff = ''
-    const e = getGlassEngine()
-    if (!e) {
+    if (!canvas || !el) return () => {}
+    const e = ctx && getGlassEngine()
+    if (!ctx || !e) {
       el.dataset.glassOff = ''
       return () => {}
     }
+    delete el.dataset.glassOff
     engine = e
     content = el
     holdEl = hold
