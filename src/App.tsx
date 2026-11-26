@@ -507,7 +507,7 @@ function MainModeApp() {
   const songTransitionCounterRef = useRef(0);
   const {
     playlists,
-    setPlaylists, initializePlaylists, flushPlaylists,
+    setPlaylists, initializePlaylists, flushPlaylists, confirmSaved: confirmPlaylistSaved,
     newPlaylistName,
     setNewPlaylistName,
     playlistPickerName,
@@ -4985,7 +4985,7 @@ function MainModeApp() {
         if (!valid.length) return;
         setPlaylists(items => items.map(item => item.id === playlistId
           ? { ...item, songIds: [...new Set([...item.songIds, ...valid])] } : item));
-        showAppToast("Album tracks added to playlist", "success");
+        void confirmPlaylistSaved("Album tracks added to playlist", items => items.some(item => item.id === playlistId && valid.every(id => item.songIds.includes(id))));
       },
       createPlaylistFromAlbum: (name, songIds) => createPlaylistFromSongs(name, songIds)
     },
