@@ -4039,9 +4039,11 @@ function MainModeApp() {
   function previewVolume(value: string | number, input?: HTMLInputElement | null) {
     const safePercent = clamp(Number(value), 0, 100);
     volumeDraftRef.current = safePercent;
-    paintVolumeDraft(safePercent);
-    paintRangeProgress(input, safePercent);
-    input?.style.setProperty("--volume-percent", `${safePercent}%`);
+    if (input) {
+      paintVolumeDraft(safePercent);
+      paintRangeProgress(input, safePercent);
+      input.style.setProperty("--volume-percent", `${safePercent}%`);
+    }
     applyLiveVolumePercent(safePercent);
   }
 

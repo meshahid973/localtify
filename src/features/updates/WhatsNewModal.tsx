@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, ChevronDown, ExternalLink, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import { useAppearance } from "../../shared/appearance/appearance";
 import Dialog from "../../shared/ui/Dialog";
 import Button from "../../shared/ui/Button";
 import { APP_VERSION } from "./update.constants";
@@ -15,6 +16,7 @@ export type WhatsNewModalProps = {
 };
 
 export default function WhatsNewModal({ open, onClose, initialVersion, availableReleaseNotes }: WhatsNewModalProps) {
+  const { kit } = useAppearance();
   const requestedVersion = initialVersion?.trim().replace(/^v/i, "") || APP_VERSION;
   const [version, setVersion] = useState(requestedVersion);
   const [history, setHistory] = useState(releaseHistory);
@@ -79,7 +81,7 @@ export default function WhatsNewModal({ open, onClose, initialVersion, available
       <article className="releaseNotesContent" key={version} tabIndex={0} aria-labelledby="releaseNotesTitle">
         <div className="releaseNotesIntro">
           <div className="releaseNotesMeta">
-            {installed ? <span><Check size={14} aria-hidden="true" /> Installed</span> : available ? <span>Available update</span> : <span>Release archive</span>}
+            {available && kit ? <kit.GlassBadge speed={0}>Available update</kit.GlassBadge> : installed ? <span><Check size={14} aria-hidden="true" /> Installed</span> : available ? <span>Available update</span> : <span>Release archive</span>}
             {date && <time dateTime={date}>{date}</time>}
           </div>
           <h2 id="releaseNotesTitle">Localtify <span>{version}</span></h2>

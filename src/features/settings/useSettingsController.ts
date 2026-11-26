@@ -260,6 +260,7 @@ export function useSettingsController({ initialSettings, bootedRef, volumeDraftR
   function resetAppearanceSettings() {
     void updateSettingsPatch({
       theme: defaultSettings.theme,
+      liquidGlass: defaultSettings.liquidGlass,
       showAmbientGradient: defaultSettings.showAmbientGradient,
       coverColorSyncMode: defaultSettings.coverColorSyncMode,
       showFloatingNotes: defaultSettings.showFloatingNotes,

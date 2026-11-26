@@ -1,0 +1,149 @@
+.app[data-oled="true"] {
+  background: #000;
+  --lt-glass-background: #0b0b0b;
+}
+
+.app[data-liquid-glass="true"] {
+  --lt-optical-fill: color-mix(in srgb, var(--lt-bg-elevated) 78%, transparent);
+  --lt-optical-edge: color-mix(in srgb, var(--lt-accent) 18%, transparent);
+  --lt-optical-focus: var(--lt-accent);
+}
+
+.app[data-liquid-glass="true"] :is(.ltButton, .ltIconButton, .ltOpticalAction, .ltOpticalSurface) {
+  position: relative;
+}
+
+.app[data-liquid-glass="true"] :is(.ltButton, .ltIconButton, .ltOpticalAction):focus-visible {
+  outline: 2px solid var(--lt-optical-focus);
+  outline-offset: 3px;
+}
+
+.app[data-liquid-glass="true"] :is(.ltOverlaySurface, .ltOpticalSurface, .playerBar, .titleBar, .sidebar) {
+  --lt-glass-background: var(--lt-optical-fill);
+}
+
+.app[data-liquid-glass="true"] .ltOpticalSelect {
+  width: min(100%, 14rem);
+  gap: 0;
+}
+
+.app[data-liquid-glass="true"] .ltOpticalSelect [data-slot="select-label"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.app[data-liquid-glass="true"] .ltOpticalSelect > button {
+  min-height: var(--lt-control-height, 36px);
+  height: auto;
+  padding: .45rem .75rem;
+  font-size: inherit;
+}
+
+.app[data-liquid-glass="true"] :is(.ltOpticalSelect > button, .ltOpticalAction) {
+  color: var(--lt-text);
+}
+
+.app[data-liquid-glass="true"] .ltOpticalToggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 42px;
+  color: var(--lt-text);
+}
+
+.app[data-liquid-glass="true"] :is(.ltOpticalPanel, .ltOpticalTransport, .phonePlayerControls) {
+  position: relative;
+  isolation: isolate;
+}
+
+.app[data-liquid-glass="true"] .ltOpticalPanelMaterial {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: var(--lt-radius-panel);
+}
+
+.app[data-liquid-glass="true"] .settingsPage .settingsCategoryPage .ltOpticalPanel {
+  padding: var(--lt-space-4);
+  border-radius: var(--lt-radius-panel);
+}
+
+.ltOpticalPopoverPanel.homeCustomizePanel {
+  position: static;
+  width: auto;
+  background: transparent;
+  box-shadow: none;
+  border: 0;
+  padding: 0;
+}
+
+.app[data-liquid-glass="true"] .playerBar .ltOpticalTransport {
+  border-radius: var(--lt-radius-panel);
+  width: fit-content;
+  max-width: 100%;
+  margin-inline: auto;
+  padding-inline: var(--lt-space-2);
+}
+
+.app[data-liquid-glass="true"] .phonePlayerControls {
+  border-radius: var(--lt-radius-panel);
+}
+
+.app[data-liquid-glass="true"] .ltOpticalRange {
+  min-width: 0;
+  width: 100%;
+}
+
+.app[data-liquid-glass="true"] .ltOpticalVolume {
+  min-width: 0;
+  width: 100%;
+}
+
+.app[data-liquid-glass="true"] .ltOpticalVolume [data-slot="field-label"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.app[data-liquid-glass="true"] .ltOpticalVolume [data-slot="field"] {
+  gap: 0;
+}
+
+.app[data-liquid-glass="true"] .ltOpticalConfirm {
+  margin-block-start: var(--lt-space-3);
+}
+
+.app[data-liquid-glass="true"] .ltOpticalHistory > button {
+  min-width: 32px;
+}
+
+.settingsModePreview[data-preview-mode="oled"] {
+  --preview-bg: #000;
+  --preview-nav: #121212;
+  --preview-fill: #242424;
+  --preview-text: #fff;
+}
+
+.settingsAppearanceCleanV491 .settingsModeGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.app[data-liquid-glass="true"] :is(.playerBar, .titleBar, .sidebar, .queuePanel) {
+  background-color: var(--lt-optical-fill);
+}
+
+.app[data-liquid-glass="true"] :is(.queuePanel, .settingsPanelCard, .ltOverlaySurface) {
+  border-color: var(--lt-optical-edge);
+}
+
+.app[data-liquid-glass="true"] :is(.ltTrackRow button, .librarySectionNav button):focus-visible {
+  outline-color: var(--lt-optical-focus);
+}

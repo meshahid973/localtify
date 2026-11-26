@@ -1,3 +1,4 @@
+import { useAppearance } from "../../../shared/appearance/appearance";
 import { Check } from "lucide-react";
 import SidebarTabsSettings from "./SidebarTabsSettings";
 import { isAndroidApp } from "../../../app/platform";
@@ -17,6 +18,7 @@ export type AppearanceSettingsProps = {
 
 export default function AppearanceSettings(props: AppearanceSettingsProps) {
   const { settings, updateSetting } = props;
+  const { kit } = useAppearance();
   const phone = isAndroidApp();
   const selected = normalizeThemeId(settings.theme);
   return (
@@ -24,10 +26,13 @@ export default function AppearanceSettings(props: AppearanceSettingsProps) {
       <header className="settingsCategoryHeader">
         <div><h4>Appearance</h4></div>
       </header>
-      <div id="settings-appearance-theme" className="settingsPanelCard">
+      <div id="settings-appearance-theme" className="settingsPanelCard ltOpticalPanel">
+        {kit && <kit.GlassCard aria-hidden="true" className="ltOpticalPanelMaterial rounded-[inherit]" tint={.8} blur={3} />}
         <div className="settingsPanelHeader"><div><strong>Theme</strong></div></div>
+        <ToggleRow label="Liquid Glass" help="Use optical glass on interface controls." checked={settings.liquidGlass === true}
+          onChange={value => void updateSetting("liquidGlass", value)} />
         <div className="settingsModeGrid" role="group" aria-label="App theme">
-          {(["light", "dark"] as const).map(mode => (
+          {(["light", "dark", "oled"] as const).map(mode => (
             <button key={mode} type="button" className="settingsModeButton" aria-pressed={selected === mode}
               onClick={() => void updateSetting("theme", mode)}>
               <span className="settingsModePreview" data-preview-mode={mode} aria-hidden="true">
@@ -35,7 +40,7 @@ export default function AppearanceSettings(props: AppearanceSettingsProps) {
                 <span className="settingsModePreviewBody"><i/><span><i/><i/><i/></span><i/></span>
                 {selected === mode ? <span className="settingsModeCheck"><Check size={14}/></span> : null}
               </span>
-              <strong>{mode === "light" ? "Light" : "Dark"}</strong>
+              <strong>{mode === "light" ? "Light" : mode === "oled" ? "OLED" : "Dark"}</strong>
             </button>
           ))}
         </div>

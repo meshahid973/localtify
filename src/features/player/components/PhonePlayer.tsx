@@ -1,4 +1,5 @@
 import { Slider } from "../../../shared/ui/Slider";
+import { GlassDecoration, useAppearance } from "../../../shared/appearance/appearance";
 import { Fragment, lazy, Suspense, useEffect, useRef, useState } from "react";
 import type { TouchEvent as ReactTouchEvent } from "react";
 import { ChevronDown, ListMusic, MicVocal, MoreVertical, Repeat2, Shuffle, SkipBack, SkipForward } from "lucide-react";
@@ -24,6 +25,7 @@ const SWIPE_SKIP_PX = 70;
 export type PhonePlayerProps = PlayerBarProps & { lyrics: Omit<LyricsViewProps, "anchorRef">; backgroundStyle?: string; backgrounded?: boolean };
 
 export default function PhonePlayer(props: PhonePlayerProps) {
+  const { kit } = useAppearance();
   const {
     ambientStyle, commitSeek, currentDuration, currentSong, displayedProgress, displayedTime, isPlaying, isSeeking, isShuffle,
     nowPlayingContextLabel, openArtistPage, openSongContextMenu, playNext, playPrevious, previewSeek, progressDurationLabelRefs,
@@ -132,7 +134,8 @@ export default function PhonePlayer(props: PhonePlayerProps) {
 
   return (
     <>
-      <div className="phoneMiniPlayer" style={ambientStyle} inert={expanded || undefined}>
+      <div className="phoneMiniPlayer" style={ambientStyle} inert={expanded || undefined} data-glass-host={kit && !expanded ? "" : undefined}>
+        {!expanded ? <GlassDecoration surface backdrop=".appShell" /> : null}
         <button type="button" className="phoneMiniOpen" aria-label={`open player: ${currentSong.title}`} aria-haspopup="dialog" aria-expanded={expanded} onClick={() => setExpanded(true)} />
         <Cover song={currentSong} className="phoneMiniArt" priority="high" preferThumbnail />
         <span className="phoneMiniMeta">
@@ -223,7 +226,8 @@ export default function PhonePlayer(props: PhonePlayerProps) {
             </span>
           </div>
 
-          <div className="phonePlayerControls">
+          <div className="phonePlayerControls" data-glass-host={kit ? "" : undefined}>
+            <GlassDecoration surface backdrop=".phonePlayerSheet" />
             <button type="button" className={`phoneIconButton phoneToggle ${isShuffle ? "active" : ""}`} onClick={() => setIsShuffle((value) => !value)}
               aria-label={isShuffle ? "turn shuffle off" : "turn shuffle on"} aria-pressed={isShuffle}>
               <Shuffle size={22} strokeWidth={2.2} aria-hidden="true" />

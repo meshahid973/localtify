@@ -1,3 +1,5 @@
+import { AppearanceProvider } from "../../shared/appearance/AppearanceProvider";
+import "../../shared/appearance/appearance.css";
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useStableCallback } from "../../shared/hooks/useStableCallback";
 import { AppReducedMotionContext } from "../../shared/hooks/useAppReducedMotion";
@@ -102,7 +104,7 @@ export default function AppShell(props: AppShellProps) {
   const detail = nav.detail;
   const { isSeeking, isVolumeDragging, draggedSongId, isPlaying } = playerBar;
   const { isThreeAm } = home;
-  const playerBackground = effectiveTheme === "light" && settings.playerBackgroundStyle === "oledBlack" ? "flat" : settings.playerBackgroundStyle || "coverBlur";
+  const playerBackground = effectiveTheme === "oled" ? "oledBlack" : effectiveTheme === "light" && settings.playerBackgroundStyle === "oledBlack" ? "flat" : settings.playerBackgroundStyle || "coverBlur";
   const homeBanner = effectiveTheme === "light" && settings.homeBannerType === "cleanBlack" ? "none" : settings.homeBannerType || "dynamic";
   const cardBackground = effectiveTheme === "light" && settings.mediaCardBackground === "oledFlat" ? "solid" : settings.mediaCardBackground || "glassy";
   // The active track owns shell artwork; the mounted entity is a fallback.
@@ -117,7 +119,7 @@ export default function AppShell(props: AppShellProps) {
   // A paused current track remains the listening context; navigation never interrupts its backdrop.
   const trackSources = useMemo(() => trackArtworkSources(home.currentSong), [home.currentSong]);
   const workspaceSources = useMemo(() => resolveWorkspaceArtwork(trackSources, sources, Boolean(detail) && view !== "home"), [trackSources, sources, detail, view]);
-  const artworkEnabled = effectiveCoverColorSyncMode !== "off" && !isAppBackgrounded;
+  const artworkEnabled = effectiveTheme !== "oled" && effectiveCoverColorSyncMode !== "off" && !isAppBackgrounded;
   const { actions, menu } = useCollectionActions(nav, collections, modals.queuePanel.openSongContextMenu);
   const pageProps = { songs: library.songs, currentId: home.currentId, isPlaying, toggleLike: modals.songContextMenu.toggleLike, openPlaylistPicker: modals.songContextMenu.openPlaylistPicker };
   const openSimilarSongs = useStableCallback((songIds: string[], key: string, title: string) => {
@@ -136,6 +138,8 @@ export default function AppShell(props: AppShellProps) {
 
 
   return (
+    <AppearanceProvider enabled={settings.liquidGlass === true} tone={effectiveTheme === "light" ? "light" : "dark"}
+      reducedMotion={settings.reducedMotion} backgrounded={isAppBackgrounded}>
     <MotionConfig reducedMotion={settings.reducedMotion ? "always" : "user"}>
     <AppReducedMotionContext.Provider value={settings.reducedMotion}>
     <AppActionsContext.Provider value={actions}>
@@ -160,7 +164,9 @@ export default function AppShell(props: AppShellProps) {
       }
       data-platform={platformId}
       data-linux={platformId === "linux" ? "on" : "off"}
-      data-theme={effectiveTheme}
+      data-theme={effectiveTheme === "oled" ? "dark" : effectiveTheme}
+      data-oled={effectiveTheme === "oled" ? "true" : undefined}
+      data-liquid-glass={settings.liquidGlass === true ? "true" : undefined}
       data-anime-visuals={settings.animeVisuals || screensaverPreviewActive || screensaverVisible ? "on" : "off"}
       data-gif-visuals={settings.gifVisualsMode}
       data-corners={settings.softCorners ? "soft" : "sharp"}
@@ -298,6 +304,7 @@ export default function AppShell(props: AppShellProps) {
     </AppActionsContext.Provider>
     </AppReducedMotionContext.Provider>
     </MotionConfig>
+    </AppearanceProvider>
   );
 }
 

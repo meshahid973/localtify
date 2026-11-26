@@ -1139,11 +1139,17 @@ function createWindow() {
     }
   });
   const thumbnailWindow = mainWindow;
-  const syncThumbnailQueue = () => coverThumbnailQueue.setPaused(
-    thumbnailWindow.isDestroyed() || !thumbnailWindow.isVisible() || thumbnailWindow.isMinimized()
-  );
-  for (const event of ["show", "hide", "minimize", "restore"]) thumbnailWindow.on(event, syncThumbnailQueue);
-  syncThumbnailQueue();
+  const syncWindowVisibility = () => {
+    if (thumbnailWindow.isDestroyed()) return;
+    const visible = thumbnailWindow.isVisible() && !thumbnailWindow.isMinimized();
+    coverThumbnailQueue.setPaused(!visible);
+    if (!thumbnailWindow.webContents.isDestroyed() && thumbnailWindow.webContents.getURL()) {
+      thumbnailWindow.webContents.send("window:visibility", visible);
+    }
+  };
+  for (const event of ["show", "hide", "minimize", "restore"]) thumbnailWindow.on(event, syncWindowVisibility);
+  thumbnailWindow.webContents.on("did-finish-load", syncWindowVisibility);
+  syncWindowVisibility();
   attachLocaltifyDevToolsShortcuts(mainWindow);
   applyWindowTranslucencyToWindow(mainWindow, windowTranslucency);
   const rendererIndexPath = isDev ? "" : getRendererIndexPath();

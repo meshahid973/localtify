@@ -1,3 +1,4 @@
+import { useAppearance } from "../../../shared/appearance/appearance";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Copy, RefreshCw, X } from "lucide-react";
 import type { Song } from "../song.types";
@@ -73,6 +74,7 @@ export default function DuplicatesDialog({ songs, onClose, onMerged }: Duplicate
   }
 
   const groupCount = sets?.reduce((count, set) => count + set.groups.length, 0) || 0;
+  const { controls, tone } = useAppearance();
   return <dialog ref={dialogRef} className="duplicatesDialog" aria-labelledby="duplicates-title" aria-modal="true"
     onCancel={(event) => { event.preventDefault(); onClose(); }} onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <section className="duplicatesContent">
@@ -127,8 +129,9 @@ export default function DuplicatesDialog({ songs, onClose, onMerged }: Duplicate
         </article>;
       })}
       {sets?.length ? <footer className="duplicatesFooter">
-        <label className="duplicatesInclude"><input type="checkbox" checked={moveToTrash} disabled={busy} onChange={(event) => setMoveToTrash(event.currentTarget.checked)} />
-          <span><strong>Also move removed files to the Trash</strong><small>Otherwise the files stay on disk and only leave your library.</small></span></label>
+        {controls ? <controls.Checkbox label="Also move removed files to the Trash" description="Otherwise the files stay on disk and only leave your library."
+          checked={moveToTrash} onChange={setMoveToTrash} disabled={busy} theme={tone} /> : <label className="duplicatesInclude"><input type="checkbox" checked={moveToTrash} disabled={busy} onChange={(event) => setMoveToTrash(event.currentTarget.checked)} />
+          <span><strong>Also move removed files to the Trash</strong><small>Otherwise the files stay on disk and only leave your library.</small></span></label>}
         <button type="button" className="duplicatesAction duplicatesPrimary" disabled={busy || !removeCount} onClick={() => void merge()}>
           {busy ? "Merging…" : `Remove ${removeCount} duplicate${removeCount === 1 ? "" : "s"}`}</button>
       </footer> : null}

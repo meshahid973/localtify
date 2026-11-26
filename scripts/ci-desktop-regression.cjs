@@ -397,7 +397,7 @@ server.listen(5173,async()=>{
     const playingArtwork = await win.webContents.executeJavaScript("document.querySelector('.workspaceArtworkBackdrop .artworkBackdropLayer[data-visible=true] img').src");
     await screenshot(win,"home-next-track");
     await win.webContents.executeJavaScript("document.querySelector('.sidebar [data-nav-id=settings]').click()");
-    await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('.settingsModeButton').length===2 && document.querySelector('.app').dataset.workspaceArtwork==='on'").catch(()=>false),"two appearance modes");
+    await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('.settingsModeButton').length===3 && document.querySelector('.app').dataset.workspaceArtwork==='on'").catch(()=>false),"appearance controls");
     assert.equal(await win.webContents.executeJavaScript("document.querySelector('.workspaceArtworkBackdrop .artworkBackdropLayer[data-visible=true] img')?.src"),playingArtwork,"navigation preserves active cover");
     for(const mode of ["light","dark"]){
       await win.webContents.executeJavaScript(`document.querySelector('.settingsModeButton:has([data-preview-mode="${mode}"])').click()`);
@@ -482,7 +482,7 @@ server.listen(5173,async()=>{
        // next opens Settings. Restore selection after exercising Discover.
        const appearanceRestored=await win.webContents.executeJavaScript("(()=>{const b=[...document.querySelectorAll('.settingsCategoryButton')].find(b=>b.textContent.includes('Appearance'));if(!b)return false;b.click();return true})()");
        assert.equal(appearanceRestored,true,"Appearance category must stay reachable");
-       await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('.settingsModeButton').length===2").catch(()=>false),"Appearance after Discover "+mode);
+       await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('.settingsModeButton').length===3").catch(()=>false),"Appearance after Discover "+mode);
       // Keep full 860/1280 coverage; exercise original wide-desktop layout
       // only for the player and the two recently redesigned pages.
       for (const width of [1280,860,1920]) {
@@ -617,7 +617,7 @@ server.listen(5173,async()=>{
       // The active Discover category is remembered when returning to Settings.
       const appearanceSelected=await win.webContents.executeJavaScript("(()=>{const button=[...document.querySelectorAll('.settingsCategoryButton')].find(button=>button.textContent.includes('Appearance'));if(!button)return false;button.click();return true;})()");
       assert.equal(appearanceSelected,true,"Appearance remains reachable from Settings");
-      await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('.settingsModeButton').length===2").catch(()=>false),"appearance navigation");
+      await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('.settingsModeButton').length===3").catch(()=>false),"appearance navigation");
       const searched = await win.webContents.executeJavaScript("(()=>{const e=document.querySelector('#settings-section-search');if(!e)return false;Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,'crossfade');e.dispatchEvent(new Event('input',{bubbles:true}));return true})()");
       assert.ok(searched,"Settings control search must be accessible");
       await until(()=>win.webContents.executeJavaScript("Array.from(document.querySelectorAll('.settingsControlResult')).some(el=>el.textContent.includes('Crossfade'))").catch(()=>false),"crossfade control search");
@@ -677,7 +677,7 @@ server.listen(5173,async()=>{
       await screenshot(win,"settings-library-"+mode);
        const appearanceForNextTheme = await win.webContents.executeJavaScript("(()=>{const button=[...document.querySelectorAll('.settingsCategoryButton')].find(item=>item.textContent.includes('Appearance'));if(!button)return false;button.click();return true;})()");
        assert.equal(appearanceForNextTheme,true,"Appearance must be accessible after Lyrics");
-       await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('.settingsModeButton').length===2").catch(()=>false),"restore Appearance for next theme");
+       await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('.settingsModeButton').length===3").catch(()=>false),"restore Appearance for next theme");
 
     }
     // Render the actual title-bar update banner and remote What's New flow without installing a fake package.
@@ -818,6 +818,95 @@ server.listen(5173,async()=>{
     assert.ok(collection.hero&&collection.row&&collection.play,"compact collections retain keyboard playback: "+JSON.stringify(collection));
     await screenshot(win,"collection-narrow");
     win.setSize(1280,800);
+    if(process.env.LOCALTIFY_QA_LIQUID_GLASS==="1"){
+      const openView=async view=>{
+        const selector=["artists","genres","playlists","albums"].includes(view)?`.librarySectionNav [data-library-section="${view}"]`:`.sidebar [data-nav-id="${view}"]`;
+        await until(()=>win.webContents.executeJavaScript(`Boolean(document.querySelector(${JSON.stringify(selector)}))`),"glass navigation target "+view);
+        await win.webContents.executeJavaScript(`document.querySelector(${JSON.stringify(selector)}).click()`);
+        await until(()=>win.webContents.executeJavaScript(`(()=>{const page=document.querySelector('.pageTransition[data-view="${view}"]');return !!page?.firstElementChild&&!page.querySelector('.collectionLoading')&&Number(getComputedStyle(page).opacity)>=.99})()`),"glass view "+view);
+      };
+      const toggle="Array.from(document.querySelectorAll('.toggleRow')).find(row=>row.textContent.includes('Liquid Glass')).querySelector('input')";
+      await openView("settings");
+      await until(()=>win.webContents.executeJavaScript(`Boolean(${toggle})`).catch(()=>false),"Liquid Glass switch");
+      const before=await win.webContents.executeJavaScript("document.querySelector('.app').dataset.liquidGlass");
+      assert.equal(before,undefined,"Liquid Glass defaults off");
+      const switchStarted=performance.now();
+      await win.webContents.executeJavaScript(`${toggle}.click()`);
+      await until(()=>win.webContents.executeJavaScript("document.querySelector('.app').dataset.liquidGlass==='true' && Boolean(document.querySelector('[data-glass-ready]'))"),"glass activates without reload",35000,16);
+      const firstOpticalPaintMs=performance.now()-switchStarted;
+      await until(()=>win.webContents.executeJavaScript("window.localitfy.getSettings().then(settings=>settings.liquidGlass===true)"),"glass persists in the settings store");
+      for(const mode of ["oled","dark","light"]){
+        await openView("settings");
+        await until(()=>win.webContents.executeJavaScript(`Boolean(document.querySelector('[data-preview-mode="${mode}"]'))`),"glass theme picker");
+        await win.webContents.executeJavaScript(`document.querySelector('[data-preview-mode="${mode}"]').closest('button').click()`);
+        await until(()=>win.webContents.executeJavaScript(`document.querySelector('[data-preview-mode="${mode}"]').closest('button').getAttribute('aria-pressed')==='true'`),"glass theme "+mode);
+        if(mode==="oled") {
+          assert.equal(await win.webContents.executeJavaScript("getComputedStyle(document.querySelector('.app')).backgroundColor"),"rgb(0, 0, 0)","OLED is pure black");
+          assert.equal(await win.webContents.executeJavaScript("document.querySelector('.workspaceArtworkBackdrop')"),null,"OLED keeps artwork out of its workspace foundation");
+        }
+        for(const view of ["settings","home","library","albums","artists","genres","playlists","discover","downloads","analytics"]){
+          await openView(view);
+          await screenshot(win,`glass-${mode}-${view}`);
+        }
+      }
+      await openView("home");
+      await win.webContents.executeJavaScript("document.querySelector('button[aria-label=\"Customize Home\"]').click()");
+      await until(()=>win.webContents.executeJavaScript("Boolean(document.querySelector('.ltOpticalPopoverPanel'))"),"official Home glass popover");
+      await screenshot(win,"glass-home-popover");
+      await win.webContents.executeJavaScript("Array.from(document.querySelectorAll('[role=dialog] button')).find(button=>button.textContent==='Done').click()");
+      await openView("library");
+      const volume=".playerBar .ltOpticalVolume";
+      const sliderInput=`document.querySelector('${volume} input[type=range], ${volume} [role=slider]')`;
+      await until(()=>win.webContents.executeJavaScript(`Boolean(${sliderInput})`),"official volume slider");
+      await win.webContents.executeJavaScript(`${sliderInput}.focus()`);
+      win.webContents.sendInputEvent({type:"keyDown",keyCode:"End"});
+      win.webContents.sendInputEvent({type:"keyUp",keyCode:"End"});
+      await until(()=>win.webContents.executeJavaScript("window.localitfy.getSettings().then(settings=>settings.volume===1)"),"optical volume keyboard commit");
+      const track=await win.webContents.executeJavaScript(`(()=>{const {x,y,width,height}=document.querySelector('${volume} [data-slot="slider-track"]').getBoundingClientRect();return {x:Math.round(x+width/2),y:Math.round(y+height/2)}})()`);
+      win.webContents.sendInputEvent({type:"mouseDown",button:"left",clickCount:1,...track});
+      win.webContents.sendInputEvent({type:"mouseUp",button:"left",clickCount:1,...track});
+      await until(()=>win.webContents.executeJavaScript("window.localitfy.getSettings().then(settings=>Math.abs(settings.volume-.5)<.04)"),"optical volume pointer commit");
+      win.webContents.sendInputEvent({type:"mouseMove",x:12,y:100});
+      const playingAudio="Array.from(document.querySelectorAll('audio')).some(audio=>!audio.paused && audio.currentTime>0)";
+      const enabledField="document.querySelector('.app')?.dataset.liquidGlass==='true'";
+      const surfaceCount="document.querySelectorAll('[data-glass-host] canvas').length";
+      const sample=async enabled=>{
+        const label=enabled?"enabled":"disabled";
+        await win.webContents.executeJavaScript("document.querySelector('.playerBar .circleButton.main[aria-label=pause]')?.click()");
+        await until(()=>win.webContents.executeJavaScript(`!(${playingAudio})`),"idle "+label);
+        await sleep(1500);
+        const idleStats=await metrics(label+" settled library idle",5);
+        const surfaces=await win.webContents.executeJavaScript(surfaceCount);
+        await win.webContents.executeJavaScript("document.querySelector('.songButton').click()");
+        await until(()=>win.webContents.executeJavaScript(playingAudio),"active glass sample playback");
+        await sleep(800);
+        const activeStats=await metrics(label+" library playback",5);
+        assert.ok(await win.webContents.executeJavaScript(playingAudio),"audio remains active during the visible sample");
+        try {
+          win.hide();
+          assert.equal(win.isVisible(),false,"the benchmark window is hidden");
+          if(enabled) await until(()=>win.webContents.executeJavaScript(`${surfaceCount}===0`),"hidden optical surfaces unmount");
+          const hiddenStats=await metrics(label+" hidden playback",5);
+          assert.ok(await win.webContents.executeJavaScript(playingAudio),"audio remains active while hidden");
+          return {surfaces,idleStats,activeStats,hiddenStats};
+        } finally {
+          win.show();
+          win.focus();
+        }
+      };
+      const enabledStats=await sample(true);
+      await openView("settings");
+      await win.webContents.executeJavaScript(`${toggle}.click()`);
+      await until(()=>win.webContents.executeJavaScript("!document.querySelector('.app').dataset.liquidGlass && !document.querySelector('[data-glass-host] canvas')"),"disabling releases mounted glass surfaces");
+      await openView("library");
+      const disabledStats=await sample(false);
+      await openView("settings");
+      await win.webContents.executeJavaScript(`${toggle}.click()`);
+      await until(()=>win.webContents.executeJavaScript("window.localitfy.getSettings().then(settings=>settings.liquidGlass===true)"),"re-enabled preference saved");
+      win.reload();
+      await until(()=>win.webContents.executeJavaScript(enabledField).catch(()=>false),"appearance survives renderer reload");
+      fs.writeFileSync(path.join(output,"glass-runtime.json"),JSON.stringify({firstOpticalPaintMs,enabledStats,disabledStats},null,2));
+    }
     const journalBlocking=await profileMainThreadJournalBlocking();
     const result={startupMs,reloadMs,libraryNavigationMs,playbackStartMs,journalBlocking,interactionDefinition:"click to observed DOM/audio readiness, polling interval 16ms plus IPC overhead",startupDefinition:"desktop entry to first rendered screen (onboarding or shell); excludes fixture creation and Electron process spawn",metrics:[idle,playing,hiddenPlayback],hiddenPlaybackObservation,gpuNote:"GPU process CPU and working set are reported by process type; these are not hardware GPU utilization",memoryDefinition:"sum of Electron process working sets; may double count shared pages",platform:process.platform,fixtureSongs:songs.length,layouts,artworkTransitionLayers:samples};
     fs.writeFileSync(path.join(output,"desktop-runtime.json"),JSON.stringify(result,null,2));console.log("[desktop-qa]",JSON.stringify(result));

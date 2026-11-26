@@ -1,5 +1,6 @@
 import { forwardRef } from "react";
 import "./controls.css";
+import { GlassDecoration, useAppearance } from "../appearance/appearance";
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?:
@@ -33,16 +34,21 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       ...rest
     },
     ref,
-  ) => (
-    <button
-      ref={ref}
-      type={type}
-      className={`ltButton ${variantClasses[variant]} ${sizeClasses[size]} ${className}`.trim()}
-      {...rest}
-    >
-      {children}
-    </button>
-  ),
+  ) => {
+    const { kit } = useAppearance();
+    return (
+      <button
+        ref={ref}
+        type={type}
+        className={`ltButton ${variantClasses[variant]} ${sizeClasses[size]} ${className}`.trim()}
+        data-glass-host={kit ? "" : undefined}
+        {...rest}
+      >
+        <GlassDecoration tinted={variant === "primary" || variant === "glass-primary"} />
+        {children}
+      </button>
+    );
+  },
 );
 
 Button.displayName = "Button";

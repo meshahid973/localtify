@@ -1,4 +1,5 @@
 import { prettyTitle } from "../../search";
+import { useAppearance } from "../../../shared/appearance/appearance";
 import Dialog from "../../../shared/ui/Dialog";
 import type { Song } from "../song.types";
 
@@ -10,6 +11,7 @@ export type DeleteSongModalProps = {
 };
 
 export default function DeleteSongModal({ song, busy, onClose, removeSong }: DeleteSongModalProps) {
+  const { kit } = useAppearance();
   if (!song) return null;
   return (
     <Dialog open onClose={onClose} dismissible={!busy} portal={false} animated={false}
@@ -23,6 +25,8 @@ export default function DeleteSongModal({ song, busy, onClose, removeSong }: Del
           <button className="heroGhost" onClick={onClose} disabled={busy}>no keep it</button>
           <button className="dangerButton bigDanger" onClick={() => removeSong(song.id)} disabled={busy}>{busy ? "removing..." : "yes remove it"}</button>
         </div>
+        {kit && <kit.GlassSlideToConfirm disabled={busy} size="sm" onConfirm={() => removeSong(song.id)}
+          pendingLabel="Removing track" successLabel="Removed" className="ltOpticalConfirm">Slide to remove track</kit.GlassSlideToConfirm>}
     </Dialog>
   );
 }

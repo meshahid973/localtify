@@ -1,3 +1,4 @@
+import { useAppearance } from "../../shared/appearance/appearance";
 import { IconButton } from "../../shared/ui/IconButton";
 import "./home.css";
 import { Fragment, lazy, Suspense, useCallback, useMemo, useState, type CSSProperties, type ReactNode } from "react";
@@ -74,6 +75,7 @@ export default function HomeView(props: HomeViewProps) {
   } = props;
 
   const actions = useAppActions();
+  const { kit } = useAppearance();
   const day = useHomeDay();
   const android = isAndroidApp();
   const needsPhoneSync = android && songs.length === 0;
@@ -186,7 +188,18 @@ export default function HomeView(props: HomeViewProps) {
     <div className="homePage" style={ambientStyle}>
       <header className="homeTopBar">
         <h1>Home</h1>
-        <button
+        {kit ? <kit.GlassPopover open={customizeOpen} onOpenChange={setCustomizeOpen}>
+          <kit.GlassPopoverTrigger className="homeCustomizeButton" aria-label="Customize Home" title="Customize Home">
+            <SlidersHorizontal size={19} strokeWidth={1.9} aria-hidden="true" />
+          </kit.GlassPopoverTrigger>
+          <kit.GlassPopoverContent over="edge" align="end" aria-label="Customize Home">
+            <Suspense fallback={null}>
+              <HomeCustomizePanel embedded sectionOrder={settings.homeSectionOrder} hiddenSections={settings.homeHiddenSections}
+                updateHomeLayout={updateHomeLayout} onClose={closeCustomize} />
+            </Suspense>
+            <kit.GlassPopoverClose>Done</kit.GlassPopoverClose>
+          </kit.GlassPopoverContent>
+        </kit.GlassPopover> : <><button
           className={`homeCustomizeButton ${customizeOpen ? "active" : ""}`}
           type="button"
           onClick={() => setCustomizeOpen((open) => !open)}
@@ -206,7 +219,7 @@ export default function HomeView(props: HomeViewProps) {
             onClose={closeCustomize}
           />
           </Suspense>
-        ) : null}
+        ) : null}</>}
       </header>
 
       {needsPhoneSync ? sections.jumpBack : visibleSections.length ? visibleSections.map((id) => <Fragment key={id}>{sections[id]}</Fragment>) : (

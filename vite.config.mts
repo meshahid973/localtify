@@ -1,11 +1,26 @@
 ﻿import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import { readFileSync } from "node:fs";
 import { fileURLToPath, URL } from "node:url";
 
 export default defineConfig({
   base: "./",
-  plugins: [react(), tailwindcss()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    {
+      name: "renderer-license-notices",
+      generateBundle() {
+        const sections = [
+          readFileSync(new URL("./THIRD_PARTY_NOTICES.txt", import.meta.url), "utf8"),
+          "UI SDK (@ui-sdk/core and @ui-sdk/react)\n" + readFileSync(new URL("./node_modules/@ui-sdk/react/LICENSE", import.meta.url), "utf8"),
+          "Three.js\n" + readFileSync(new URL("./node_modules/three/LICENSE", import.meta.url), "utf8"),
+        ];
+        this.emitFile({ type: "asset", fileName: "THIRD_PARTY_NOTICES.txt", source: sections.join("\n\n") });
+      },
+    },
+  ],
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   server: {
     host: "127.0.0.1",

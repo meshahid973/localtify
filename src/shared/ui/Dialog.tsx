@@ -2,6 +2,7 @@ import { useRef, type ReactNode, type MouseEvent, type PointerEvent } from "reac
 import { createPortal } from "react-dom";
 import { motion } from "motion/react";
 import { useAppReducedMotion } from "../hooks/useAppReducedMotion";
+import { GlassDecoration, useAppearance } from "../appearance/appearance";
 import { useModalFocus } from "../hooks/useModalFocus";
 
 type Props = {
@@ -16,6 +17,7 @@ export default function Dialog({ open, onClose, children, className, backdropCla
   label, labelledBy, describedBy, role = "dialog", portal = true,
   dismissible = true, animated = true }: Props) {
   const dialogRef = useModalFocus<HTMLDivElement>(open);
+  const { kit } = useAppearance();
   const reduced = useAppReducedMotion();
   const pointerStart = useRef<{ x: number; y: number; target: EventTarget | null } | null>(null);
   if (!open) return null;
@@ -33,7 +35,7 @@ export default function Dialog({ open, onClose, children, className, backdropCla
   };
   const body = <div className={backdropClassName} onPointerDown={onPointerDown} onClick={onBackdropClick}>
     <motion.div ref={dialogRef} tabIndex={-1} role={role} aria-modal="true" aria-label={label}
-      aria-labelledby={labelledBy} aria-describedby={describedBy} className={className}
+      aria-labelledby={labelledBy} aria-describedby={describedBy} className={`${className} ltOpticalSurface`} data-glass-host={kit ? "" : undefined}
       initial={reduced || !animated ? false : { opacity: 0, scale: .97, y: 10 }}
       animate={animated && !reduced ? { opacity: 1, scale: 1, y: 0 } : undefined}
       transition={{ duration: reduced || !animated ? 0 : .2, ease: [0.22, 1, 0.36, 1] }}
@@ -41,6 +43,7 @@ export default function Dialog({ open, onClose, children, className, backdropCla
       onKeyDown={event => { if (event.key === "Escape" && !event.defaultPrevented && dismissible && isTop()) {
         event.preventDefault(); event.stopPropagation(); onClose();
       } }}>
+      <GlassDecoration surface />
       {children}
     </motion.div>
   </div>;

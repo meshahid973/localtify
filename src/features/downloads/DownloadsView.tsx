@@ -1,3 +1,4 @@
+import { useAppearance } from "../../shared/appearance/appearance";
 import "./downloads.css";
 import { useMemo, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
@@ -13,7 +14,7 @@ import { clamp } from "../../shared/utils/format";
 import { Button } from "../../vendor/beui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../vendor/beui/tabs";
 import SegmentedControl from "../../vendor/arc/segmented-control/segmented-control";
-import { DropdownMenu } from "../../vendor/arc/dropdown-menu/dropdown-menu";
+import { AppearanceMenu } from "../../shared/appearance/AppearanceMenu";
 import { Progress } from "../../vendor/arc/progress/progress";
 import FadeContent from "../../vendor/react-bits/FadeContent";
 
@@ -151,6 +152,8 @@ export default function DownloadsView(props: DownloadsViewProps) {
     (queueFilter === "active" && isActive(item.status)) ||
     (queueFilter === "attention" && needsAttention(item.status)) ||
     (queueFilter === "completed" && item.status === "done"));
+  const { kit } = useAppearance();
+  const OpenFolder = kit?.GlassButton;
   const working = downloadBusy || spotifyDownloadBusy || convertBusy;
   const catalogSelection = spotifyTracks.length > 0 && spotifyTracks.every(track => /^mb[a-zA-Z0-9]{32,62}$/.test(track.id));
   const clearSpotify = () => {
@@ -181,14 +184,18 @@ export default function DownloadsView(props: DownloadsViewProps) {
 
   return <section data-page-section="downloads" className="downloadsExperience downloadsLayoutV031">
     <PageHeader title="Downloads">
-      <Button variant="ghost" size="icon" aria-label="Open downloads folder"
+      {OpenFolder ? <OpenFolder asChild size="sm" pull={false} className="ltOpticalAction">
+        <button type="button" aria-label="Open downloads folder" title="Open downloads folder" onClick={() => void window.localitfy.openDownloadsFolder(settings.downloadFolder || undefined)}>
+          <FolderOpen size={16} aria-hidden="true" />
+        </button>
+      </OpenFolder> : <Button variant="ghost" size="icon" aria-label="Open downloads folder"
         title="Open downloads folder" onClick={() => void window.localitfy.openDownloadsFolder(settings.downloadFolder || undefined)}>
         <FolderOpen size={17} />
-      </Button>
+      </Button>}
       <Button variant="ghost" size="icon" aria-label="Download settings" title="Download settings" onClick={openSettings}>
         <Settings2 size={17} />
       </Button>
-      <div className="downloadsTools"><DropdownMenu label="Tools" icon={<MoreHorizontal size={16} />} items={tools} /></div>
+      <div className="downloadsTools"><AppearanceMenu structured label="Tools" icon={<MoreHorizontal size={16} />} items={tools} /></div>
     </PageHeader>
 
     <section className="downloadsImporter" aria-label="Import music">
@@ -347,7 +354,7 @@ export default function DownloadsView(props: DownloadsViewProps) {
                 {item.status === "interrupted" ? "Resume" : "Retry"}</button> : null}
               {done && !notImported ? <button type="button" className="downloadsRowAction" onClick={() => void openDownloadedSongInLibrary(item)}>Open</button> : null}
               {done && !notImported ? <Check size={14} className="downloadsCompleteIcon" aria-hidden="true" /> : null}
-              <div className="downloadsRowMenu"><DropdownMenu label="More actions" icon={<MoreHorizontal size={16} />} items={actions} iconOnly /></div>
+              <div className="downloadsRowMenu"><AppearanceMenu label="More actions" icon={<MoreHorizontal size={16} />} items={actions} iconOnly /></div>
             </div>
           </div>;
         })}

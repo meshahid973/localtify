@@ -1,4 +1,6 @@
+import { GlassDecoration, useAppearance } from "../../../shared/appearance/appearance";
 import { Slider } from "../../../shared/ui/Slider";
+import { VolumeSlider } from "./VolumeSlider";
 import { Fragment } from "react";
 import type { CSSProperties, Dispatch, DragEventHandler, MouseEvent as ReactMouseEvent, MutableRefObject, PointerEventHandler, SetStateAction } from "react";
 import { ListMusic, MicVocal, Repeat2, Shuffle, SkipBack, SkipForward, Volume2, VolumeX } from "lucide-react";
@@ -43,7 +45,7 @@ export type PlayerBarProps = {
   playNext: (automatic?: boolean, source?: string) => unknown;
   playPrevious: () => unknown;
   previewSeek: (value: string, input: HTMLInputElement) => unknown;
-  previewVolume: (value: string, input: HTMLInputElement) => unknown;
+  previewVolume: (value: string, input?: HTMLInputElement) => unknown;
   progressDurationLabelRefs: MutableRefObject<Array<HTMLSpanElement | null>>;
   progressInputRefs: MutableRefObject<Array<HTMLInputElement | null>>;
   progressRangeStyle: CSSProperties;
@@ -81,7 +83,6 @@ export default function PlayerBar(props: PlayerBarProps) {
   const {
     ambientStyle,
     commitSeek,
-    commitVolume,
     currentDuration,
     currentSong,
     displayedProgress,
@@ -95,7 +96,6 @@ export default function PlayerBar(props: PlayerBarProps) {
     isPlaying,
     isSeeking,
     isShuffle,
-    isVolumeDragging,
     nowPlayingContextLabel,
     nowPlayingSongMotionClass,
     nowPlayingTransitionKey,
@@ -105,7 +105,6 @@ export default function PlayerBar(props: PlayerBarProps) {
     playNext,
     playPrevious,
     previewSeek,
-    previewVolume,
     progressDurationLabelRefs,
     progressInputRefs,
     progressRangeStyle,
@@ -121,7 +120,6 @@ export default function PlayerBar(props: PlayerBarProps) {
     repeatMode,
     revealNowPlaying,
     setIsShuffle,
-    setIsVolumeDragging,
     settings,
     startPlayerResize,
     startSeekPreview,
@@ -130,11 +128,9 @@ export default function PlayerBar(props: PlayerBarProps) {
     toggleQueuePanel,
     toggleRepeat,
     toggleMute,
-    volumeDraft,
-    volumeDraftRef,
-    volumeRangeStyle,
     connect
   } = props;
+  const { kit } = useAppearance();
   return (
           <footer
             className={`playerBar ambientSurface ${isPlaying ? "playerPlaying" : "playerIdle"} ${draggedSongId ? "songDragActive" : ""} ${queueDropHot ? "queueDropHot" : ""}`}
@@ -221,7 +217,8 @@ export default function PlayerBar(props: PlayerBarProps) {
             </div>
 
             <div className="playerCenter">
-              <div className="controlRow">
+              <div className="controlRow ltOpticalTransport" data-glass-host={kit ? "" : undefined}>
+                <GlassDecoration surface backdrop=".playerBar" />
                 <button
                   type="button"
                   className={isShuffle ? "circleButton active" : "circleButton"}
@@ -326,34 +323,7 @@ export default function PlayerBar(props: PlayerBarProps) {
                       <VolumeX className="playerControlIcon" size={17} strokeWidth={2.2} aria-hidden="true" />
                     )}
                   </button>
-                  <Slider
-                    min="0"
-                    max="100"
-                    step="1"
-                    value={volumeDraft}
-                    style={volumeRangeStyle}
-                    aria-label="volume level"
-                    onPointerDown={(event) => {
-                      event.currentTarget.setPointerCapture?.(event.pointerId);
-                      volumeDraftRef.current = Number(event.currentTarget.value);
-                      setIsVolumeDragging(true);
-                      previewVolume(event.currentTarget.value, event.currentTarget);
-                    }}
-                    onInput={(event) => previewVolume(event.currentTarget.value, event.currentTarget)}
-                    onChange={(event) => previewVolume(event.currentTarget.value, event.currentTarget)}
-                    onPointerUp={(event) => {
-                      event.currentTarget.releasePointerCapture?.(event.pointerId);
-                      commitVolume(event.currentTarget.value);
-                    }}
-                    onPointerCancel={(event) => {
-                      event.currentTarget.releasePointerCapture?.(event.pointerId);
-                      commitVolume(event.currentTarget.value);
-                    }}
-                    onKeyUp={(event) => commitVolume(event.currentTarget.value)}
-                    onBlur={(event) => {
-                      if (isVolumeDragging) commitVolume(event.currentTarget.value);
-                    }}
-                  />
+                  <VolumeSlider player={props} label="volume level" optical={!props.immersiveOpen} />
                 </div>
               </div>
             </div>

@@ -33,6 +33,7 @@ export type Settings = {
   musicbrainzTagging: boolean;
   musicbrainzWriteFiles: boolean;
   theme: ThemeId;
+  liquidGlass: boolean;
   volume: number;
   playerSize: number;
   sidebarWidth: number;

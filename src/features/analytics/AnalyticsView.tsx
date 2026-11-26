@@ -11,7 +11,7 @@ import { isListeningCalendarSummary, type ListeningCalendarRange, type Listening
 import type { Song } from "../library/song.types";
 import { LineChart, LineChartPlot, LineChartTooltip, type LineChartSeries } from "../../vendor/charts/line-chart";
 import SegmentedControl from "../../vendor/arc/segmented-control/segmented-control";
-import { DropdownMenu } from "../../vendor/arc/dropdown-menu/dropdown-menu";
+import { AppearanceMenu } from "../../shared/appearance/AppearanceMenu";
 
 export type AnalyticsViewProps = {
   importSongs: () => unknown;
@@ -133,7 +133,7 @@ export default function AnalyticsView({
           <span>{summary ? listeningPeriodName(summary) : "Selected period"}</span>
           <button type="button" aria-label="Next period" onClick={() => setOffset(value => Math.max(0, value - 1))} disabled={offset === 0}><ChevronRight size={18} /></button>
         </div>
-        <DropdownMenu icon={<Ellipsis size={18}/>} iconOnly label="Analytics options" items={[
+        <AppearanceMenu icon={<Ellipsis size={18}/>} iconOnly label="Analytics options" items={[
           { label: "Refresh listening history", onSelect: () => setRevision(value => value + 1) },
           { label: "Copy listening recap", onSelect: copyRecap, disabled: !summary },
           { label: "Open library", onSelect: () => actions.nav.go("library") }

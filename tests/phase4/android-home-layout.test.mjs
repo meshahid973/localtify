@@ -19,9 +19,11 @@ function compile(file, dependencies = {}) {
 
 function home(android, songs, hidden = []) {
   const layout = compile("src/features/home/homeLayout.ts");
+  const appearance = compile("src/shared/appearance/appearance.tsx");
   const Home = compile("src/features/home/HomeView.tsx", {
     "./home.css": {},
-    "../../shared/ui/IconButton": compile("src/shared/ui/IconButton.tsx", { "./icon-button.css": {} }),
+    "../../shared/appearance/appearance": appearance,
+    "../../shared/ui/IconButton": compile("src/shared/ui/IconButton.tsx", { "./icon-button.css": {}, "../appearance/appearance": appearance }),
     "../../app/platform": { isAndroidApp: () => android },
     "../covers/Cover": { Cover: () => null },
     "../../shared/ui/LocaltifyViewUi": { MascotStateArt: () => null },

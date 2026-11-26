@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import type { Settings } from "./settings.types";
 import { Slider } from "../../shared/ui/Slider";
+import { useAppearance } from "../../shared/appearance/appearance";
 import { Surface } from "../../shared/ui/Surface";
 
 import { clampUpperFirst as clamp } from "../../shared/utils/format";
@@ -23,6 +24,11 @@ export function ToggleRow({ label, help, checked, onChange, disabled }: {
   onChange: (checked: boolean) => void;
   disabled?: boolean;
 }) {
+  const { controls, tone } = useAppearance();
+  if (controls && label !== "Liquid Glass") return <div className="ltOpticalToggle" title={help}>
+    <controls.Switch label={label} description={help} checked={checked} onChange={onChange} disabled={disabled}
+      theme={tone} color={tone === "light" ? "#303037" : "#777782"} size="sm" labelSide="left" />
+  </div>;
   return (
     <SettingRow label={label} help={help}>
       <input type="checkbox" role="switch" checked={checked} disabled={disabled} onChange={(event) => onChange(event.currentTarget.checked)} />
@@ -40,9 +46,11 @@ export function RangeRow({ label, value, min, max, step, suffix, disabled, onCha
   disabled?: boolean;
   onChange: (value: number) => void;
 }) {
+  const { controls, tone } = useAppearance();
   const [draftValue, setDraftValue] = useState(value);
   const [editing, setEditing] = useState(false);
   const pointerEditing = useRef(false);
+  const currentDraft = useRef(value);
   const activeValue = editing ? draftValue : value;
   const shownValue = `${activeValue}${suffix || ""}`;
   const fill = ((activeValue - min) / (max - min || 1)) * 100;
@@ -59,6 +67,23 @@ export function RangeRow({ label, value, min, max, step, suffix, disabled, onCha
     if (clamped !== value) onChange(clamped);
   }
 
+  if (controls && !disabled) {
+    return (
+      <div className="ltOpticalRange" onPointerDownCapture={event => {
+        if (!event.isPrimary || event.button !== 0 || !(event.target as Element).closest('[data-slot="slider-track"]')) return;
+        pointerEditing.current = true;
+        setEditing(true);
+        currentDraft.current = value;
+      }}
+        onPointerUp={() => { if (pointerEditing.current) commit(currentDraft.current); }}
+        onLostPointerCapture={() => { if (pointerEditing.current) commit(currentDraft.current); }}
+        onPointerCancel={() => { pointerEditing.current = false; setDraftValue(value); setEditing(false); }}>
+        <controls.RangeSlider label={label} value={activeValue} min={min} max={max} step={step} theme={tone} size="sm"
+          color={tone === "light" ? "#303037" : "#777782"} startIcon="none" endIcon="none"
+          onChange={next => { currentDraft.current = next; setDraftValue(next); if (!pointerEditing.current) commit(next); }} />
+      </div>
+    );
+  }
   return (
     <SettingRow label={label} help={shownValue} range>
       <Slider
@@ -109,6 +134,11 @@ export function SettingsChoiceGroup<T extends string>({ label, value, options, o
   label: string; value: T; options: readonly SettingsOption<T>[];
   onChange: (value: T) => void; disabled?: boolean; compact?: boolean; id?: string;
 }) {
+  const { kit } = useAppearance();
+  if (kit && compact && !disabled) return <div id={id} className="settingsChoiceGroup">
+    <span className="settingsChoiceGroupLabel">{label}</span>
+    <kit.GlassTabs aria-label={label} value={value} options={options} onValueChange={onChange} size="sm" />
+  </div>;
   return <div id={id} className="settingsChoiceGroup" role="group" aria-label={label}>
     <span className="settingsChoiceGroupLabel">{label}</span>
     <div className="settingsChoiceRowV491">
