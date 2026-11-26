@@ -58,7 +58,7 @@ export function createPlaylistPersistence({ read, save, publish, journal, failed
       return false;
     }
   }
-  function flush() {
+  function flush(): Promise<boolean> {
     if (!initialized) return Promise.resolve(true);
     if (pending) return pending;
     pending = drain().then(ok => {
