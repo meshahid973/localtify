@@ -161,8 +161,8 @@ export default function DiscoverView({ settings, updateSetting, sendToDownloads,
         : "Enable search and recommendations."}</p>
     </div>
     {!phone ? <div className="discoverWelcomeActions">
-      <button className="discoverPrimaryAction" type="button" onClick={() => void updateSetting("discoverEnabled", true)}>Enable Discover</button>
-      <button className="discoverSecondaryAction" type="button" onClick={openDiscoverSettings}>Configure providers</button>
+      <OpticalButton className="discoverPrimaryAction" type="button" onClick={() => void updateSetting("discoverEnabled", true)}>Enable Discover</OpticalButton>
+      <OpticalButton className="discoverSecondaryAction" type="button" onClick={openDiscoverSettings}>Configure providers</OpticalButton>
     </div> : null}
   </div>;
 
@@ -188,7 +188,7 @@ export default function DiscoverView({ settings, updateSetting, sendToDownloads,
 
   return <section className="discoverPage" aria-busy={loading}>
     <PageHeader title="Discover" description={ready && seedsLine ? seedsLine : undefined}>
-      {!needsSetup && (ready || result?.status === "error") ? <button type="button" className="softButton" disabled={loading} onClick={() => void load(true)}><RefreshCw size={15} /> {loading ? "Finding music…" : "Refresh"}</button> : null}
+      {!needsSetup && (ready || result?.status === "error") ? <OpticalButton type="button" className="softButton" disabled={loading} onClick={() => void load(true)}><RefreshCw size={15} /> {loading ? "Finding music…" : "Refresh"}</OpticalButton> : null}
       {!phone && !needsSetup ? <OpticalButton type="button" className="softButton" onClick={openDiscoverSettings} aria-label="Open Discover settings"><Settings2 size={15} /> Settings</OpticalButton> : null}
     </PageHeader>
     {needsSetup ? setup : null}
@@ -219,7 +219,7 @@ export default function DiscoverView({ settings, updateSetting, sendToDownloads,
       </> : null}
       {catalog?.status === "error" ? <p className="discoverCatalogMessage" role="alert">{catalog.error}</p> : null}
       {catalog?.status === "catalog" ? catalog.items.length ? <>
-        <div className="discoverSectionHead"><h3 className="discoverHeading">{relatedTitle ? `Related to ${relatedTitle}` : "Top result"}</h3>{catalog.kind === "recording" && /^https:\/\/www\.youtube\.com\/watch\?v=[A-Za-z0-9_-]{11}$/.test(catalog.items[0].url) ? <button type="button" className="softButton" disabled={catalogLoading} onClick={() => void searchRelated(catalog.items[0])}>Similar songs</button> : null}</div>
+        <div className="discoverSectionHead"><h3 className="discoverHeading">{relatedTitle ? `Related to ${relatedTitle}` : "Top result"}</h3>{catalog.kind === "recording" && /^https:\/\/www\.youtube\.com\/watch\?v=[A-Za-z0-9_-]{11}$/.test(catalog.items[0].url) ? <OpticalButton type="button" className="softButton" disabled={catalogLoading} onClick={() => void searchRelated(catalog.items[0])}>Similar songs</OpticalButton> : null}</div>
         {catalog.items.slice(0,1).map(item => <div key={item.id} className="discoverTopResult">
           <DiscoverCover title={item.title} artist={item.artist} artwork={item} providerId={/^(?:ytmusic:(?:UC[A-Za-z0-9_-]{22}|[A-Za-z0-9_-]{11})|[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12})$/i.test(item.id) ? item.id : ""} lookup person={catalog.kind === "artist"} />
           <span className="discoverSongText"><button type="button" className="discoverName" onClick={() => openLink(item.url)} title={item.title}>{item.title}</button><small>{item.subtitle}</small></span>
@@ -236,7 +236,7 @@ export default function DiscoverView({ settings, updateSetting, sendToDownloads,
     </section> : null}
 
     {settings.discoverEnabled && loading && !ready ? <p className="discoverNotice" role="status">Finding music…</p> : null}
-    {settings.discoverEnabled && result?.status === "error" ? <p className="discoverNotice" role="alert">{result.error} <button type="button" className="softButton" onClick={() => void load(true)}>Retry</button></p> : null}
+    {settings.discoverEnabled && result?.status === "error" ? <p className="discoverNotice" role="alert">{result.error} <OpticalButton type="button" className="softButton" onClick={() => void load(true)}>Retry</OpticalButton></p> : null}
     {settings.discoverEnabled && result?.status === "no-taste" ? <p className="discoverNotice">Play or like songs to get recommendations.</p> : null}
 
     {recommendedTracks.length ? <section className="discoverSection" aria-labelledby="discover-recommended">
@@ -282,7 +282,7 @@ export default function DiscoverView({ settings, updateSetting, sendToDownloads,
 
     {picked.size ? <div className="discoverTray" role="region" aria-label="Picked songs">
       <span>{picked.size} song{picked.size === 1 ? "" : "s"} picked</span>
-      <button type="button" className="softButton" onClick={() => setPicked(new Map())}>Clear</button>
+      <OpticalButton type="button" className="softButton" onClick={() => setPicked(new Map())}>Clear</OpticalButton>
       <OpticalButton primary type="button" className="heroMain" onClick={sendPicked}><Plus size={15} /><span>Send to Downloads</span></OpticalButton>
     </div> : null}
 

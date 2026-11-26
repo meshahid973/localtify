@@ -11,4 +11,4 @@ export const AppearanceContext = createContext<{
 
 export const useAppearance = () => useContext(AppearanceContext);
 
-export const controlOptics = { cursorLight: false, mirror: 0, light: .52, rim: .26, inner: .4, reflection: .25, shadow: .28 };
+export const controlOptics = { cursorLight: false, mirror: 0, light: .52, rim: .16, inner: .32, reflection: .12, shadow: .22, borderAlpha: 0, borderWidth: 0 };

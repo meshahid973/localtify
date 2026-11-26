@@ -1,7 +1,6 @@
-import { createContext, useContext, type ComponentProps, type ReactNode } from "react";
-import { controlOptics, useAppearance, type GlassKit } from "../../../shared/appearance/appearance";
-
-const TransportItem = createContext<GlassKit["GlassButtonGroupItem"] | null>(null);
+import { type ComponentProps, type ReactNode } from "react";
+import { GlassButtonGroup, GlassButtonGroupItem } from "../../../vendor/liquid-glass/glass-button-group";
+import { controlOptics, useAppearance } from "../../../shared/appearance/appearance";
 
 export function TransportGroup({ className, active = true, children }: {
   className: string;
@@ -9,16 +8,15 @@ export function TransportGroup({ className, active = true, children }: {
   children: ReactNode;
 }) {
   const { kit } = useAppearance();
-  if (!active || !kit) return <div className={className}>{children}</div>;
+  const optical = !!kit && active;
   return (
-    <kit.GlassButtonGroup aria-label="Playback controls" size="md" material="clear" tint={.24}
-      backdrop=".playerBar, .immersivePlayer, .phonePlayerSheet" optics={controlOptics} className={`${className} ltOpticalTransport`}>
-      <TransportItem.Provider value={kit.GlassButtonGroupItem}>{children}</TransportItem.Provider>
-    </kit.GlassButtonGroup>
+    <GlassButtonGroup optical={optical} aria-label="Playback controls" size="md" material="clear" tint={.24}
+      backdrop=".playerBar, .immersivePlayer, .phonePlayerSheet" optics={controlOptics} className={optical ? `${className} ltOpticalTransport` : className}>
+      {children}
+    </GlassButtonGroup>
   );
 }
 
 export function TransportButton(props: ComponentProps<"button">) {
-  const Item = useContext(TransportItem) ?? "button";
-  return <Item {...props} />;
+  return <GlassButtonGroupItem {...props} />;
 }

@@ -1,3 +1,4 @@
+import { OpticalButton } from "../../shared/appearance/OpticalButton";
 import { useEffect, useRef } from "react";
 import { ArrowDown, ArrowUp, Eye, EyeOff, RotateCcw } from "lucide-react";
 import {
@@ -55,7 +56,7 @@ export default function HomeCustomizePanel({ sectionOrder, hiddenSections, updat
     <div className={embedded ? "homeCustomizePanel ltOpticalPopoverPanel" : "homeCustomizePanel"} id={embedded ? undefined : "home-customize-panel"} ref={panelRef} role={embedded ? undefined : "dialog"} aria-label={embedded ? undefined : "Customize Home"}>
       <div className="homeCustomizeHead">
         <strong>Home sections</strong>
-        <button
+        <OpticalButton
           className="homeCustomizeReset"
           type="button"
           disabled={!isHomeLayoutCustomized(sectionOrder, hiddenSections)}
@@ -64,7 +65,7 @@ export default function HomeCustomizePanel({ sectionOrder, hiddenSections, updat
         >
           <RotateCcw size={11} strokeWidth={2.4} aria-hidden="true" />
           reset
-        </button>
+        </OpticalButton>
       </div>
 
       <ol className="homeCustomizeList">

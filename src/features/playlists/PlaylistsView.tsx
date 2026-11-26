@@ -9,7 +9,7 @@ import type { SimilarSeedRequest } from "../analysis/similarSeed";
 import { notForMeTest, type NotForMeMarks } from "../analysis/notForMe";
 import PlaylistRecommendations from "./components/PlaylistRecommendations";
 import { ActionLabel } from "../../shared/ui/ActionLabel";
-import { Button } from "../../vendor/beui/button";
+import { Button } from "../../shared/appearance/AppearanceBeuiButton";
 import { PageHeader } from "../../shared/ui/PageHeader";
 import { LocaltifyStateCard, MetaDividerDot } from "../../shared/ui/LocaltifyViewUi";
 import { VirtualPlaylistTrackList } from "./components/VirtualPlaylistTrackList";

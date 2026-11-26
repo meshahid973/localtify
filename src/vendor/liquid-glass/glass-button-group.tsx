@@ -43,6 +43,7 @@ export type GlassButtonGroupOrientation = 'horizontal' | 'vertical'
 export type GlassButtonGroupProps = {
   children?: ReactNode
   /** Side by side (default) or stacked. */
+  optical?: boolean
   orientation?: GlassButtonGroupOrientation
   /** Height of a horizontal group: 32, 40 or 48 px. Its items follow. */
   size?: GlassButtonGroupSize
@@ -62,9 +63,9 @@ export type GlassButtonGroupItemProps = {
   className?: string
 } & Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children' | 'className'>
 
-type Group = { size: GlassButtonGroupSize; vertical: boolean }
+type Group = { size: GlassButtonGroupSize; vertical: boolean; optical: boolean }
 
-const GroupContext = createContext<Group>({ size: 'md', vertical: false })
+const GroupContext = createContext<Group>({ size: 'md', vertical: false, optical: true })
 
 // The body: its padding, and its corners when stacked (an item's half height plus the padding,
 // so the items sit concentric in the corners). Side by side it is a pill.
@@ -97,6 +98,7 @@ const fallback: Record<GlassMaterial, string> = {
 
 export function GlassButtonGroup({
   children,
+  optical = true,
   orientation = 'horizontal',
   size = 'md',
   material = 'tinted',
@@ -124,31 +126,31 @@ export function GlassButtonGroup({
   return (
     <div
       role="group"
-      data-glass-host=""
+      data-glass-host={optical ? "" : undefined}
       data-orientation={orientation}
-      data-glass-fill={popup && material === 'tinted' ? '' : undefined}
-      className={`inline-flex shrink-0 ${vertical ? 'flex-col items-stretch' : 'items-center'} ${corners} ${bodies[size].pad} font-semibold whitespace-nowrap select-none ${fallback[material]} ${white} ${className}`}
+      data-glass-fill={optical && popup && material === 'tinted' ? '' : undefined}
+      className={optical ? `inline-flex shrink-0 ${vertical ? 'flex-col items-stretch' : 'items-center'} ${corners} ${bodies[size].pad} font-semibold whitespace-nowrap select-none ${fallback[material]} ${white} ${className}` : className}
       {...rest}
     >
       {/* The glass layer must be the host's first child. */}
-      {popup ? <GlassPopupAnchor popup={popup} /> : <GlassLayer material={material} tint={tint}
-        optics={vertical ? { ...STACKED, ...optics } : optics} backdrop={backdrop} />}
-      <GroupContext.Provider value={{ size, vertical }}>{children}</GroupContext.Provider>
+      {optical && (popup ? <GlassPopupAnchor popup={popup} /> : <GlassLayer material={material} tint={tint}
+        optics={vertical ? { ...STACKED, ...optics } : optics} backdrop={backdrop} />)}
+      <GroupContext.Provider value={{ size, vertical, optical }}>{children}</GroupContext.Provider>
     </div>
   )
 }
 
 /** One action of the group: a plain button that lies in the group's glass. */
 export function GlassButtonGroupItem({ children, asChild = false, className = '', type = 'button', ...rest }: GlassButtonGroupItemProps) {
-  const { size } = useContext(GroupContext)
+  const { size, optical } = useContext(GroupContext)
   // No fill of its own, under the pointer either: the glass answers for the whole group.
-  const classes = `inline-flex shrink-0 cursor-pointer items-center justify-center rounded-full ${items[size]} outline-none focus-visible:ring-2 focus-visible:ring-[#3291FF] disabled:pointer-events-none disabled:opacity-40 aria-disabled:pointer-events-none aria-disabled:opacity-40 [&_svg]:shrink-0`
+  const classes = optical ? `inline-flex shrink-0 cursor-pointer items-center justify-center rounded-full ${items[size]} outline-none focus-visible:ring-2 focus-visible:ring-[#3291FF] disabled:pointer-events-none disabled:opacity-40 aria-disabled:pointer-events-none aria-disabled:opacity-40 [&_svg]:shrink-0` : ""
   if (asChild) {
     const child = Children.only(children) as ReactElement<{ className?: string }>
     return cloneElement(child, { ...rest, className: `${classes} ${child.props.className ?? ''} ${className}` } as Record<string, unknown>)
   }
   return (
-    <button type={type} className={`${classes} ${className}`} {...rest}>
+    <button type={type} className={`${classes} ${className}`.trim()} {...rest}>
       {children}
     </button>
   )

@@ -289,7 +289,7 @@ export function GlassLens({ value, disabled = false }: GlassLensProps) {
           shadowSoftness: 34 * OPTICS * lerp(0.6, 1, pc),
           shadowOffset: 22 * OPTICS * lerp(0.5, 1, pc),
           strength: pc,
-          tune: { rim: 0.45, mirror: 0.25 },
+          tune: { rim: 0.18, mirror: 0 },
           color,
           surface,
           edgeClear: 0,

@@ -750,6 +750,9 @@ export function GlassLayer({
       attributes: true,
       attributeFilter: ['class', 'disabled', 'aria-pressed', 'aria-checked', 'aria-selected', 'aria-expanded', 'data-state'],
     })
+    const backdropHost = backdrop ? host.closest(backdrop) : null
+    const paletteObserver = backdropHost && backdropHost !== host ? new MutationObserver(() => { page.stale = true; dirty() }) : null
+    if (paletteObserver && backdropHost) paletteObserver.observe(backdropHost, { attributes: true, attributeFilter: ["style", "data-ambient", "data-cover-sync"] })
     // A scroll changes what lies behind, never the glass: sizes and colours are not read again.
     const onScroll = () => {
       view.repaint = true
@@ -764,6 +767,9 @@ export function GlassLayer({
       io.disconnect()
       ro.disconnect()
       mo.disconnect()
+      paletteObserver?.disconnect()
+      page.canvas.width = page.canvas.height = 1
+      canvas.width = canvas.height = 1
       removeEventListener('scroll', onScroll, { capture: true })
       target.removeEventListener('pointerdown', onDown)
       target.removeEventListener('pointerup', onUp)

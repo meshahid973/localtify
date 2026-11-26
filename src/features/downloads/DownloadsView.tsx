@@ -1,3 +1,4 @@
+import { OpticalButton } from "../../shared/appearance/OpticalButton";
 import { useAppearance } from "../../shared/appearance/appearance";
 import "./downloads.css";
 import { useMemo, useState } from "react";
@@ -11,7 +12,7 @@ import type { View } from "../shell/view.types";
 import { PageHeader } from "../../shared/ui/PageHeader";
 import { Cover } from "../covers/Cover";
 import { clamp } from "../../shared/utils/format";
-import { Button } from "../../vendor/beui/button";
+import { Button } from "../../shared/appearance/AppearanceBeuiButton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../vendor/beui/tabs";
 import SegmentedControl from "../../vendor/arc/segmented-control/segmented-control";
 import { AppearanceMenu } from "../../shared/appearance/AppearanceMenu";
@@ -153,7 +154,6 @@ export default function DownloadsView(props: DownloadsViewProps) {
     (queueFilter === "attention" && needsAttention(item.status)) ||
     (queueFilter === "completed" && item.status === "done"));
   const { kit } = useAppearance();
-  const OpenFolder = kit?.GlassButton;
   const working = downloadBusy || spotifyDownloadBusy || convertBusy;
   const catalogSelection = spotifyTracks.length > 0 && spotifyTracks.every(track => /^mb[a-zA-Z0-9]{32,62}$/.test(track.id));
   const clearSpotify = () => {
@@ -184,14 +184,8 @@ export default function DownloadsView(props: DownloadsViewProps) {
 
   return <section data-page-section="downloads" className="downloadsExperience downloadsLayoutV031">
     <PageHeader title="Downloads">
-      {OpenFolder ? <OpenFolder asChild size="sm" pull={false} className="ltOpticalAction">
-        <button type="button" aria-label="Open downloads folder" title="Open downloads folder" onClick={() => void window.localitfy.openDownloadsFolder(settings.downloadFolder || undefined)}>
-          <FolderOpen size={16} aria-hidden="true" />
-        </button>
-      </OpenFolder> : <Button variant="ghost" size="icon" aria-label="Open downloads folder"
-        title="Open downloads folder" onClick={() => void window.localitfy.openDownloadsFolder(settings.downloadFolder || undefined)}>
-        <FolderOpen size={17} />
-      </Button>}
+      <Button variant="ghost" size="icon" aria-label="Open downloads folder" title="Open downloads folder"
+        onClick={() => void window.localitfy.openDownloadsFolder(settings.downloadFolder || undefined)}><FolderOpen size={17} /></Button>
       <Button variant="ghost" size="icon" aria-label="Download settings" title="Download settings" onClick={openSettings}>
         <Settings2 size={17} />
       </Button>
@@ -200,11 +194,12 @@ export default function DownloadsView(props: DownloadsViewProps) {
 
     <section className="downloadsImporter" aria-label="Import music">
       <Tabs value={downloadsTab} onValueChange={value => setDownloadsTab(value as DownloadsTab)} variant="pill" className="downloadsTabs">
-        <TabsList className="downloadsTabList">
+        {kit ? <kit.GlassTabs aria-label="Download source" size="sm" value={downloadsTab} onValueChange={setDownloadsTab}
+          options={[{value:"youtube",label:"YouTube"},{value:"spotify",label:catalogSelection?"Catalog":"Spotify"}]} className="downloadsTabList ltOpticalTabs" highlightClassName="ltOpticalTabSelection"/> : <TabsList className="downloadsTabList">
           <TabsTrigger value="youtube">YouTube</TabsTrigger>
           <TabsTrigger value="spotify">{catalogSelection ? "Catalog" : "Spotify"}</TabsTrigger>
-        </TabsList>
-        <TabsContent value="youtube" className="downloadsSourceContent">
+        </TabsList>}
+        <TabsContent value="youtube" selectorLabel={kit ? "YouTube import" : undefined} className="downloadsSourceContent">
           <label className="downloadsInputLabel" htmlFor="downloads-youtube-links">Paste YouTube links</label>
           <div className="downloadsInputSurface">
             <Link2 size={17} className="downloadsLinkIcon" aria-hidden="true" />
@@ -221,13 +216,13 @@ export default function DownloadsView(props: DownloadsViewProps) {
             </Button>
           </div>
         </TabsContent>
-        <TabsContent value="spotify" className="downloadsSourceContent">
+        <TabsContent value="spotify" selectorLabel={kit ? "Spotify or catalog import" : undefined} className="downloadsSourceContent">
           <div className="downloadsSpotifyStatus">
             <span>{catalogSelection ? `MusicBrainz album · ${spotifySourceName || "selected tracks"}` : spotifySourceType === "album" ? "Spotify album" : spotifyLoggedIn ? "Spotify connected" : "Spotify public import"}</span>
             {catalogSelection
-              ? <button type="button" className="downloadsTextAction" disabled={working || spotifyFetchBusy} onClick={clearSpotify}>Back to Spotify import</button>
-              : <button type="button" className="downloadsTextAction" disabled={spotifyLoginBusy}
-                  onClick={() => void handleSpotifyLogin()}>{spotifyLoginBusy ? "Connecting…" : spotifyLoggedIn ? "Reconnect" : "Connect account"}</button>}
+              ? <OpticalButton type="button" className="downloadsTextAction" disabled={working || spotifyFetchBusy} onClick={clearSpotify}>Back to Spotify import</OpticalButton>
+              : <OpticalButton type="button" className="downloadsTextAction" disabled={spotifyLoginBusy}
+                  onClick={() => void handleSpotifyLogin()}>{spotifyLoginBusy ? "Connecting…" : spotifyLoggedIn ? "Reconnect" : "Connect account"}</OpticalButton>}
           </div>
           {catalogSelection ? <p className="downloadsCatalogHint">Album tracks are matched by title, artist and duration. Check the selected recordings before downloading.</p> : null}
           {!catalogSelection ? <>
@@ -239,14 +234,14 @@ export default function DownloadsView(props: DownloadsViewProps) {
               disabled={spotifyFetchBusy || spotifyDownloadBusy}
               onChange={event => { setSpotifyUrl(event.currentTarget.value); setSpotifyFetchError(""); }}
               onKeyDown={event => { if (event.key === "Enter" && spotifyUrl.trim() && !working) void fetchSpotifyTracks(); }} />
-            {spotifyTracks.length ? <button type="button" className="downloadsTextAction downloadsFetchInline"
+            {spotifyTracks.length ? <OpticalButton type="button" className="downloadsTextAction downloadsFetchInline"
               aria-label="Fetch another Spotify link" title="Fetch Spotify link" disabled={working || !spotifyUrl.trim()}
-              onClick={() => void fetchSpotifyTracks()}>Fetch</button> : null}
+              onClick={() => void fetchSpotifyTracks()}>Fetch</OpticalButton> : null}
           </div>
           </> : null}
           {spotifyFetchError ? <div className="downloadsInlineError" role="alert">
             <AlertCircle size={16} /><span>{spotifyFetchError}</span>
-            <button type="button" className="downloadsTextAction" onClick={() => void copyDownloadError(spotifyFetchError)}>Copy</button>
+            <OpticalButton type="button" className="downloadsTextAction" onClick={() => void copyDownloadError(spotifyFetchError)}>Copy</OpticalButton>
           </div> : null}
           <div className="downloadsPrimaryRow">
             <Button variant={spotifyDownloadBusy ? "secondary" : "primary"} size="md"
@@ -296,7 +291,7 @@ export default function DownloadsView(props: DownloadsViewProps) {
     {convertBusy ? <div className="downloadsConversion" role="status">
       <span>{convertMessage || "Converting local files…"}</span>
       <Progress value={clamp(convertProgress, 0, 100)} label="Conversion progress" />
-      <button type="button" className="downloadsTextAction" onClick={() => void cancelCurrentDownload()}>Cancel</button>
+      <OpticalButton type="button" className="downloadsTextAction" onClick={() => void cancelCurrentDownload()}>Cancel</OpticalButton>
     </div> : null}
 
     <section className="downloadsActivity" aria-label="Download activity">
@@ -307,8 +302,9 @@ export default function DownloadsView(props: DownloadsViewProps) {
             {counts.attention ? " · " + counts.attention + " need attention" : ""}
             {counts.done ? " · " + counts.done + " completed" : ""}</p>
         </div>
-        <SegmentedControl label="Filter download activity" value={queueFilter} options={FILTERS}
-          onValueChange={value => setQueueFilter(value as QueueFilter)} className="downloadsFilters" />
+        {kit ? <kit.GlassTabs aria-label="Filter download activity" value={queueFilter} options={FILTERS} size="sm"
+          onValueChange={setQueueFilter} className="downloadsFilters ltOpticalTabs" highlightClassName="ltOpticalTabSelection"/> : <SegmentedControl label="Filter download activity" value={queueFilter} options={FILTERS}
+          onValueChange={value => setQueueFilter(value as QueueFilter)} className="downloadsFilters" />}
       </div>
       <div className="downloadsActivityList">
         {!visible.length ? <FadeContent trigger="mount" duration={220} once className="downloadsEmpty">

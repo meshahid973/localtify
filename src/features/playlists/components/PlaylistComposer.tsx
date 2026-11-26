@@ -2,7 +2,7 @@ import { useId, type ReactNode } from "react";
 import "./playlist-composer.css";
 import Dialog from "../../../shared/ui/Dialog";
 import { X } from "lucide-react";
-import { Button, type ButtonProps } from "../../../vendor/beui/button";
+import { Button, type ButtonProps } from "../../../shared/appearance/AppearanceBeuiButton";
 
 export function ComposerButton({ variant = "secondary", size = "md", className = "", ...props }: ButtonProps) {
   return <Button {...props} variant={variant} size={size} pressScale={0.97}

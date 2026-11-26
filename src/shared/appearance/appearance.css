@@ -235,7 +235,7 @@
   color: var(--lt-text);
 }
 .app[data-liquid-glass="true"]:not([data-cover-sync="off"]):not([data-ambient="off"]) :is(.playerBar:not([data-ambient="false"]), .immersivePlayer, .phonePlayerSheet) .ltOpticalTransport {
-  --glass-tint: color-mix(in srgb, var(--lt-bg-elevated) 76%, var(--cover-average, var(--lt-bg-elevated)));
+  --glass-tint: color-mix(in srgb, var(--lt-bg-elevated) 65%, var(--cover-average, var(--lt-bg-elevated)));
 }
 /* Menu surfaces are not focus targets; keep the items' keyboard highlight. */
 html:has(.app[data-liquid-glass="true"]) [data-glass-popup] {
@@ -268,3 +268,19 @@ html:has(.app[data-liquid-glass="true"]) [data-glass-popup] :is([role="menuitem"
 [data-glass-control-fallback]:has(> canvas[data-glass-control-ready]) > .ltGlassCheckFallback { visibility:hidden; }
 .ltGlassCheckFallback { position:absolute; inset:0; display:grid; place-items:center; border:1px solid var(--lt-muted); border-radius:inherit; color:var(--lt-text); pointer-events:none; }
 [aria-checked="true"] > .ltGlassCheckFallback { background:var(--lt-accent); color:var(--button-text-on-accent); border-color:transparent; }
+
+.app[data-liquid-glass="true"] .ltOpticalMenuIcon {
+  width: var(--lt-control-height);
+  min-width: var(--lt-control-height);
+  height: var(--lt-control-height);
+  padding: 0;
+}
+.app[data-liquid-glass="true"] .settingsResetButton.ltOpticalButton {
+  white-space: normal;
+  align-items: flex-start;
+  text-align: left;
+}
+.app[data-liquid-glass="true"] .downloadsTabList.ltOpticalTabs [role="radio"] {
+  min-width: 96px;
+  min-height: 34px;
+}

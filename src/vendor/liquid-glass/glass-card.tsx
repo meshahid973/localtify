@@ -41,8 +41,8 @@ export type GlassCardProps = {
 const CARD_OPTICS: GlassOptics = {
   bendMode: 'radial',
   borderColor: '#ffffff',
-  borderAlpha: 0.6,
-  borderWidth: 1.3,
+  borderAlpha: 0,
+  borderWidth: 0,
   frostMix: 1,
   frostEdge: 1,
   saturation: 1,
@@ -57,7 +57,7 @@ const CARD_OPTICS: GlassOptics = {
 }
 const SHADOW = '0 16.5px 36px rgba(0, 0, 0, 0.08), 0 26.4px 55.9px rgba(0, 0, 0, 0.08)'
 const TINT = 0.7
-const DARK_BORDER_ALPHA = 0.25
+const DARK_BORDER_ALPHA = 0
 const BLUR = 5
 
 // The look before the glass draws (first paint, and the permanent look without WebGL2):

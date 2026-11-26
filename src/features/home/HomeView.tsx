@@ -1,3 +1,4 @@
+import { OpticalButton } from "../../shared/appearance/OpticalButton";
 import { useAppearance } from "../../shared/appearance/appearance";
 import { IconButton } from "../../shared/ui/IconButton";
 import "./home.css";
@@ -126,10 +127,10 @@ export default function HomeView(props: HomeViewProps) {
           {isThreeAm && settings.volume > 0.8 ? <div className="homeInlineNotice">volume is above 80% · late night ears deserve mercy.</div> : null}
 
           <div className="homeJumpActions">
-            <button className="homeStartButton" type="button" onClick={needsPhoneSync ? () => actions.nav.go("settings", "nav") : startListening} disabled={!needsPhoneSync && !currentSong && playableSongCount === 0}>
+            <OpticalButton primary className="homeStartButton" type="button" onClick={needsPhoneSync ? () => actions.nav.go("settings", "nav") : startListening} disabled={!needsPhoneSync && !currentSong && playableSongCount === 0}>
               {needsPhoneSync ? <Smartphone size={12} aria-hidden="true" /> : <SolidIcon name="play" size={13} />}
               <span>{needsPhoneSync ? "Set up phone sync" : android ? (currentSong ? "Play" : "Shuffle music") : currentSong ? "Play track" : "Start Listening"}</span>
-            </button>
+            </OpticalButton>
             {!needsPhoneSync ? <IconButton className="homeRoundButton" type="button" onClick={shuffleLibrarySongsAction} disabled={playableSongCount < 2} aria-label="shuffle library" title="Shuffle library">
               <Shuffle size={14} strokeWidth={2.2} aria-hidden="true" />
             </IconButton> : null}
