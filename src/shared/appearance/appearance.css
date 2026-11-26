@@ -144,6 +144,9 @@
 }
 
 .app[data-liquid-glass="true"] .ltOpticalTransport {
+  --glass-tint: var(--lt-bg-elevated);
+  background-color: color-mix(in srgb, var(--glass-tint) 72%, transparent);
+  color: var(--lt-text);
   border-radius: 999px;
   width: max-content;
   max-width: 100%;
@@ -229,12 +232,7 @@
 }
 
 /* The transport inherits its material from the player and the current artwork. */
-.app[data-liquid-glass="true"] .ltOpticalTransport {
-  --glass-tint: var(--lt-bg-elevated);
-  background-color: color-mix(in srgb, var(--glass-tint) 72%, transparent);
-  color: var(--lt-text);
-}
-.app[data-liquid-glass="true"]:not([data-cover-sync="off"]):not([data-ambient="off"]) :is(.playerBar:not([data-ambient="false"]), .immersivePlayer, .phonePlayerSheet) .ltOpticalTransport {
+.app[data-liquid-glass="true"]:not([data-cover-sync="off"]):not([data-ambient="off"]):not([data-player-background="oledBlack"]) :is(.playerBar:not([data-ambient="false"]), .immersivePlayer:not([data-background="oledBlack"]), .phonePlayerSheet:not([data-background="oledBlack"])) .ltOpticalTransport {
   --glass-tint: color-mix(in srgb, var(--lt-bg-elevated) 65%, var(--cover-average, var(--lt-bg-elevated)));
 }
 /* Menu surfaces are not focus targets; keep the items' keyboard highlight. */

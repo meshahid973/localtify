@@ -281,6 +281,17 @@ server.listen(5173,async()=>{
           await openView(view);
           if(view==="discover") await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('section[aria-labelledby=discover-recommended] li').length===4"),"populated Discover recommendations");
           await screenshot(win,`glass-${mode}-${view}`);
+          if(view==="downloads") {
+            await win.webContents.executeJavaScript("document.querySelector(\x27.downloadsTools button\x27).click()");
+            await until(()=>win.webContents.executeJavaScript("Boolean(document.querySelector(\x27.ltOpticalMenu [role=menuitem]\x27))"),"download glass menu");
+            await sleep(450);
+            const menu=await win.webContents.executeJavaScript("(()=>{const menu=document.querySelector(\x27.ltOpticalMenu\x27);const style=getComputedStyle(menu);const item=menu.querySelector(\x27[role=menuitem]\x27);return {outline:style.outlineStyle,opacity:Number(getComputedStyle(item).opacity),visible:item.getClientRects().length>0}})()");
+            assert.ok(menu.outline==="none" && menu.visible && menu.opacity>.8,"download glass menu remains legible without outline "+JSON.stringify(menu));
+            await screenshot(win,`glass-${mode}-downloads-menu`);
+            win.webContents.sendInputEvent({type:"keyDown",keyCode:"Escape"});
+            win.webContents.sendInputEvent({type:"keyUp",keyCode:"Escape"});
+            await until(()=>win.webContents.executeJavaScript("!document.querySelector(\x27.ltOpticalMenu[data-open]\x27)"),"dismiss download glass menu");
+          }
         }
       }
       await openView("home");
@@ -347,24 +358,59 @@ server.listen(5173,async()=>{
       await win.webContents.executeJavaScript(`${toggle}.click()`);
       await until(()=>win.webContents.executeJavaScript("!document.querySelector('.app').dataset.liquidGlass && !document.querySelector('[data-glass-host] canvas')"),"disabling releases mounted glass surfaces");
       await openView("library");
-      const disabledStats=await sample(false);
+      await until(()=>win.webContents.executeJavaScript("Array.from(window.qaGlassContexts, context=>context.canvas.width===1&&context.canvas.height===1).every(Boolean)"),"retired renderer buffers shrink");
       const contextSizesAfterDisable=await win.webContents.executeJavaScript("Array.from(window.qaGlassContexts, context=>[context.canvas.width,context.canvas.height])");
       assert.ok(contextSizesAfterDisable.length>0 && contextSizesAfterDisable.every(([w,h])=>w===1&&h===1),"shared drawing buffers shrink after disabling");
+      // Do not retain old canvas/context references in the memory sample.
+      await win.webContents.executeJavaScript("window.qaGlassContexts.clear()");
+      const disabledStats=await sample(false);
       await openView("settings");
       await win.webContents.executeJavaScript(`${toggle}.click()`);
       await until(()=>win.webContents.executeJavaScript("window.localitfy.getSettings().then(settings=>settings.liquidGlass===true)"),"re-enabled preference saved");
       await until(()=>win.webContents.executeJavaScript("Boolean(document.querySelector('[data-glass-ready]'))"),"optics return after re-enable");
-      const canLose=await win.webContents.executeJavaScript(`(()=>{
-        const extension=[...window.qaGlassContexts][0]?.getExtension("WEBGL_lose_context");
-        if(!extension)return false;
-        window.qaBeforeLoss=window.qaGlassContexts.size;
-        extension.loseContext();
+      await openView("library");
+      await until(()=>win.webContents.executeJavaScript("Boolean(document.querySelector('.ltOpticalVolume canvas[data-glass-control-ready]'))"),"separate control renderer ready");
+      const lose=async kind=>{
+        const result=await win.webContents.executeJavaScript(`(()=>{
+          const kind=${JSON.stringify(kind)};
+          const context=[...window.qaGlassContexts].find(c=>c.canvas.dataset.glassRenderer===kind&&!c.isContextLost());
+          const extension=context?.getExtension("WEBGL_lose_context");
+          if(!extension)return false;
+          window.qaLostContext=context;
+          extension.loseContext();
+          return true;
+        })()`);
+        if(!result)return false;
+        await until(()=>win.webContents.executeJavaScript("window.qaLostContext.isContextLost()"),kind+" lost");
+        await until(()=>win.webContents.executeJavaScript(`[...window.qaGlassContexts].some(c=>c.canvas.dataset.glassRenderer===${JSON.stringify(kind)}&&c!==window.qaLostContext&&!c.isContextLost())`),kind+" replacement renderer");
         return true;
+      };
+      const controlCanLose=await lose("controls");
+      if(controlCanLose) await until(()=>win.webContents.executeJavaScript("Boolean(document.querySelector('.ltOpticalVolume canvas[data-glass-control-ready]'))"),"Three.js slider recovers after forced loss");
+      // Keep a real open form and its focus through loss and recovery.
+      await win.webContents.executeJavaScript(`(()=>{const row=document.querySelector('.libraryPage .songRow[data-library-song-id=qa-0]');row.focus();row.dispatchEvent(new KeyboardEvent('keydown',{key:'F10',shiftKey:true,bubbles:true,cancelable:true}));})()`);
+      await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.songContextMenu')"),"glass dialog context menu");
+      await win.webContents.executeJavaScript("[...document.querySelectorAll('.songContextMenu [role=menuitem]')].find(e=>e.textContent.trim()==='add to playlist').click()");
+      await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.playlistPickerModal input[aria-label=\x22New playlist name\x22]')"),"glass dialog open");
+      await win.webContents.executeJavaScript(`(()=>{
+        window.qaDialog=document.querySelector('.playlistPickerModal');
+        window.qaDialogInput=window.qaDialog.querySelector('input[aria-label="New playlist name"]');
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(window.qaDialogInput,'retained draft');
+        window.qaDialogInput.dispatchEvent(new Event('input',{bubbles:true}));
+        window.qaDialogInput.focus();
       })()`);
-      if(canLose) await until(()=>win.webContents.executeJavaScript("window.qaGlassContexts.size===window.qaBeforeLoss+1 && Boolean(document.querySelector('.ltOpticalTransport[data-glass-ready]'))"),"core glass renderer recovers from WebGL context loss");
+      const canLose=await lose("core");
+      if(canLose) {
+        await until(()=>win.webContents.executeJavaScript("Boolean(document.querySelector('.playlistPickerModal[data-glass-ready]'))"),"core renderer recovers while dialog stays open");
+        const retained=await win.webContents.executeJavaScript("window.qaDialog===document.querySelector('.playlistPickerModal') && window.qaDialogInput.isConnected && window.qaDialogInput.value==='retained draft' && window.qaDialog.contains(document.activeElement)");
+        assert.equal(retained,true,"dialog, unsaved input and focus survive core renderer replacement");
+        await screenshot(win,"glass-dialog-after-context-loss");
+      }
+      await win.webContents.executeJavaScript("document.querySelector('.playlistPickerModal').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");
+      await until(()=>win.webContents.executeJavaScript("!document.querySelector('.playlistPickerModal')"),"recovered dialog closes");
       win.reload();
       await until(()=>win.webContents.executeJavaScript(enabledField).catch(()=>false),"appearance survives renderer reload");
-      fs.writeFileSync(path.join(output,"glass-runtime.json"),JSON.stringify({firstOpticalPaintMs,beforeEnable,enabledStats,disabledStats,contextSizesAfterDisable,contextRecovery:canLose?"passed":"extension unavailable"},null,2));
+      fs.writeFileSync(path.join(output,"glass-runtime.json"),JSON.stringify({firstOpticalPaintMs,beforeEnable,enabledStats,disabledStats,contextSizesAfterDisable,contextRecovery:canLose?"passed":"extension unavailable",controlsRecovery:controlCanLose?"passed":"extension unavailable"},null,2));
       clearTimeout(watchdog);server.close();app.exit(0);
       return;
     }

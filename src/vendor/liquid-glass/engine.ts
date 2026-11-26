@@ -1332,6 +1332,7 @@ void main() {
 
 function createEngine(): GlassEngine | null {
   const glCanvas = document.createElement('canvas')
+  glCanvas.dataset.glassRenderer = 'core'
   const gl = glCanvas.getContext('webgl2', { alpha: true, premultipliedAlpha: true, antialias: false })
   if (!gl) return null
   const compile = (type: number, src: string) => {
@@ -1344,7 +1345,14 @@ function createEngine(): GlassEngine | null {
   const vs = compile(gl.VERTEX_SHADER, VERTEX)
   const fs = compile(gl.FRAGMENT_SHADER, FRAGMENT)
   const program = gl.createProgram()
-  if (!vs || !fs || !program) return null
+  const fail = () => {
+    if (vs) gl.deleteShader(vs)
+    if (fs) gl.deleteShader(fs)
+    if (program) gl.deleteProgram(program)
+    gl.getExtension('WEBGL_lose_context')?.loseContext()
+    return null
+  }
+  if (!vs || !fs || !program) return fail()
   gl.attachShader(program, vs)
   gl.attachShader(program, fs)
   gl.linkProgram(program)
@@ -1352,10 +1360,13 @@ function createEngine(): GlassEngine | null {
   // the GPU, and a program that linked has answered it.
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
     for (const s of [vs, fs]) if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.warn('[liquid-glass] shader failed to compile', gl.getShaderInfoLog(s))
-    return null
+    return fail()
   }
+  gl.deleteShader(vs)
+  gl.deleteShader(fs)
   gl.useProgram(program)
-  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer())
+  const vertexBuffer = gl.createBuffer()
+  gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer)
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW)
   const attr = gl.getAttribLocation(program, 'a')
   gl.enableVertexAttribArray(attr)
@@ -2688,6 +2699,21 @@ function createEngine(): GlassEngine | null {
     }
     pulls.clear()
     views.clear()
+    lights.clear()
+    flashes.clear()
+    nears.clear()
+    shownButtons.clear()
+    resolved.clear()
+    if (!lost) {
+      for (const value of painted.values()) { gl.deleteTexture(value.back.tex); gl.deleteTexture(value.front.tex) }
+      for (const value of mirrored.values()) gl.deleteTexture(value.pic.tex)
+      gl.deleteTexture(blank.back)
+      gl.deleteTexture(blank.front)
+      gl.deleteTexture(frostPic.tex)
+      gl.deleteFramebuffer(frostPic.fbo)
+      gl.deleteBuffer(vertexBuffer)
+      gl.deleteProgram(program)
+    }
     painted.clear()
     mirrored.clear()
     for (const pair of layersOf.values()) {
@@ -2778,7 +2804,12 @@ let engine: GlassEngine | null | undefined
 /** The shared engine (created on first use, client only). `null` = no WebGL2: use the CSS look. */
 export function getGlassEngine(): GlassEngine | null {
   if (typeof window === 'undefined') return null
-  if (engine === undefined) engine = createEngine()
+  if (engine === undefined) {
+    try { engine = createEngine() } catch (error) {
+      console.warn('Liquid Glass engine unavailable', error)
+      engine = null
+    }
+  }
   return engine
 }
 

@@ -567,7 +567,7 @@ export function GlassLayer({
           cursorLight: o?.cursorLight ?? true,
           pointerLight: true,
           // What the rim of clear glass mirrors: the page around it. Tinted glass mirrors nothing.
-          reflection: !clear ? undefined : {
+          reflection: !clear || o?.mirror === 0 ? undefined : {
             height: h,
             live,
             paint: (around, reach) => {

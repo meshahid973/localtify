@@ -119,6 +119,13 @@ jobs:
         env:
           LOCALTIFY_QA_OUTPUT: ${{ runner.temp }}/localtify-desktop-qa
         run: npx electron scripts/ci-desktop-regression.cjs
+      - name: Rendered Liquid Glass reliability and interaction regression
+        if: ${{ github.head_ref == 'codex/liquid-glass-design-system' }}
+        timeout-minutes: 4
+        env:
+          LOCALTIFY_QA_LIQUID_GLASS: "1"
+          LOCALTIFY_QA_OUTPUT: ${{ runner.temp }}/localtify-desktop-qa/glass
+        run: npx electron scripts/ci-desktop-regression.cjs
       - name: Preserve desktop screenshots and metrics
         if: always()
         uses: actions/upload-artifact@v4

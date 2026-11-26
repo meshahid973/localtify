@@ -310,16 +310,20 @@ function setVec3(u: { value: { set: (r: number, g: number, b: number) => void } 
 }
 
 async function createRuntime(onLost: () => void) {
-  const renderer = new THREE.WebGPURenderer({ antialias: false, alpha: true, forceWebGL: true })
+  const glCanvas = document.createElement('canvas')
+  glCanvas.dataset.glassRenderer = 'controls'
+  const renderer = new THREE.WebGPURenderer({ canvas: glCanvas, antialias: false, alpha: true, forceWebGL: true })
   try { await renderer.init() } catch (error) {
+    try { renderer.backend?.getContext?.()?.getExtension('WEBGL_lose_context')?.loseContext() } catch {}
     try { renderer.dispose() } catch {}
+    glCanvas.width = glCanvas.height = 1
     throw error
   }
   renderer.setPixelRatio(1)
   renderer.outputColorSpace = THREE.LinearSRGBColorSpace
   renderer.toneMapping = THREE.NoToneMapping
   renderer.setClearColor(0x000000, 0)
-  const glCanvas = renderer.domElement as HTMLCanvasElement
+  const context = glCanvas.getContext('webgl2')
   let glW = 0
   let glH = 0
 
@@ -652,25 +656,25 @@ async function createRuntime(onLost: () => void) {
         continue
       }
       try {
-      const spec = v.spec()
-      const moving = spec.step?.(dt, reducedMotion.matches) ?? false
-      if (moving) running = true
-      if (!v.visible) continue
-      const lit = pointerLight(v, spec, dt, reducedMotion.matches)
-      if (lit.moving) running = true
-      if (moving || v.dirty || spec.alwaysRender) {
-        const refresh = v.dirty
-        v.dirty = false
-        render(v, refresh)
-        // A first frame that came out empty asks for another; a naive view asks for one always.
-        if (v.dirty || spec.alwaysRender) running = true
-      } else if (relight && v.devW > 0) {
-        // Only the light moved: re-shade with the existing layers, no redraw or upload.
         const spec = v.spec()
-        if ((spec.cursorLight && aimLight(v, spec)) || lit.changed) present(v)
-      } else if (lit.changed && v.devW > 0) {
-        present(v)
-      }
+        const moving = spec.step?.(dt, reducedMotion.matches) ?? false
+        if (moving) running = true
+        if (!v.visible) continue
+        const lit = pointerLight(v, spec, dt, reducedMotion.matches)
+        if (lit.moving) running = true
+        if (moving || v.dirty || spec.alwaysRender) {
+          const refresh = v.dirty
+          v.dirty = false
+          render(v, refresh)
+          // A first frame that came out empty asks for another; a naive view asks for one always.
+          if (v.dirty || spec.alwaysRender) running = true
+        } else if (relight && v.devW > 0) {
+          // Only the light moved: re-shade with the existing layers, no redraw or upload.
+          const spec = v.spec()
+          if ((spec.cursorLight && aimLight(v, spec)) || lit.changed) present(v)
+        } else if (lit.changed && v.devW > 0) {
+          present(v)
+        }
       } catch (error) {
         disposers.get(v)?.()
         console.warn('Liquid glass control render failed', error)
@@ -710,6 +714,7 @@ async function createRuntime(onLost: () => void) {
     for (const release of disposers.values()) release()
     quad.dispose()
     try { renderer.dispose() } catch {}
+    if (context && !context.isContextLost()) context.getExtension('WEBGL_lose_context')?.loseContext()
     glCanvas.width = glCanvas.height = 1
   }
   glCanvas.addEventListener('webglcontextlost', () => { if (!disposed) { dispose(); onLost() } }, { signal: lifetime.signal })
@@ -757,9 +762,11 @@ async function createRuntime(onLost: () => void) {
         renderMs: 0,
       }
       let released = false
+      let cancelCompile: (() => void) | undefined
       const release = () => {
         if (released) return
         released = true
+        cancelCompile?.()
         signal?.removeEventListener('abort', release)
         views.delete(view)
         disposers.delete(view)
@@ -779,7 +786,19 @@ async function createRuntime(onLost: () => void) {
         io.observe(canvas)
         resizeLayers(view, spec())
         wake()
-        await renderer.compileAsync(scene, camera)
+        let timeout: number | undefined
+        try {
+          await Promise.race([
+            renderer.compileAsync(scene, camera),
+            new Promise<never>((_, reject) => {
+              cancelCompile = () => reject(new Error('Glass view cancelled'))
+              timeout = window.setTimeout(() => reject(new Error('Glass shader compilation timed out')), 15000)
+            }),
+          ])
+        } finally {
+          window.clearTimeout(timeout)
+          cancelCompile = undefined
+        }
         if (released || disposed || signal?.aborted) throw new Error('Glass view cancelled')
         view.ready = true
         wake()
@@ -797,6 +816,7 @@ async function createRuntime(onLost: () => void) {
 }
 
 let runtime: ReturnType<typeof createRuntime> | null = null
+let retirement: Promise<void> = Promise.resolve()
 const losses = new EventTarget()
 export function onGlassControlsLoss(callback: () => void) {
   losses.addEventListener('loss', callback)
@@ -806,10 +826,13 @@ export function onGlassControlsLoss(callback: () => void) {
 /** A rejected initialization must never poison future attempts. */
 export function getGlassRuntime() {
   if (runtime) return runtime
-  const pending = createRuntime(() => {
-    if (runtime !== pending) return
-    runtime = null
-    losses.dispatchEvent(new Event('loss'))
+  const pending: ReturnType<typeof createRuntime> = retirement.then(() => {
+    if (runtime !== pending) throw new Error('Glass renderer initialization cancelled')
+    return createRuntime(() => {
+      if (runtime !== pending) return
+      runtime = null
+      losses.dispatchEvent(new Event('loss'))
+    })
   })
   runtime = pending
   void pending.catch(() => { if (runtime === pending) runtime = null })
@@ -819,5 +842,5 @@ export function getGlassRuntime() {
 export function disposeGlassRuntime() {
   const pending = runtime
   runtime = null
-  void pending?.then(value => value.dispose(), () => {})
+  if (pending) retirement = pending.then(value => value.dispose(), () => {}).catch(error => console.warn('Glass renderer cleanup failed', error))
 }

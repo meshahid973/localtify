@@ -843,7 +843,7 @@ function createMorph(matchWidth: boolean, opening: GlassPopupOpening, from: Glas
             page.ctx.clearRect(0, 0, target.width, target.height)
             page.ctx.setTransform(back.getTransform())
             const found = { pinned: [] as Element[], touched: false, loose: false }
-            drawDom(page.ctx, document.body, {
+            drawDom(page.ctx, host?.closest('.ltOpticalCard, .phonePlayerSheet, .immersivePlayer, .playerBar, .pageTransition, .app') ?? document.body, {
               origin: { left: box.L, top: box.T },
               region,
               skip: (el) => el === host || el === content || el.hasAttribute('data-glass-skip'),
@@ -1330,6 +1330,8 @@ function createMorph(matchWidth: boolean, opening: GlassPopupOpening, from: Glas
       removeEventListener('scroll', onScroll, { capture: true })
       delete el.dataset.glassReady
       delete el.dataset.glassTone
+      for (const picture of pages) picture.canvas.width = picture.canvas.height = 1
+      canvas.width = canvas.height = 1
       triggerView = null
       host = null
     }
@@ -1485,6 +1487,8 @@ function createMorph(matchWidth: boolean, opening: GlassPopupOpening, from: Glas
       ro.disconnect()
       io.disconnect()
       delete el.dataset.glassTone
+      page.canvas.width = page.canvas.height = 1
+      canvas.width = canvas.height = 1
       panelView = null
       panelPage = null
       panelDrawn = false
