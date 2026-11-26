@@ -507,7 +507,7 @@ function MainModeApp() {
   const songTransitionCounterRef = useRef(0);
   const {
     playlists,
-    setPlaylists, initializePlaylists, flushPlaylists, confirmSaved: confirmPlaylistSaved,
+    setPlaylists, initializePlaylists, flushPlaylists,
     newPlaylistName,
     setNewPlaylistName,
     playlistPickerName,
@@ -534,7 +534,7 @@ function MainModeApp() {
     setPlaylistArtwork,
     duplicatePlaylist,
     openPlaylistPicker: openPlaylistPickerCore,
-    addSongToPlaylist,
+    addSongToPlaylist, addSongsToPlaylist, createPlaylistWithSongs,
     removeSongFromPlaylist,
     toggleSongPlaylist,
     handlePlaylistSongDrop,
@@ -4983,14 +4983,8 @@ function MainModeApp() {
     collections: {
       playSongs: playCollectionSongs, queueSongs: queueCollectionSongs, playPlaylist, openSimilar: setSimilarRequest,
       playlists,
-      addAlbumToPlaylist: (playlistId, songIds) => {
-        const valid = songIds.filter(id => songsById.has(id));
-        if (!valid.length || playlists.find(item => item.id === playlistId)?.rules) return;
-        setPlaylists(items => items.map(item => item.id === playlistId && !item.rules
-          ? { ...item, songIds: [...new Set([...item.songIds, ...valid])] } : item));
-        void confirmPlaylistSaved("Album tracks added to playlist", items => items.some(item => item.id === playlistId && valid.every(id => item.songIds.includes(id))));
-      },
-      createPlaylistFromAlbum: (name, songIds) => createPlaylistFromSongs(name, songIds)
+      addAlbumToPlaylist: addSongsToPlaylist,
+      createPlaylistFromAlbum: createPlaylistWithSongs
     },
     playbackAudio: {
       audioRef,

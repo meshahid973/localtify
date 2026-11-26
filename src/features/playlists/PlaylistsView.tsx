@@ -123,6 +123,10 @@ export default function PlaylistsView(props: PlaylistsViewProps) {
   const [playlistQuery, setPlaylistQuery] = useState("");
   const [trackQuery, setTrackQuery] = useState("");
   const [trackSort,setTrackSort]=useState<LibrarySortMode>("library");
+  const [creating, setCreating] = useState(false);
+  const createLock = useRef(false);
+  const [removing, setRemoving] = useState(false);
+  const removalLock = useRef(false);
   const [coverBusy, setCoverBusy] = useState(false);
   const [coverError, setCoverError] = useState("");
   const coverInput = useRef<HTMLInputElement>(null);
@@ -165,7 +169,7 @@ export default function PlaylistsView(props: PlaylistsViewProps) {
       return (
         <section data-page-section="playlists" className="playlistsPage playlistPageV029">
           <LocaltifyStateCard centered tone="info" eyebrow="playlist" title="This playlist is gone" message="It was removed since you opened it."
-            actions={<button className="softButton" type="button" onClick={() => actions.nav.go("playlists")}>all playlists</button>} />
+            actions={<><button className="softButton" type="button" onClick={() => actions.nav.go("playlists")}>all playlists</button><button className="softButton" type="button" disabled={removing} onClick={async()=>{setRemoving(true);try{if(await removePlaylist(detailId))actions.nav.go("playlists");}finally{setRemoving(false);}}}>Retry save</button></>} />
         </section>
       );
     }
@@ -247,7 +251,7 @@ export default function PlaylistsView(props: PlaylistsViewProps) {
             <div className="playlistManageActions">
               <button className="settingsTinyButton" type="button" onClick={() => startRenamePlaylist(detailPlaylist)}><ActionLabel icon={Pencil}>rename</ActionLabel></button>
               <button className="settingsTinyButton" type="button" onClick={() => duplicatePlaylist(detailPlaylist.id)}><ActionLabel icon={Copy}>duplicate</ActionLabel></button>
-              <button className="settingsTinyButton danger" type="button" onClick={() => { removePlaylist(detailPlaylist.id); actions.nav.go("playlists"); }}><ActionLabel icon={Trash2}>remove</ActionLabel></button>
+              <button className="settingsTinyButton danger" type="button" disabled={removing} onClick={async () => { if(removalLock.current)return;removalLock.current=true;setRemoving(true);try{if(await removePlaylist(detailPlaylist.id))actions.nav.go("playlists");}finally{removalLock.current=false;setRemoving(false);} }}><ActionLabel icon={Trash2}>remove</ActionLabel></button>
             </div>
           </div>
 
@@ -287,21 +291,22 @@ export default function PlaylistsView(props: PlaylistsViewProps) {
       <div className="playlistToolbar" aria-label="Playlist actions">
         <form
           className="playlistCreateForm"
-          onSubmit={(event) => {
+          onSubmit={async (event) => {
             event.preventDefault();
-            const id = createPlaylist();
-            if (id) actions.nav.open({ kind: "playlist", id });
+            if(createLock.current)return;createLock.current=true;setCreating(true);
+            try {const id = await createPlaylist();if(id) actions.nav.open({kind:"playlist",id});}
+            finally{createLock.current=false;setCreating(false);}
           }}
         >
           <input
             className="pageHeaderSearch playlistNameInput"
-            value={newPlaylistName}
+            value={newPlaylistName} disabled={creating}
             onChange={(event) => setNewPlaylistName(event.currentTarget.value)}
             placeholder="Name your playlist"
             aria-label="New playlist name"
             maxLength={120}
           />
-          <Button className="playlistAction playlistActionPrimary" type="submit"><ActionLabel icon={Plus}>Create playlist</ActionLabel></Button>
+          <Button className="playlistAction playlistActionPrimary" type="submit" disabled={creating}><ActionLabel icon={Plus}>{creating ? "Saving…" : "Create playlist"}</ActionLabel></Button>
         </form>
         <div className="playlistSecondaryActions">
           <Button variant="secondary" className="playlistAction playlistActionSecondary" type="button" onClick={() => setSmartEditing(null)} disabled={!songs.length}
@@ -337,7 +342,7 @@ export default function PlaylistsView(props: PlaylistsViewProps) {
                 onDragOver={(event) => handlePlaylistShelfDragOver(event, playlist.id)}
                 onDragLeave={(event) => handlePlaylistShelfDragLeave(event, playlist.id)}
                 onDrop={(event) => handlePlaylistShelfDrop(event, playlist.id)}
-                title="drop a song here to add it"
+                title={playlist.rules ? "Open smart playlist" : "Drop a song here to add it"}
                 cover={<PlaylistCoverCollage songs={previewSongs} coverArtwork={playlist.coverArtwork} className="collectionBrowseCardCover playlistCoverCollage" />}
               >
                 <span >

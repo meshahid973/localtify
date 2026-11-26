@@ -74,8 +74,8 @@ export type ShellCollectionsContract = {
   playPlaylist: (playlist: Playlist, shuffle: boolean) => unknown;
   openSimilar: (request: SimilarSeedRequest) => unknown;
   playlists: Playlist[];
-  addAlbumToPlaylist: (playlistId: string, songIds: string[]) => unknown;
-  createPlaylistFromAlbum: (name: string, songIds: string[]) => unknown;
+  addAlbumToPlaylist: (playlistId: string, songIds: string[]) => Promise<boolean>;
+  createPlaylistFromAlbum: (name: string, songIds: string[]) => Promise<boolean>;
 };
 
 export type ShellModalContract = {
