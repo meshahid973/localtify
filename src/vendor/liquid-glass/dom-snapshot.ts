@@ -60,7 +60,7 @@ function placeOf(position: string, freeX: number, freeY: number): [number, numbe
 
 // ── Sources: loading, and keeping the canvas readable ────────────────────────
 
-const verdicts = new WeakMap<Drawable, { key: string; ok: boolean }>()
+let verdicts = new WeakMap<Drawable, { key: string; ok: boolean }>()
 
 /**
  * Is this source safe to draw? One image without CORS (or an SVG, in some browsers)
@@ -87,26 +87,32 @@ function isClean(source: Drawable, key = '') {
   return ok
 }
 
-const waiting = new WeakMap<HTMLImageElement, Set<() => void>>()
+const waiting = new Map<HTMLImageElement, { callbacks: Set<() => void>; dispose: () => void }>()
 
-/** True once the image can be drawn. Until then `onStale` is called when it arrives. */
+/** Pending image subscriptions are owned by the snapshot renderer, not by the app's image. */
 function isLoaded(image: HTMLImageElement, onStale?: () => void) {
   if (image.complete) return image.naturalWidth > 0
   if (!onStale) return false
-  let callbacks = waiting.get(image)
-  if (!callbacks) {
-    const pending = (callbacks = new Set())
+  let pending = waiting.get(image)
+  if (!pending) {
+    const controller = new AbortController()
+    const callbacks = new Set<() => void>()
+    const dispose = () => {
+      controller.abort()
+      callbacks.clear()
+      waiting.delete(image)
+    }
+    const settle = () => {
+      const notify = [...callbacks]
+      dispose()
+      for (const callback of notify) callback()
+    }
+    pending = { callbacks, dispose }
     waiting.set(image, pending)
-    image.addEventListener(
-      'load',
-      () => {
-        waiting.delete(image)
-        pending.forEach((notify) => notify())
-      },
-      { once: true },
-    )
+    image.addEventListener('load', settle, { once: true, signal: controller.signal })
+    image.addEventListener('error', settle, { once: true, signal: controller.signal })
   }
-  callbacks.add(onStale)
+  pending.callbacks.add(onStale)
   return false
 }
 
@@ -121,11 +127,19 @@ const isSameOrigin = (src: string) => {
 
 const copies = new Map<string, HTMLImageElement>()
 
+function clearCopies() {
+  for (const image of copies.values()) {
+    waiting.get(image)?.dispose()
+    image.removeAttribute('src')
+  }
+  copies.clear()
+}
+
 /** Our own copy of an image by URL: a CSS background, or an <img> the page loaded without CORS. */
 function imageCopy(src: string) {
   let image = copies.get(src)
   if (!image) {
-    if (copies.size > 200) copies.clear()
+    if (copies.size >= 200) clearCopies()
     image = new Image()
     if (!isSameOrigin(src)) image.crossOrigin = 'anonymous'
     image.decoding = 'async'
@@ -158,7 +172,7 @@ function drawFitted(ctx: CanvasRenderingContext2D, source: Drawable, sw: number,
   if (clips) ctx.restore()
 }
 
-const svgCache = new WeakMap<Element, { key: string; image: HTMLImageElement }>()
+let svgCache = new WeakMap<Element, { key: string; image: HTMLImageElement }>()
 /** Set when this browser treats an SVG image as unreadable: icons are then left out. */
 let svgTaints = false
 
@@ -831,4 +845,13 @@ export function drawAround(
     origin: box,
     region: { left: box.left - reach, top: box.top - reach, right: box.left + box.width + reach, bottom: box.top + box.height + reach },
   })
+}
+
+/** Drop only optical copies and subscriptions. Never modify application-owned artwork. */
+export function releaseGlassSnapshots() {
+  for (const pending of waiting.values()) pending.dispose()
+  clearCopies()
+  verdicts = new WeakMap()
+  svgCache = new WeakMap()
+  parsed.clear()
 }

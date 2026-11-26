@@ -644,11 +644,7 @@ export function GlassLayer({
                       origin: { left: lx, top: ly },
                       region,
                       skip: (el) => el === host || el.hasAttribute('data-glass-skip') || !!view.near?.includes(el),
-                      onStale: () => {
-                        page.stale = true
-                        view.dirty = true
-                        engine.wake()
-                      },
+                      onStale: stalePage,
                       found,
                     })
                     page.pinned = found.pinned
@@ -694,6 +690,7 @@ export function GlassLayer({
       view.dirty = true
       engine.wake()
     }
+    const stalePage = () => { page.stale = true; dirty() }
     pokeRef.current = dirty
     // The nod: a hover's swell alone, for PULSE seconds. A droplet melting in swells once it is
     // in: pushed while it is still out, its end would stick out past the body's.

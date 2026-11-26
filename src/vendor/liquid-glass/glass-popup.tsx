@@ -389,6 +389,10 @@ function createMorph(matchWidth: boolean, opening: GlassPopupOpening, from: Glas
     if (panelView) panelView.dirty = true
     engine?.wake()
   }
+  const stalePages = () => {
+    for (const picture of pages) picture.stale = true
+    dirty()
+  }
 
   /**
    * Light at this point (viewport px), or at the control's centre. `gain` dims it; a point in the
@@ -848,10 +852,7 @@ function createMorph(matchWidth: boolean, opening: GlassPopupOpening, from: Glas
               origin: { left: box.L, top: box.T },
               region,
               skip: (el) => el === host || el === content || el.hasAttribute('data-glass-skip'),
-              onStale: () => {
-                page.stale = true
-                repaint()
-              },
+              onStale: stalePages,
               found,
             })
             page.pinned = found.pinned
