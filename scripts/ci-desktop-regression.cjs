@@ -138,6 +138,30 @@ server.listen(5173,async()=>{
     const reloadMs=performance.now()-reloadStarted;
     win.setSize(1280,800);await sleep(700);
     assert.equal(await win.webContents.executeJavaScript("document.querySelector('.app').dataset.sidebarBehavior"), "slim", "fresh installs use collapsed navigation");
+    const originalMinSize=win.getMinimumSize();
+    await win.webContents.executeJavaScript("document.querySelector('.sidebar [data-nav-id=library]').click()");
+    await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.libraryPage .songRow[data-library-song-id=qa-0]')"),"playlist picker fixture");
+    await win.webContents.executeJavaScript(`(()=>{const row=document.querySelector('.libraryPage .songRow[data-library-song-id=qa-0]');const r=row.getBoundingClientRect();row.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,clientX:r.x+12,clientY:r.y+12}));})()`);
+    await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.songContextMenu')"),"playlist picker context menu");
+    await win.webContents.executeJavaScript(`[...document.querySelectorAll('.songContextMenu [role=menuitem]')].find(e=>e.textContent.trim()==='add to playlist').click()`);
+    await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.playlistPickerModal .playlistPickerItem')"),"playlist picker visible");
+    win.setMinimumSize(320,320);
+    for(const [width,height] of [[480,320],[390,844],[1280,800]]) {
+      win.setSize(width,height);
+      await until(()=>win.webContents.executeJavaScript(`innerWidth===${width} && innerHeight===${height}`),"playlist picker viewport "+width+"x"+height,5000);
+      const geometry=await win.webContents.executeJavaScript(`(()=>{
+        const modal=document.querySelector('.playlistPickerModal'), list=modal.querySelector('.playlistPickerList'), button=modal.querySelector('.playlistPickerCreate button');
+        list.scrollIntoView({block:'nearest'}); const listRect=list.getBoundingClientRect();
+        button.scrollIntoView({block:'nearest'});const rect=button.getBoundingClientRect(), clip=modal.getBoundingClientRect();
+        return {listHeight:listRect.height,reachable:rect.top>=clip.top-1&&rect.bottom<=clip.bottom+1&&rect.bottom<=innerHeight+1&&rect.left>=0&&rect.right<=innerWidth+1,artwork:list.querySelector('.playlistPickerCollage').getBoundingClientRect().width};
+      })()`);
+      assert.ok(geometry.listHeight>=60&&geometry.reachable&&geometry.artwork<=50,"playlist picker geometry "+JSON.stringify(geometry));
+    }
+    await win.webContents.executeJavaScript("document.querySelector('.playlistPickerModal').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");
+    await until(()=>win.webContents.executeJavaScript("!document.querySelector('.playlistPickerModal')"),"playlist picker Escape");
+    win.setMinimumSize(...originalMinSize);
+    await win.webContents.executeJavaScript("document.querySelector('.sidebar [data-nav-id=home]').click()");
+    await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.homeStartButton')"),"return home after picker");
     async function assertShellChrome() {
       const chrome=await win.webContents.executeJavaScript(`(()=>{
         const app=document.querySelector('.app'), sidebar=app.querySelector('.sidebar');

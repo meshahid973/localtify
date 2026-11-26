@@ -18,7 +18,7 @@
   overscroll-behavior: contain;
   color: var(--lt-text);
   border: 1px solid rgba(var(--lt-accent-rgb), .14);
-  border-radius: var(--lt-radius-card, 18px);
+  border-radius: var(--lt-radius-md);
   background: var(--lt-surface);
   box-shadow: 0 30px 90px rgba(0,0,0,.55);
 }
