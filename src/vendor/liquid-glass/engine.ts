@@ -230,6 +230,7 @@ export type GlassEngine = {
   add: (view: GlassView) => void
   remove: (view: GlassView) => void
   trim: () => void
+  dispose: () => void
   /** Schedule a frame (call after changing state the springs read). */
   wake: () => void
   /** Any CSS colour (oklch, var(), color-mix…) → 0..1 RGBA. */
@@ -2666,7 +2667,8 @@ function createEngine(): GlassEngine | null {
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', invalidateAll, { signal: lifetime.signal })
   // A radial bend scales with the viewport.
   listen('resize', invalidateAll, { passive: true })
-  glCanvas.addEventListener('webglcontextlost', () => {
+  const dispose = (lost: boolean) => {
+    if (dead) return
     dead = true
     lifetime.abort()
     rootObserver.disconnect()
@@ -2685,11 +2687,23 @@ function createEngine(): GlassEngine | null {
       if (host && p.scaled) host.style.scale = ''
     }
     pulls.clear()
-    engine = undefined
-    contextLoss.dispatchEvent(new Event('loss'))
-  }, { once: true })
+    views.clear()
+    painted.clear()
+    mirrored.clear()
+    for (const pair of layersOf.values()) {
+      pair.back.canvas.width = pair.back.canvas.height = 0
+      if (pair.front) pair.front.canvas.width = pair.front.canvas.height = 0
+    }
+    layersOf.clear()
+    for (const scratch of [back, front, around]) scratch.canvas.width = scratch.canvas.height = 0
+    glCanvas.width = glCanvas.height = 1
+    if (!lost) gl.getExtension('WEBGL_lose_context')?.loseContext()
+    if (lost) { engine = undefined; contextLoss.dispatchEvent(new Event('loss')) }
+  }
+  glCanvas.addEventListener('webglcontextlost', () => dispose(true), { once: true })
 
   return {
+    dispose: () => dispose(false),
     trim: () => {
       if (views.size || dead) return
       // Leave the compiled program warm but release the peak-sized scratch buffers.
@@ -2770,4 +2784,10 @@ export function getGlassEngine(): GlassEngine | null {
 
 export function trimGlassEngine() {
   engine?.trim()
+}
+
+export function disposeGlassEngine() {
+  const previous = engine
+  engine = undefined
+  previous?.dispose()
 }

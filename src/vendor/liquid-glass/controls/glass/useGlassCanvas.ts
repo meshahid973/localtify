@@ -18,18 +18,18 @@ export function useGlassCanvas(spec: GlassViewSpec) {
     const canvas = canvasRef.current
     if (!canvas) return
     canvas.setAttribute('data-glass-skip', '')
-    let disposed = false
+    const lifetime = new AbortController()
     // three.js loads lazily so the page still prerenders on the server.
     import('./runtime')
       .then(({ getGlassRuntime }) => getGlassRuntime())
-      .then((runtime) => runtime.createView(canvas, () => specRef.current))
+      .then((runtime) => runtime.createView(canvas, () => specRef.current, lifetime.signal))
       .then((view) => {
-        if (disposed) view.dispose()
+        if (lifetime.signal.aborted) view.dispose()
         else handle.current = view
       })
-      .catch((error) => console.warn('Liquid glass renderer unavailable', error))
+      .catch((error) => { if (!lifetime.signal.aborted) console.warn('Liquid glass renderer unavailable', error) })
     return () => {
-      disposed = true
+      lifetime.abort()
       handle.current?.dispose()
       handle.current = null
     }

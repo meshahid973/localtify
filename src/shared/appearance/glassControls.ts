@@ -5,3 +5,4 @@ export async function prepareGlassControls() {
   const { getGlassRuntime } = await import("../../vendor/liquid-glass/controls/glass/runtime");
   return await getGlassRuntime();
 }
+export { onGlassControlsLoss, disposeGlassRuntime } from "../../vendor/liquid-glass/controls/glass/runtime";

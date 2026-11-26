@@ -3,4 +3,4 @@ export * from "../../vendor/liquid-glass/glass-select";
 export * from "../../vendor/liquid-glass/glass-menu";
 export * from "../../vendor/liquid-glass/glass-popover";
 export * from "../../vendor/liquid-glass/glass-dropdown-menu";
-export { getGlassEngine, onGlassContextLoss, trimGlassEngine } from "../../vendor/liquid-glass/engine";
+export { getGlassEngine, onGlassContextLoss, trimGlassEngine, disposeGlassEngine } from "../../vendor/liquid-glass/engine";

@@ -309,9 +309,12 @@ function setVec3(u: { value: { set: (r: number, g: number, b: number) => void } 
   u.value.set(r, g, b)
 }
 
-async function createRuntime() {
+async function createRuntime(onLost: () => void) {
   const renderer = new THREE.WebGPURenderer({ antialias: false, alpha: true, forceWebGL: true })
-  await renderer.init()
+  try { await renderer.init() } catch (error) {
+    try { renderer.dispose() } catch {}
+    throw error
+  }
   renderer.setPixelRatio(1)
   renderer.outputColorSpace = THREE.LinearSRGBColorSpace
   renderer.toneMapping = THREE.NoToneMapping
@@ -324,6 +327,9 @@ async function createRuntime() {
   camera.position.z = 1
   const quad = new THREE.PlaneGeometry(2, 2)
   const views = new Set<View>()
+  const disposers = new Map<View, () => void>()
+  const lifetime = new AbortController()
+  let disposed = false
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
 
   // The loop runs only while a control moves, a view is dirty or the cursor light changes;
@@ -336,7 +342,7 @@ async function createRuntime() {
   const canRest = typeof heart?.start === 'function' && typeof heart?.stop === 'function'
   let beating = true
   const wake = () => {
-    if (!views.size) return
+    if (disposed || !views.size) return
     if (canRest && !beating) {
       beating = true
       heart!.start!()
@@ -360,13 +366,15 @@ async function createRuntime() {
     views.forEach((v) => (v.dirty = true))
     wake()
   }
-  new MutationObserver(themeChanged).observe(document.documentElement, {
+  const themeObserver = new MutationObserver(themeChanged)
+  themeObserver.observe(document.documentElement, {
     attributes: true,
     attributeFilter: ['data-theme'],
     subtree: true,
   })
   // class="dark" is only watched on <html> (a subtree class watch would fire on every re-render).
-  new MutationObserver(themeChanged).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+  const classObserver = new MutationObserver(themeChanged)
+  classObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
 
   function resizeLayers(v: View, spec: GlassViewSpec) {
     const dpr = Math.min(window.devicePixelRatio || 1, 2)
@@ -399,7 +407,7 @@ async function createRuntime() {
       pointer.moved = true
       wake()
     },
-    { passive: true },
+    { passive: true, signal: lifetime.signal },
   )
   // Scrolling moves the controls under a still cursor.
   window.addEventListener(
@@ -408,17 +416,17 @@ async function createRuntime() {
       pointer.moved = true
       wake()
     },
-    { passive: true, capture: true },
+    { passive: true, capture: true, signal: lifetime.signal },
   )
   document.documentElement.addEventListener('pointerleave', () => {
     pointer.active = false
     pointer.moved = true
     wake()
-  })
+  }, { signal: lifetime.signal })
   // A control answers a press by writing to the refs its `step` reads, and tells no one:
   // any press or release on the page starts the loop, which stops again if nothing moved.
   for (const type of ['pointerdown', 'pointerup', 'pointercancel', 'pointerout'] as const) {
-    window.addEventListener(type, wake, { passive: true, capture: true })
+    window.addEventListener(type, wake, { passive: true, capture: true, signal: lifetime.signal })
   }
 
   // Pointer light (LIGHT in engine.ts), as the kit's own engine does it: a held pointer (or
@@ -433,7 +441,7 @@ async function createRuntime() {
       beam.y = e.clientY
       beam.over = e.target
     },
-    { passive: true, capture: true },
+    { passive: true, capture: true, signal: lifetime.signal },
   )
   window.addEventListener(
     'pointerdown',
@@ -444,15 +452,15 @@ async function createRuntime() {
       beam.over = e.target
       beam.id = e.pointerId
     },
-    { passive: true, capture: true },
+    { passive: true, capture: true, signal: lifetime.signal },
   )
   const lift = (e: PointerEvent) => {
     if (e.pointerId !== beam.id) return
     beam.id = -1
     for (const v of views) v.light.press = false
   }
-  window.addEventListener('pointerup', lift, { passive: true, capture: true })
-  window.addEventListener('pointercancel', lift, { passive: true, capture: true })
+  window.addEventListener('pointerup', lift, { passive: true, capture: true, signal: lifetime.signal })
+  window.addEventListener('pointercancel', lift, { passive: true, capture: true, signal: lifetime.signal })
   const key = (e: KeyboardEvent) => {
     if (e.key !== ' ' && e.key !== 'Enter') return
     const down = e.type === 'keydown'
@@ -466,15 +474,15 @@ async function createRuntime() {
     }
     wake()
   }
-  window.addEventListener('keydown', key, true)
-  window.addEventListener('keyup', key, true)
+  window.addEventListener('keydown', key, { capture: true, signal: lifetime.signal })
+  window.addEventListener('keyup', key, { capture: true, signal: lifetime.signal })
   window.addEventListener(
     'focusout',
     () => {
       for (const v of views) v.light.key = false
       wake()
     },
-    true,
+    { capture: true, signal: lifetime.signal },
   )
 
   /** Works out and advances a view's pointer light. `changed`: it must be drawn again; `moving`: it still changes. */
@@ -627,6 +635,7 @@ async function createRuntime() {
   let last = 0
   function tick(now: number) {
     raf = 0
+    if (disposed) return
     const dt = last ? Math.min((now - last) / 1000, 1 / 30) : 1 / 60
     last = now
     const mixTarget = pointer.active ? 1 : 0
@@ -642,6 +651,7 @@ async function createRuntime() {
         running = true
         continue
       }
+      try {
       const spec = v.spec()
       const moving = spec.step?.(dt, reducedMotion.matches) ?? false
       if (moving) running = true
@@ -661,8 +671,12 @@ async function createRuntime() {
       } else if (lit.changed && v.devW > 0) {
         present(v)
       }
+      } catch (error) {
+        disposers.get(v)?.()
+        console.warn('Liquid glass control render failed', error)
+      }
     }
-    if (running) raf = requestAnimationFrame(tick)
+    if (running && views.size) raf = requestAnimationFrame(tick)
     else {
       last = 0
       if (canRest && beating) {
@@ -671,10 +685,9 @@ async function createRuntime() {
       }
     }
   }
-  let trimPending = false
   const trim = () => {
-    trimPending = views.size > 0
-    if (trimPending) return
+    if (disposed) return
+    if (views.size) return
     cancelAnimationFrame(raf)
     raf = last = 0
     glW = glH = 1
@@ -684,10 +697,27 @@ async function createRuntime() {
       heart!.stop!()
     }
   }
+  const dispose = () => {
+    if (disposed) return
+    disposed = true
+    lifetime.abort()
+    io.disconnect()
+    themeObserver.disconnect()
+    classObserver.disconnect()
+    cancelAnimationFrame(raf)
+    raf = last = 0
+    if (canRest && beating) { beating = false; heart!.stop!() }
+    for (const release of disposers.values()) release()
+    quad.dispose()
+    try { renderer.dispose() } catch {}
+    glCanvas.width = glCanvas.height = 1
+  }
+  glCanvas.addEventListener('webglcontextlost', () => { if (!disposed) { dispose(); onLost() } }, { signal: lifetime.signal })
   trim()
   return {
-    trim,
-    async createView(canvas: HTMLCanvasElement, spec: () => GlassViewSpec): Promise<GlassViewHandle> {
+    trim, dispose,
+    async createView(canvas: HTMLCanvasElement, spec: () => GlassViewSpec, signal?: AbortSignal): Promise<GlassViewHandle> {
+      if (disposed || signal?.aborted) throw new Error('Glass view cancelled')
       const bgLayer = makeLayer()
       const fgLayer = makeLayer()
       fgLayer.tex.generateMipmaps = false
@@ -726,37 +756,68 @@ async function createRuntime() {
         renders: 0,
         renderMs: 0,
       }
-      views.add(view)
-      wake()
-      io.observe(canvas)
-      resizeLayers(view, spec())
-      await renderer.compileAsync(scene, camera)
-      view.ready = true
-      wake()
-      return {
-        invalidate: () => {
-          view.dirty = true
-          wake()
-        },
-        stats: () => ({ renders: view.renders, ms: view.renderMs }),
-        dispose: () => {
-          views.delete(view)
-          io.unobserve(canvas)
-          material.dispose()
-          bgLayer.tex.dispose()
-          fgLayer.tex.dispose()
-          delete canvas.dataset.glassControlReady
-          if (trimPending && !views.size) trim()
-        },
+      let released = false
+      const release = () => {
+        if (released) return
+        released = true
+        signal?.removeEventListener('abort', release)
+        views.delete(view)
+        disposers.delete(view)
+        io.unobserve(canvas)
+        delete canvas.dataset.glassControlReady
+        material.dispose()
+        bgLayer.tex.dispose()
+        fgLayer.tex.dispose()
+        for (const target of [canvas, bgLayer.canvas, fgLayer.canvas]) target.width = target.height = 1
+        if (!views.size) trim()
+      }
+      disposers.set(view, release)
+      try {
+        views.add(view)
+        signal?.addEventListener('abort', release, { once: true })
+        if (signal?.aborted) throw new Error('Glass view cancelled')
+        io.observe(canvas)
+        resizeLayers(view, spec())
+        wake()
+        await renderer.compileAsync(scene, camera)
+        if (released || disposed || signal?.aborted) throw new Error('Glass view cancelled')
+        view.ready = true
+        wake()
+        return {
+          invalidate: () => { if (!released) { view.dirty = true; wake() } },
+          stats: () => ({ renders: view.renders, ms: view.renderMs }),
+          dispose: release,
+        }
+      } catch (error) {
+        release()
+        throw error
       }
     },
   }
 }
 
 let runtime: ReturnType<typeof createRuntime> | null = null
+const losses = new EventTarget()
+export function onGlassControlsLoss(callback: () => void) {
+  losses.addEventListener('loss', callback)
+  return () => losses.removeEventListener('loss', callback)
+}
 
-/** Lazily creates the shared renderer (client only). */
+/** A rejected initialization must never poison future attempts. */
 export function getGlassRuntime() {
-  runtime ??= createRuntime()
-  return runtime
+  if (runtime) return runtime
+  const pending = createRuntime(() => {
+    if (runtime !== pending) return
+    runtime = null
+    losses.dispatchEvent(new Event('loss'))
+  })
+  runtime = pending
+  void pending.catch(() => { if (runtime === pending) runtime = null })
+  return pending
+}
+
+export function disposeGlassRuntime() {
+  const pending = runtime
+  runtime = null
+  void pending?.then(value => value.dispose(), () => {})
 }

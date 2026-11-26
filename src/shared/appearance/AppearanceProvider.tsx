@@ -54,22 +54,50 @@ export function AppearanceProvider({ enabled, tone, reducedMotion, backgrounded,
     void import("./glassKit").then(module => { if (active) setKit(module); }).catch(error => console.warn("Liquid Glass controls could not load", error));
     return () => { active = false; };
   }, [renderGlass, kit]);
+  const controlModule = useRef<GlassControls | null>(null);
   useEffect(() => {
-    if (!renderControls || !kit?.getGlassEngine() || controls) return;
-    let active = true;
-    void import("./glassControls").then(async module => {
+    if (!renderControls || !kit?.getGlassEngine()) return;
+    let active = true, attempts = 0;
+    let retry: number | undefined;
+    let unsubscribe: (() => void) | undefined;
+    const start = async () => {
+      try {
+        const module = await import("./glassControls");
+        if (!active) return;
+        controlModule.current = module;
+        unsubscribe ??= module.onGlassControlsLoss(failed);
+        const runtime = await module.prepareGlassControls();
+        if (!active) { runtime.trim(); return; }
+        trimControls.current = runtime.trim;
+        setControls(module);
+      } catch (error) {
+        if (active) { console.warn("Liquid Glass range controls could not load", error); failed(); }
+      }
+    };
+    function failed() {
       if (!active) return;
-      const runtime = await module.prepareGlassControls();
-      trimControls.current = runtime.trim;
-      if (!active) runtime.trim();
-      if (active) setControls(module);
-    }).catch(error => console.warn("Liquid Glass range controls could not load", error));
-    return () => { active = false; };
-  }, [renderControls, kit, controls]);
+      setControls(null);
+      trimControls.current = null;
+      if (attempts++ === 0) retry = window.setTimeout(() => void start(), 250);
+    }
+    void start();
+    return () => {
+      active = false;
+      unsubscribe?.();
+      window.clearTimeout(retry);
+      trimControls.current?.();
+    };
+  }, [renderControls, kit]);
   useEffect(() => {
     if (!renderGlass) kit?.trimGlassEngine();
     if (!renderControls) trimControls.current?.();
-  }, [kit, renderGlass, renderControls]);
+    if (!enabled) {
+      controlModule.current?.disposeGlassRuntime();
+      trimControls.current = null;
+      setControls(null);
+      kit?.disposeGlassEngine();
+    }
+  }, [enabled, kit, renderGlass, renderControls]);
   const value = useMemo(() => ({ enabled, tone, kit: renderGlass ? kit : null, controls: renderControls ? controls : null }), [enabled, tone, renderGlass, renderControls, kit, controls]);
   return <AppearanceContext.Provider value={value}>{children}</AppearanceContext.Provider>;
 }
