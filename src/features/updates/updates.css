@@ -17,5 +17,3 @@
 @media(max-width:520px) { .localtifyUpdateBanner { padding:3px 6px; } .localtifyUpdateBannerActions button { padding:5px 6px; font-size:10px; } }
 @media(prefers-reduced-motion:reduce) { .localtifyUpdateBanner,.localtifyUpdateBannerProgress { transition:none!important; animation:none!important; } }
 
-.settingsUpdatesActions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding-top:14px; }
-.settingsUpdatesActions button { min-height:34px; }

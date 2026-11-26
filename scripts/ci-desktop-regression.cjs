@@ -718,9 +718,12 @@ server.listen(5173,async()=>{
       assert.ok(geometry.inside&&geometry.footer&&geometry.controls&&geometry.readingHeight>=80&&!geometry.horizontalOverflow,"release notes geometry "+JSON.stringify(geometry));
       await screenshot(win,"whats-new-"+width+"x"+height);
     }
-    const selectRelease = target => win.webContents.executeJavaScript(`(()=>{const select=document.querySelector('.releaseNotesVersionPicker select');select.value=${JSON.stringify(target)};select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-    await selectRelease(version);
-    await until(()=>win.webContents.executeJavaScript("document.querySelector('#releaseNotesTitle')?.textContent.includes("+JSON.stringify(version)+") && document.querySelector('.releaseNotesMarkdown')?.textContent.includes('Smart playlists')"),"installed notes from bundled release");
+    await win.webContents.executeJavaScript(`(()=>{
+      const select=document.querySelector('.releaseNotesVersionPicker select');
+      const installed=[...select.options].find(option=>option.textContent.includes("Installed"));
+      select.value=installed.value;select.dispatchEvent(new Event('change',{bubbles:true}));
+    })()`);
+    await until(()=>win.webContents.executeJavaScript("document.querySelector('.releaseNotesMeta')?.textContent.includes('Installed') && document.querySelector('.releaseNotesMarkdown')?.textContent.includes('Smart playlists')"),"installed notes from bundled release");
     win.setSize(480,320);
     await until(()=>win.webContents.executeJavaScript("innerWidth===480 && innerHeight===320"),"compact installed release");
     const longLayout=await win.webContents.executeJavaScript(`(()=>{
@@ -733,10 +736,10 @@ server.listen(5173,async()=>{
     win.setSize(1280,800);
     await until(()=>win.webContents.executeJavaScript("innerWidth===1280 && innerHeight===800"),"desktop installed release");
     await screenshot(win,"whats-new-installed");
-    await selectRelease("0.5.0");
+    await win.webContents.executeJavaScript("(()=>{const select=document.querySelector('.releaseNotesVersionPicker select');select.value='0.5.0';select.dispatchEvent(new Event('change',{bubbles:true}));})()");
     await until(()=>win.webContents.executeJavaScript("document.querySelector('#releaseNotesTitle')?.textContent.includes('0.5.0')"),"archived release");
     await win.webContents.executeJavaScript("document.querySelector('.releaseNotesContent').scrollTop=1000");
-    await selectRelease("9.9.9");
+    await win.webContents.executeJavaScript("(()=>{const select=document.querySelector('.releaseNotesVersionPicker select');select.value='9.9.9';select.dispatchEvent(new Event('change',{bubbles:true}));})()");
     await until(()=>win.webContents.executeJavaScript("document.querySelector('.releaseNotesMarkdown')?.textContent.includes('QA release details') && document.querySelector('.releaseNotesContent').scrollTop===0"),"remote notes and scroll reset");
     win.setMinimumSize(...originalMinSize);
     win.setSize(...releaseWindowSize);
