@@ -174,8 +174,10 @@ export function Checkbox({
         onPointerLeave={() => (pressedRef.current = false)}
         onPointerCancel={() => (pressedRef.current = false)}
         className={`relative shrink-0 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 ${focusRing}`}
+        data-glass-control-fallback=""
         style={{ width: box, height: box, borderRadius: shape === 'circle' ? box / 2 : box * 0.3 }}
       >
+        <span className="ltGlassCheckFallback" aria-hidden="true">{on ? "✓" : ""}</span>
         {canvas}
       </CheckboxControl>
       {label && (

@@ -118,7 +118,7 @@
   border-color: transparent;
 }
 
-.app[data-liquid-glass="true"] :is(.ltOpticalButton, .ltOpticalTransport, .ltOpticalHistory) {
+.app[data-liquid-glass="true"] :is(.ltOpticalButton, .ltOpticalHistory) {
   --glass-tint: var(--lt-bg);
 }
 
@@ -227,3 +227,44 @@
 .app[data-liquid-glass="true"] :is(.ltTrackRow button, .librarySectionNav button):focus-visible {
   outline-color: var(--lt-optical-focus);
 }
+
+/* The transport inherits its material from the player and the current artwork. */
+.app[data-liquid-glass="true"] .ltOpticalTransport {
+  --glass-tint: var(--lt-bg-elevated);
+  background-color: color-mix(in srgb, var(--glass-tint) 72%, transparent);
+  color: var(--lt-text);
+}
+.app[data-liquid-glass="true"]:not([data-cover-sync="off"]):not([data-ambient="off"]) :is(.playerBar:not([data-ambient="false"]), .immersivePlayer, .phonePlayerSheet) .ltOpticalTransport {
+  --glass-tint: color-mix(in srgb, var(--lt-bg-elevated) 76%, var(--cover-average, var(--lt-bg-elevated)));
+}
+/* Menu surfaces are not focus targets; keep the items' keyboard highlight. */
+html:has(.app[data-liquid-glass="true"]) [data-glass-popup] {
+  outline: none;
+  border-color: transparent;
+  --tw-ring-shadow: 0 0 transparent;
+  --tw-ring-offset-shadow: 0 0 transparent;
+}
+html:has(.app[data-liquid-glass="true"]) [data-glass-popup][data-glass-off] {
+  background: var(--lt-bg-elevated);
+  color: var(--lt-text);
+}
+html:has(.app[data-liquid-glass="true"]) [data-glass-popup] :is([role="menuitem"], [role="option"]):focus-visible {
+  outline: 1px solid var(--lt-muted);
+  outline-offset: -2px;
+}
+.ltGlassRangeFallback {
+  position: absolute;
+  inset-inline: 0;
+  top: 50%;
+  height: 6px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: var(--lt-fill-selected);
+  pointer-events: none;
+}
+.ltGlassRangeFallback > span { display:block; height:100%; border-radius:inherit; background:var(--lt-muted); }
+.ltGlassRangeFallback > i { position:absolute; top:50%; width:16px; height:16px; transform:translate(-50%,-50%); border-radius:50%; background:var(--lt-text); }
+[data-glass-control-fallback]:has(> canvas[data-glass-control-ready]) > .ltGlassRangeFallback,
+[data-glass-control-fallback]:has(> canvas[data-glass-control-ready]) > .ltGlassCheckFallback { visibility:hidden; }
+.ltGlassCheckFallback { position:absolute; inset:0; display:grid; place-items:center; border:1px solid var(--lt-muted); border-radius:inherit; color:var(--lt-text); pointer-events:none; }
+[aria-checked="true"] > .ltGlassCheckFallback { background:var(--lt-accent); color:var(--button-text-on-accent); border-color:transparent; }

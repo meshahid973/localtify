@@ -39,6 +39,7 @@ export type GlassButtonProps = {
   pull?: boolean
   /** Render the glass on the single child element (e.g. a router `<Link>`) instead of a `<button>`. */
   asChild?: boolean
+  optical?: boolean
   className?: string
 } & Omit<ComponentProps<typeof Button>, 'children' | 'className' | 'render'>
 
@@ -68,6 +69,7 @@ export function GlassButton({
   backdrop,
   pull = true,
   asChild = false,
+  optical = true,
   className = '',
   type = 'button',
   ...rest
@@ -76,11 +78,11 @@ export function GlassButton({
   // (the stylesheet's order, not the class order, would otherwise decide which one wins).
   const own = asChild ? `${(Children.only(children) as ReactElement<{ className?: string }>).props.className ?? ''} ${className}` : className
   const corners = /(^|\s)!?rounded-/.test(own) ? '' : 'rounded-full'
-  const classes = `inline-flex shrink-0 cursor-pointer items-center justify-center ${corners} font-semibold whitespace-nowrap select-none outline-none focus-visible:ring-2 focus-visible:ring-[#3291FF] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40 aria-disabled:opacity-40 [&_svg]:shrink-0 ${sizes[size]} ${fallback[material]}`
+  const classes = optical ? `inline-flex shrink-0 cursor-pointer items-center justify-center ${corners} font-semibold whitespace-nowrap select-none outline-none focus-visible:ring-2 focus-visible:ring-[#3291FF] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40 aria-disabled:opacity-40 [&_svg]:shrink-0 ${sizes[size]} ${fallback[material]}` : ''
   // The glass layer must be the host's first child.
   const content = (label: ReactNode) => (
     <>
-      <GlassLayer material={material} tint={tint} pull={pull} optics={optics} backdrop={backdrop} />
+      {optical && <GlassLayer material={material} tint={tint} pull={pull} optics={optics} backdrop={backdrop} />}
       {icon && iconPosition === 'start' && icon}
       {label}
       {icon && iconPosition === 'end' && icon}
@@ -90,12 +92,12 @@ export function GlassButton({
     const child = Children.only(children) as ReactElement<{ className?: string; children?: ReactNode }>
     return cloneElement(
       child,
-      { ...rest, 'data-glass-host': '', className: `${classes} ${child.props.className ?? ''} ${className}` } as Record<string, unknown>,
+      { ...rest, 'data-glass-host': optical ? '' : undefined, className: `${classes} ${child.props.className ?? ''} ${className}`.trim() } as Record<string, unknown>,
       content(child.props.children),
     )
   }
   return (
-    <Button data-glass-host="" type={type} className={`${classes} ${className}`} {...rest}>
+    <Button data-glass-host={optical ? "" : undefined} type={type} className={`${classes} ${className}`} {...rest}>
       {content(children)}
     </Button>
   )

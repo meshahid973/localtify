@@ -199,8 +199,10 @@ export function RangeSlider({
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
           className="relative flex-1 cursor-grab touch-none rounded-full select-none active:cursor-grabbing has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-4 has-[:focus-visible]:outline-[#3291FF]"
+          data-glass-control-fallback=""
           style={{ height: areaH }}
         >
+          <div className="ltGlassRangeFallback" aria-hidden="true"><span style={{width: `${fraction * 100}%`}}/><i style={{left: `${fraction * 100}%`}}/></div>
           <canvas
             ref={canvasRef}
             aria-hidden="true"

@@ -11,7 +11,7 @@ export function TransportGroup({ className, active = true, children }: {
   const { kit } = useAppearance();
   if (!active || !kit) return <div className={className}>{children}</div>;
   return (
-    <kit.GlassButtonGroup aria-label="Playback controls" size="md" material="clear" tint={.46}
+    <kit.GlassButtonGroup aria-label="Playback controls" size="md" material="clear" tint={.24}
       backdrop=".playerBar, .immersivePlayer, .phonePlayerSheet" optics={controlOptics} className={`${className} ltOpticalTransport`}>
       <TransportItem.Provider value={kit.GlassButtonGroupItem}>{children}</TransportItem.Provider>
     </kit.GlassButtonGroup>

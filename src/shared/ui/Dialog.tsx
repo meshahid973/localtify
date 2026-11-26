@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { motion } from "motion/react";
 import { useAppReducedMotion } from "../hooks/useAppReducedMotion";
 import { useAppearance } from "../appearance/appearance";
+import { GlassCard } from "../../vendor/liquid-glass/glass-card";
 import { panelOptics } from "../appearance/OpticalCard";
 import { useModalFocus } from "../hooks/useModalFocus";
 
@@ -46,7 +47,7 @@ export default function Dialog({ open, onClose, children, className, backdropCla
       {children}
     </motion.div>;
   const body = <div className={backdropClassName} onPointerDown={onPointerDown} onClick={onBackdropClick}>
-    {kit ? <kit.GlassCard asChild className="ltOpticalCard rounded-[inherit]" tint={.66} blur={2} optics={panelOptics}>{dialog}</kit.GlassCard> : dialog}
+    <GlassCard asChild optical={!!kit} className={kit ? "ltOpticalCard rounded-[inherit]" : undefined} tint={.66} blur={2} optics={panelOptics}>{dialog}</GlassCard>
   </div>;
   return portal ? createPortal(body, document.querySelector(".app") || document.body) : body;
 }

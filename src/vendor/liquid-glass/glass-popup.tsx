@@ -59,7 +59,7 @@
 
 import { Children, createContext, useEffect, useMemo, useRef, type CSSProperties, type ReactNode } from 'react'
 
-import { drawAround, drawDom } from './dom-snapshot'
+import { drawDom } from './dom-snapshot'
 import { GLOW, GLOW_SMALL, GOOEY, HANDED_ON, MENU, MORPH, MORPH_GLOW, MORPH_GLOW_SMALL, SPRINGS, clamp, getGlassEngine, lerp, rgbCss, smooth, stepSpring, surfaceColorOf, type GlassEngine, type GlassLens, type GlassView, type Rgb, type Spring } from './engine'
 import { GlassStyles } from './glass-layer'
 
@@ -71,7 +71,7 @@ const CARD = { tint: 0.7, blur: 5, bendCurve: 9.75, bendDepth: 1.35 }
 /** Under a control painted in its own colour, the surface's tint covers this much. */
 const FILLED = 0.92
 /** The surface has no light of its own: this thin white line draws its edge, a soft CSS shadow lifts it. */
-const LINE = { alpha: 0.18, darkAlpha: 0.13, width: 1 }
+const LINE = { alpha: 0, darkAlpha: 0, width: 0 }
 /** Room around the trigger's own canvas, and around the popup's. */
 const TRIGGER_PAD = 16
 /** How far (px) the control's canvas reaches past the seam, under the popup's, so no line shows where they meet. */
@@ -790,14 +790,14 @@ function createMorph(matchWidth: boolean, opening: GlassPopupOpening, from: Glas
       shadowSoftness: 34 * lerp(0.6, 1, s.t),
       shadowOffset: 22 * lerp(0.5, 1, s.t),
       strength: 1 - card,
-      tune: { bendCurve: lerp(1.6, CARD.bendCurve, card), bendDepth: lerp(1, CARD.bendDepth, card), fresnel: 0.65 * (1 - card), rim: 0.45 },
+      tune: { bendCurve: lerp(1.6, CARD.bendCurve, card), bendDepth: lerp(1, CARD.bendDepth, card), fresnel: 0.18 * (1 - card), rim: 0.14 },
       color: tint,
-      border: card > 0 ? [1, 1, 1] : undefined,
+      border: undefined,
       borderAlpha: card > 0 ? card * (tint[0] > 0.5 ? LINE.alpha : LINE.darkAlpha) : undefined,
       borderWidth: card > 0 ? LINE.width : undefined,
       surface,
       edgeClear: 0.2,
-      cursorLight: card < 0.5,
+      cursorLight: false,
       // The light may spill past the surface's edge, never past the control's.
       glow: s.lit && (s.blob && !s.parted && s.lit.blob ? { ...s.lit, halo: { around: 'blob' as const, amount: s.out * s.lit.spill } } : s.lit),
       refraction: {
@@ -877,16 +877,6 @@ function createMorph(matchWidth: boolean, opening: GlassPopupOpening, from: Glas
     }
   }
 
-  /** What a rim mirrors of the page around its canvas (`height`: the control's own). */
-  const mirrorOf = (box: Box, height: number): NonNullable<GlassLens['reflection']> => ({
-    height,
-    paint: (around, reach) => {
-      drawAround(around, document.body, { left: box.L, top: box.T, width: box.W, height: box.H }, reach, {
-        skip: (el) => el === host || el === content || el.hasAttribute('data-glass-skip'),
-        onStale: dirty,
-      })
-    },
-  })
   /** A growing shape is the whole lens, on either canvas: no control beside it, and the light seen from its own centre. */
   const single = (s: NonNullable<ReturnType<typeof shape>>, box: Box) =>
     s.grow && s.blob
@@ -910,9 +900,9 @@ function createMorph(matchWidth: boolean, opening: GlassPopupOpening, from: Glas
     const s = engine.resolveColor(surfaceColorOf(host.parentElement))
     surface = [s[0], s[1], s[2]]
     let light = 0.2126 * s[0] + 0.7152 * s[1] + 0.0722 * s[2] > 0.5
-    tint = light ? [1, 1, 1] : [0, 0, 0]
-    cover = TINT
-    cardCover = CARD.tint
+    tint = surface
+    cover = .35
+    cardCover = .9
     if ('glassFill' in host.dataset) {
       // A control painted in its own CSS background (`data-glass-fill`, as a tinted
       // GlassButtonGroup is): the glass takes that colour whole, and the surface follows it.
@@ -1201,7 +1191,7 @@ function createMorph(matchWidth: boolean, opening: GlassPopupOpening, from: Glas
         return {
           ...lensFor(box, s, page, dirty, s.grow ? s.card : 0),
           // What the control's rim mirrors while it is clear glass: the page around it. (Painted in its own fill it mirrors nothing, and neither does the surface: it is unlit.)
-          reflection: mirrorOf(box, a.height),
+          reflection: undefined,
           blob: s.parted ? undefined : s.blob,
           ...single(s, box),
           left: box.L - a.left - s.edge.hostLeft,
@@ -1350,6 +1340,7 @@ function createMorph(matchWidth: boolean, opening: GlassPopupOpening, from: Glas
     const el = canvas?.parentElement
     const ctx = canvas?.getContext('2d')
     if (!canvas || !el || !ctx) return () => {}
+    el.dataset.glassOff = ''
     const e = getGlassEngine()
     if (!e) {
       el.dataset.glassOff = ''
@@ -1426,12 +1417,13 @@ function createMorph(matchWidth: boolean, opening: GlassPopupOpening, from: Glas
         // While the two canvases draw one shape, this one takes the control's light of a press
         // (LIGHT) rather than none of its own: lit on one side of the seam only, the control's box showed as a lighter square.
         const lightOf = !s.parted && !s.morph && triggerView ? triggerView : undefined
-        if (s.grow) return { ...lensFor(box, s, page, dirty, s.card), ...single(s, box), reflection: s.parted ? undefined : mirrorOf(box, a.height), lightOf, left: L - c.left - s.edge.left, top: T - c.top - s.edge.top }
+        if (s.grow) return { ...lensFor(box, s, page, dirty, s.card), ...single(s, box), reflection: undefined, lightOf, left: L - c.left - s.edge.left, top: T - c.top - s.edge.top }
         return { ...lensFor(box, s, page, dirty, s.parted ? 1 : s.morph ? s.card : 0), ...alone, lightOf, left: L - c.left - s.edge.left, top: T - c.top - s.edge.top }
       },
       drawn: () => {
         if (panelDrawn) return
         panelDrawn = true
+        delete el.dataset.glassOff
         if (triggerView) triggerView.dirty = true
       },
       lost: () => {

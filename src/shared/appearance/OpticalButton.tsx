@@ -1,10 +1,10 @@
 import type { ComponentPropsWithRef } from "react";
+import { GlassButton } from "../../vendor/liquid-glass/glass-button";
 import { controlOptics, useAppearance } from "./appearance";
 
 export function OpticalButton({ primary, ...props }: ComponentPropsWithRef<"button"> & { primary?: boolean }) {
   const { kit } = useAppearance();
-  const button = <button {...props} />;
-  return kit ? <kit.GlassButton asChild material={primary ? "tinted" : "clear"} tint={.36} pull={false}
+  return <GlassButton asChild optical={!!kit} material={primary ? "tinted" : "clear"} tint={.36} pull={false}
     optics={controlOptics} backdrop=".ltOpticalCard, .pageTransition, .playerBar, .immersivePlayer, .phonePlayerSheet, .app"
-    className="ltOpticalButton">{button}</kit.GlassButton> : button;
+    className={kit ? "ltOpticalButton" : undefined}><button {...props} /></GlassButton>;
 }

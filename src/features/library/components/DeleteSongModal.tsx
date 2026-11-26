@@ -1,5 +1,6 @@
 import { prettyTitle } from "../../search";
 import { useAppearance } from "../../../shared/appearance/appearance";
+import { OpticalButton } from "../../../shared/appearance/OpticalButton";
 import Dialog from "../../../shared/ui/Dialog";
 import type { Song } from "../song.types";
 
@@ -22,8 +23,8 @@ export default function DeleteSongModal({ song, busy, onClose, removeSong }: Del
         <h3 id="delete-song-dialog-title">remove <span>"{prettyTitle(song.title, 8)}"</span> from localtify?</h3>
         <p className="deleteSub" id="delete-song-dialog-description">this only removes it from your localtify library.<br />your real music file stays safe on your pc.</p>
         <div className="deleteActions">
-          <button className="heroGhost" onClick={onClose} disabled={busy}>no keep it</button>
-          <button className="dangerButton bigDanger" onClick={() => removeSong(song.id)} disabled={busy}>{busy ? "removing..." : "yes remove it"}</button>
+          <OpticalButton type="button" className="heroGhost" onClick={onClose} disabled={busy}>no keep it</OpticalButton>
+          <OpticalButton type="button" primary className="dangerButton bigDanger" onClick={() => removeSong(song.id)} disabled={busy}>{busy ? "removing..." : "yes remove it"}</OpticalButton>
         </div>
         {kit && <kit.GlassSlideToConfirm disabled={busy} size="sm" onConfirm={() => removeSong(song.id)}
           pendingLabel="Removing track" successLabel="Removed" className="ltOpticalConfirm">Slide to remove track</kit.GlassSlideToConfirm>}
