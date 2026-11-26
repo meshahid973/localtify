@@ -68,8 +68,9 @@ export type PlaylistsViewProps = {
   songs: any;
   startPlaylistSongDragAction: any;
   startRenamePlaylist: any;
-  saveSmartPlaylist: (playlistId: string | null, name: string, rules: SmartRules) => string | null;
-  listeningCounts: ListeningCounts;
+  saveSmartPlaylist: (playlistId: string | null, name: string, rules: SmartRules) => Promise<string | null>;
+  listeningCounts: ListeningCounts | null;
+  setSmartPreviewOpen: (open: boolean) => void;
   /** The playlist page being shown; null shows every playlist. */
   detailPlaylistId?: string | null;
   addSongToPlaylist: (playlistId: string, songId: string) => unknown;
@@ -114,6 +115,9 @@ export default function PlaylistsView(props: PlaylistsViewProps) {
   // undefined: closed; null: creating a new smart playlist.
   const [smartEditing, setSmartEditing] = useState<Playlist | null | undefined>(undefined);
   const [prompting, setPrompting] = useState(false);
+  const previewOpen = smartEditing !== undefined;
+  const setSmartPreviewOpen = props.setSmartPreviewOpen;
+  useEffect(() => { setSmartPreviewOpen(previewOpen); return () => setSmartPreviewOpen(false); }, [previewOpen, setSmartPreviewOpen]);
   const [playlistQuery, setPlaylistQuery] = useState("");
   const [trackQuery, setTrackQuery] = useState("");
   const [trackSort,setTrackSort]=useState<LibrarySortMode>("library");
@@ -138,8 +142,8 @@ export default function PlaylistsView(props: PlaylistsViewProps) {
   const smartDialog = smartEditing !== undefined ? (
     <Suspense fallback={null}>
       <SmartPlaylistDialog playlist={smartEditing} songs={songs} listeningCounts={props.listeningCounts}
-        onSave={(playlistId, name, rules) => {
-          const id = props.saveSmartPlaylist(playlistId, name, rules);
+        onSave={async (playlistId, name, rules) => {
+          const id = await props.saveSmartPlaylist(playlistId, name, rules);
           if (id && !playlistId) actions.nav.open({ kind: "playlist", id });
           return id;
         }} onClose={() => setSmartEditing(undefined)} />

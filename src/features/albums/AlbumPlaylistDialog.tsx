@@ -19,7 +19,7 @@ export default function AlbumPlaylistDialog({ album, playlists, onAdd, onCreate,
   const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
   const songIds = album.songs.filter(song => song.fileExists !== false).map(song => song.id);
-  const results = playlists.filter(playlist => playlist.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
+  const results = playlists.filter(playlist => !playlist.rules && playlist.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
   useLayoutEffect(() => {
     const dialog = dialogRef.current;
     dialog?.showModal();
@@ -30,7 +30,8 @@ export default function AlbumPlaylistDialog({ album, playlists, onAdd, onCreate,
     const title = name.trim().slice(0, 120);
     if (!title || !songIds.length) return;
     const existing = playlists.find(playlist => playlist.name.trim().toLocaleLowerCase() === title.toLocaleLowerCase());
-    if (existing) onAdd(existing.id, songIds);
+    if (existing?.rules) onCreate(title, songIds);
+    else if (existing) onAdd(existing.id, songIds);
     else onCreate(title, songIds);
     onClose();
   };
@@ -57,7 +58,7 @@ export default function AlbumPlaylistDialog({ album, playlists, onAdd, onCreate,
     </div>
     {creating ? <form className="albumPlaylistDialogCreate" onSubmit={event => { event.preventDefault(); create(); }}>
       <input aria-label="New playlist name" autoFocus maxLength={120} placeholder="Playlist name" value={name} onChange={event => setName(event.target.value)}/>
-      <button type="submit" disabled={!name.trim() || !songIds.length}>{playlists.some(item => item.name.trim().toLocaleLowerCase() === name.trim().toLocaleLowerCase()) ? "Add tracks" : "Create"}</button>
+      <button type="submit" disabled={!name.trim() || !songIds.length}>{playlists.some(item => !item.rules && item.name.trim().toLocaleLowerCase() === name.trim().toLocaleLowerCase()) ? "Add tracks" : "Create"}</button>
     </form> : <button className="albumPlaylistDialogNew" type="button" onClick={() => setCreating(true)}><Plus size={16}/> New playlist from album</button>}
   </dialog>;
 }

@@ -6,7 +6,7 @@ import { ArcDropdownMenu } from "../../../shared/ui/ArcDropdownMenu";
 import type { Song } from "../../library/song.types";
 import type { Playlist } from "../playlist.types";
 import {
-  SMART_FIELDS, SMART_OPS, SMART_PRESETS, SMART_SORTS, cleanSmartRules, defaultSmartRule, describeSmartRules, evaluateSmartRules,
+  SMART_FIELDS, SMART_OPS, SMART_PRESETS, SMART_SORTS, cleanSmartRules, defaultSmartRule, describeSmartRules, evaluateSmartRules, needsListeningCounts,
   type ListeningCounts, type SmartField, type SmartOp, type SmartRule, type SmartRules, type SmartSort
 } from "../smartPlaylist";
 
@@ -14,8 +14,8 @@ export type SmartPlaylistDialogProps = {
   /** The smart playlist being edited, or null to create one. */
   playlist: Playlist | null;
   songs: readonly Song[];
-  listeningCounts: ListeningCounts;
-  onSave: (playlistId: string | null, name: string, rules: SmartRules) => string | null;
+  listeningCounts: ListeningCounts | null;
+  onSave: (playlistId: string | null, name: string, rules: SmartRules) => Promise<string | null>;
   onClose: () => void;
 };
 
@@ -28,16 +28,16 @@ const EMPTY_RULES: SmartRules = { match: "all", rules: [defaultSmartRule("liked"
 export default function SmartPlaylistDialog({ playlist, songs, listeningCounts, onSave, onClose }: SmartPlaylistDialogProps) {
   const [name, setName] = useState(playlist?.name || "");
   const [rules, setRules] = useState<SmartRules>(() => playlist?.rules || EMPTY_RULES);
-  // Preview exactly what will be saved: blank text rules are dropped.
-  const saved = useMemo(() => cleanSmartRules(rules) || EMPTY_RULES, [rules]);
-  const matched = useMemo(() => evaluateSmartRules(saved, songs, listeningCounts).length, [saved, songs, listeningCounts]);
+  const [saving, setSaving] = useState(false);
+  const saved = useMemo(() => cleanSmartRules(rules), [rules]);
+  const matched = useMemo(() => !saved || (listeningCounts === null && needsListeningCounts(saved)) ? null : evaluateSmartRules(saved, songs, listeningCounts ?? new Map()).length, [saved, songs, listeningCounts]);
   const updateRule = (index: number, patch: Partial<SmartRule>) =>
     setRules((current) => ({ ...current, rules: current.rules.map((rule, at) => at === index ? { ...rule, ...patch } : rule) }));
 
   return (
     <PlaylistComposer kind="smart" title={playlist ? "Edit smart playlist" : "New smart playlist"}
       description="Automatically update this playlist as your library changes." onClose={onClose}>
-      <form className="playlistComposerForm" onSubmit={event => { event.preventDefault(); if (onSave(playlist?.id || null,name,rules)) onClose(); }}>
+      <form className="playlistComposerForm" onSubmit={async event => { event.preventDefault(); if (!saved || matched === null || saving) return; setSaving(true); try { if (await onSave(playlist?.id || null,name,saved)) onClose(); } finally { setSaving(false); } }}>
         <div className="playlistComposerBody">
           <label className="playlistComposerField"><span>Playlist name</span>
             <input aria-label="Playlist name" value={name} onChange={event => setName(event.currentTarget.value)} placeholder="My smart playlist" maxLength={120} autoFocus/>
@@ -56,8 +56,8 @@ export default function SmartPlaylistDialog({ playlist, songs, listeningCounts, 
               return <li key={index} className="playlistComposerRule" data-kind={kind}>
                 <ArcDropdownMenu ariaLabel="Field" value={rule.field} items={FIELD_ITEMS} onValueChange={field => updateRule(index,defaultSmartRule(field))}/>
                 <ArcDropdownMenu ariaLabel="Condition" value={rule.op} items={toItems(SMART_OPS[kind]) as {value: SmartOp;label:string}[]} onValueChange={op => updateRule(index,{op})}/>
-                {kind === "text" ? <input aria-label="Text" value={String(rule.value)} placeholder={rule.field === "genre" ? "Genre" : "Value"} onChange={event => updateRule(index,{value:event.currentTarget.value})}/>
-                : kind === "flag" ? null : <label className="playlistComposerNumber"><input aria-label={kind === "days" ? "Days" : "Count"} type="number" min={0} value={String(rule.value)}
+                {kind === "text" ? <input aria-label="Text" value={String(rule.value)} maxLength={100} placeholder={rule.field === "genre" ? "Genre" : "Value"} onChange={event => updateRule(index,{value:event.currentTarget.value})}/>
+                : kind === "flag" ? null : <label className="playlistComposerNumber"><input aria-label={kind === "days" ? "Days" : "Count"} type="number" min={0} max={100000} step={1} value={String(rule.value)}
                   onChange={event => updateRule(index,{value:event.currentTarget.value === "" ? "" : Number(event.currentTarget.value)})}/>{kind === "days" ? <span>days</span> : null}</label>}
                 <ComposerButton variant="ghost" size="icon" aria-label="Remove rule" onClick={() => setRules(current => ({...current,rules:current.rules.filter((_,at) => at !== index)}))}><Trash2 size={15}/></ComposerButton>
               </li>;
@@ -71,8 +71,8 @@ export default function SmartPlaylistDialog({ playlist, songs, listeningCounts, 
           </div>
         </div>
         <footer className="playlistComposerFooter playlistComposerSmartFooter">
-          <div role="status" className="playlistComposerCount"><strong>{matched.toLocaleString()} {matched === 1 ? "song" : "songs"}</strong><small>{describeSmartRules(saved)}</small></div>
-          <ComposerButton variant="primary" type="submit">{playlist ? "Save rules" : "Create playlist"}</ComposerButton>
+          <div role="status" className="playlistComposerCount"><strong>{matched === null ? "Preview unavailable" : `${matched.toLocaleString()} ${matched === 1 ? "song" : "songs"}`}</strong><small>{!saved ? "Complete each rule with a valid value." : matched === null ? "Listening counts are not available yet. Sync or retry." : describeSmartRules(saved)}</small></div>
+          <ComposerButton variant="primary" type="submit" disabled={matched === null || saving}>{playlist ? "Save rules" : "Create playlist"}</ComposerButton>
         </footer>
       </form>
     </PlaylistComposer>

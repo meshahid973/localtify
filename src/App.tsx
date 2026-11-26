@@ -524,6 +524,7 @@ function MainModeApp() {
     renamingPlaylistName,
     setRenamingPlaylistName,
     createPlaylist,
+    saveSmartPlaylist, listeningCounts, setSmartPreviewOpen,
     createPlaylistWithSong,
     createPlaylistFromSongs,
     removePlaylist,
@@ -540,6 +541,7 @@ function MainModeApp() {
     handlePlaylistSongAppend,
     upsertSpotifyPlaylistFromImport
   } = usePlaylistsController({
+    songs,
     songsById,
     changeView,
     setStatusText,
@@ -2920,6 +2922,7 @@ function MainModeApp() {
   }
 
   function handlePlaylistShelfDragOver(event: DragEvent<HTMLElement>, playlistId: string) {
+    if (playlists.find(item => item.id === playlistId)?.rules) return;
     const songId = readDraggedSongId(event);
     if (!songId || !songsById.has(songId)) return;
 
@@ -4748,7 +4751,7 @@ function MainModeApp() {
       songs,
       startPlaylistSongDragAction,
       startRenamePlaylist,
-      addSongToPlaylist, notForMe
+      saveSmartPlaylist, listeningCounts, setSmartPreviewOpen, addSongToPlaylist, notForMe
     },
     discover: {
       settings, updateSetting, notForMe, songs, selectLocalSong: (id: string) => void selectSong(id, true),
@@ -4982,8 +4985,8 @@ function MainModeApp() {
       playlists,
       addAlbumToPlaylist: (playlistId, songIds) => {
         const valid = songIds.filter(id => songsById.has(id));
-        if (!valid.length) return;
-        setPlaylists(items => items.map(item => item.id === playlistId
+        if (!valid.length || playlists.find(item => item.id === playlistId)?.rules) return;
+        setPlaylists(items => items.map(item => item.id === playlistId && !item.rules
           ? { ...item, songIds: [...new Set([...item.songIds, ...valid])] } : item));
         void confirmPlaylistSaved("Album tracks added to playlist", items => items.some(item => item.id === playlistId && valid.every(id => item.songIds.includes(id))));
       },

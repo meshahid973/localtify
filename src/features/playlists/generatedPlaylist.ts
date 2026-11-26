@@ -8,7 +8,7 @@ export function prepareGeneratedPlaylist(name: string, ids: string[], songsById:
   });
   if (!songIds.length) return null;
   const base = (name.trim() || "Daily mix").slice(0, 110);
-  const existing = playlists.find((playlist) => playlist.name.toLowerCase() === base.toLowerCase()
+  const existing = playlists.find((playlist) => !playlist.rules && playlist.name.toLowerCase() === base.toLowerCase()
     && playlist.songIds.length === songIds.length && playlist.songIds.every((id, index) => id === songIds[index]));
   let uniqueName = base; let suffix = 2;
   while (!existing && playlists.some((playlist) => playlist.name.toLowerCase() === uniqueName.toLowerCase())) uniqueName = `${base} (${suffix++})`;
