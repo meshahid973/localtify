@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { AppToastKind, View } from "../shell/view.types";
 import type { LibraryDropSide, Song } from "../library/song.types";
 import { insertIdNearTarget, reorderIdList } from "../library/library.utils";
 import { prettyTitle } from "../search/search.utils";
+import { readRecoveryJournal } from "../../shared/storage/recoveryJournal";
 import { makeLocalId } from "../../shared/storage/localStorage";
 import { PLAYLIST_RECOVERY_KEY } from "./playlist.constants";
 import type { Playlist } from "./playlist.types";
@@ -43,6 +44,7 @@ export function usePlaylistsController({
   setStatusText,
   showAppToast
 }: PlaylistsControllerOptions) {
+  const recoveryBlocked = useRef(false);
   const [storedPlaylists, publishPlaylists] = useState<Playlist[]>([]);
   const { playlists, listeningCounts, smartNow, setSmartPreviewOpen } = useSmartPlaylistView(storedPlaylists, songs);
   const [persistence] = useState(() => createPlaylistPersistence({
@@ -60,6 +62,10 @@ export function usePlaylistsController({
     },
     publish: publishPlaylists,
     journal: (base, draft) => {
+      if (recoveryBlocked.current) {
+        if (!samePlaylists(base, draft)) throw new Error("Unreadable recovery journal");
+        return;
+      }
       if (samePlaylists(base, draft)) window.localStorage.removeItem(PLAYLIST_RECOVERY_KEY);
       else window.localStorage.setItem(PLAYLIST_RECOVERY_KEY, JSON.stringify({base, draft}));
     },
@@ -73,24 +79,27 @@ export function usePlaylistsController({
   }));
   const flushPlaylists = persistence.flush;
   const initializePlaylists = useCallback((remote: Playlist[]) => {
-    let recovery: {base: Playlist[]; draft: Playlist[]} | undefined;
-    try {
-      const raw = window.localStorage.getItem(PLAYLIST_RECOVERY_KEY);
-      const value = raw === null ? null : JSON.parse(raw);
-      if (value !== null) {
-        if (!isPlaylistRecoverySnapshot(value.base) || !isPlaylistRecoverySnapshot(value.draft)) throw new Error("Invalid recovery data");
-        recovery = value;
-      }
-    } catch {
-      throw new Error("Could not read the playlist recovery copy. Existing recovery data was preserved.");
+    type Recovery = {base: Playlist[]; draft: Playlist[]};
+    const recovery = readRecoveryJournal(() => window.localStorage, PLAYLIST_RECOVERY_KEY, (value): value is Recovery => {
+      const item = value as Partial<Recovery> | null;
+      return !!item && isPlaylistRecoverySnapshot(item.base) && isPlaylistRecoverySnapshot(item.draft);
+    });
+    recoveryBlocked.current = recovery.blocked;
+    persistence.initialize(remote, recovery.value ?? undefined);
+    if (recovery.archived || recovery.blocked) {
+      const message = recovery.blocked
+        ? "Playlist recovery is unreadable. Edits are disabled; restart or copy recovery data in Advanced settings."
+        : "Invalid playlist recovery data was preserved. Copy it from Advanced settings if needed.";
+      setStatusText(message);
+      showAppToast(message, "error");
     }
-    persistence.initialize(remote, recovery);
     void persistence.flush();
-  }, [persistence]);
+  }, [persistence, setStatusText, showAppToast]);
   const setPlaylists = useCallback<Dispatch<SetStateAction<Playlist[]>>>(update => {
+    if (recoveryBlocked.current) { showAppToast("Playlist edits are disabled until recovery storage is available. Restart Localtify.", "error"); return; }
     const previous = persistence.current();
     persistence.set(cleanPlaylistList(typeof update === "function" ? update(previous) : update));
-  }, [persistence]);
+  }, [persistence, showAppToast]);
   const confirmSaved = useCallback(async (message: string, matches: (items: Playlist[]) => boolean) => {
     if (!await flushPlaylists()) return false;
     if (!matches(persistence.committed())) {

@@ -113,3 +113,19 @@ test("listening writes retain the newest checkpoint across an unavailable databa
   assert.equal(saved[0].outcome, "ended");
   assert.equal(durable.length, 0);
 });
+
+test("listening writer requires an acknowledgement and reports recovery failures", async () => {
+  let receipt = false, storageDown = true;
+  const failures = [];
+  const {tracker,writes} = setup();
+  tracker.play("song",0);
+  const writer = createListeningEventWriter(async()=>receipt, () => { if(storageDown) throw new Error("quota"); }, [], (...args)=>failures.push(args));
+  writer.enqueue(writes[0]);
+  assert.equal(await writer.flush(),false);
+  assert.deepEqual(failures.at(-1),[false,false]);
+  receipt = {status:"stored"};
+  assert.equal(await writer.flush(),false);
+  assert.deepEqual(failures.at(-1),[false,true]);
+  storageDown = false;
+  assert.equal(await writer.flush(),true);
+});
