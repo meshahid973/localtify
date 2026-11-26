@@ -5,6 +5,7 @@ import { EDITABLE_SONG_FIELDS, phonePlaylistChanges, phoneSongChanges, type Song
 /** Persisted before sending. Retries keep the same sequence, payload, and phone-side merge baseline. */
 export type SyncBatch = {
   sequence: number;
+  smartPlaylists?: 1;
   pairingToken: string;
   songs: Record<string, SongChange>;
   playlists: ReturnType<typeof phonePlaylistChanges>;

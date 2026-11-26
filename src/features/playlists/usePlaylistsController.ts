@@ -11,6 +11,8 @@ import { prepareGeneratedPlaylist } from "./generatedPlaylist";
 import { cleanPlaylistArtwork, cleanPlaylistList } from "./playlist.utils";
 import { createPlaylistPersistence, samePlaylists } from "./playlistPersistence";
 import { useStableCallback } from "../../shared/hooks/useStableCallback";
+import { cleanSmartRules, evaluateSmartRules, needsListeningCounts, type SmartRules } from "./smartPlaylist";
+import { useSmartPlaylistView } from "./useSmartPlaylistView";
 
 function isPlaylistRecoverySnapshot(value: unknown): value is Playlist[] {
   if (!Array.isArray(value)) return false;
@@ -19,13 +21,15 @@ function isPlaylistRecoverySnapshot(value: unknown): value is Playlist[] {
     if (!item || typeof item.id !== "string" || !item.id || ids.has(item.id) ||
       typeof item.name !== "string" || !Number.isFinite(item.createdAt) ||
       !Array.isArray(item.songIds) || !item.songIds.every((id: unknown) => typeof id === "string") ||
-      (item.coverArtwork !== undefined && typeof item.coverArtwork !== "string")) return false;
+      (item.coverArtwork !== undefined && typeof item.coverArtwork !== "string") ||
+      (item.rules != null && !cleanSmartRules(item.rules))) return false;
     ids.add(item.id);
     return true;
   });
 }
 
 export type PlaylistsControllerOptions = {
+  songs: Song[];
   songsById: Map<string, Song>;
   changeView: (view: View, source?: "nav" | "onboarding" | "settings" | "unknown") => void;
   setStatusText: Dispatch<SetStateAction<string>>;
@@ -33,12 +37,14 @@ export type PlaylistsControllerOptions = {
 };
 
 export function usePlaylistsController({
+  songs,
   songsById,
   changeView,
   setStatusText,
   showAppToast
 }: PlaylistsControllerOptions) {
-  const [playlists, publishPlaylists] = useState<Playlist[]>([]);
+  const [storedPlaylists, publishPlaylists] = useState<Playlist[]>([]);
+  const { playlists, listeningCounts, smartNow, setSmartPreviewOpen } = useSmartPlaylistView(storedPlaylists, songs);
   const [persistence] = useState(() => createPlaylistPersistence({
     read: async () => {
       if (!window.localitfy.getPlaylists) throw new Error("Playlist storage unavailable");
@@ -112,6 +118,12 @@ export function usePlaylistsController({
   }, []);
 
   // React state updaters must not publish selection or toasts.
+  const smartPlaylistLocked = useCallback((playlist: Playlist) => {
+    if (!playlist.rules) return false;
+    showAppToast("Edit the rules to change a smart playlist", "info");
+    return true;
+  }, [showAppToast]);
+
   const upsertSpotifyPlaylistFromImport = useStableCallback((sourceName: string, importedSongs: Song[], sourceId: string) => {
     const songIds = [...new Set(importedSongs.map(song => song.id).filter(Boolean))];
     if (!songIds.length) return null;
@@ -120,6 +132,7 @@ export function usePlaylistsController({
     const providerId = /^spotify:(album|playlist):[A-Za-z0-9]{22}$/.test(sourceId) ? sourceId : "";
     const id = providerId ? providerId.replaceAll(":", "_") : makeLocalId("playlist");
     const previous = current.find(item => item.id === id);
+    if (previous && smartPlaylistLocked(previous)) return null;
     let safeName = previous?.name || name;
     let suffix = 1;
     while (!previous && current.some(item => item.name.trim().toLowerCase() === safeName.toLowerCase())) {
@@ -139,7 +152,7 @@ export function usePlaylistsController({
   const addSongToPlaylist = useCallback((playlistId: string, songId: string) => {
     const song = songsById.get(songId);
     const playlist = persistence.current().find((item) => item.id === playlistId);
-    if (!song || !playlist) return;
+    if (!song || !playlist || smartPlaylistLocked(playlist)) return;
 
     if (playlist.songIds.includes(songId)) {
       void confirmSaved("song is already in that playlist", items => items.some(item => item.id === playlistId && item.songIds.includes(songId)));
@@ -147,7 +160,7 @@ export function usePlaylistsController({
     }
 
     setPlaylists((items) => items.map((item) =>
-      item.id === playlistId && !item.songIds.includes(songId) ? { ...item, songIds: [...item.songIds, songId] } : item
+      item.id === playlistId && !item.rules && !item.songIds.includes(songId) ? { ...item, songIds: [...item.songIds, songId] } : item
     ));
     setSelectedPlaylistId(playlistId);
     void confirmSaved(`added ${prettyTitle(song.title, 4)} to ${playlist.name}`, items => items.some(item => item.id === playlistId && item.songIds.includes(songId)));
@@ -156,7 +169,7 @@ export function usePlaylistsController({
       setPlaylistPickerSong(null);
       setPlaylistPickerName("");
     }
-  }, [confirmSaved, playlistPickerSong?.id, persistence, setStatusText, showAppToast, songsById]);
+  }, [confirmSaved, playlistPickerSong?.id, persistence, setStatusText, showAppToast, songsById, smartPlaylistLocked]);
 
   const createPlaylistFromSongs = useCallback((name: string, ids: string[]) => {
     const prepared = prepareGeneratedPlaylist(name, ids, songsById, persistence.current());
@@ -167,6 +180,12 @@ export function usePlaylistsController({
     void confirmSaved(prepared.existingId ? "playlist already saved" : "mix saved to playlists", items => items.some(item => item.id === id && prepared.songIds.every(songId => item.songIds.includes(songId))));
     return id;
   }, [confirmSaved, persistence, songsById, showAppToast]);
+
+  const savePromptPlaylist = useCallback(async (name: string, ids: string[]) => {
+    const id = createPlaylistFromSongs(name, ids);
+    if (!id || !await flushPlaylists()) return null;
+    return persistence.committed().some(item => item.id === id && ids.every(songId => item.songIds.includes(songId))) ? id : null;
+  }, [createPlaylistFromSongs, flushPlaylists, persistence]);
 
   const createPlaylist = useCallback((forcedName?: string) => {
     const sourceName = typeof forcedName === "string" ? forcedName : newPlaylistName;
@@ -190,6 +209,32 @@ export function usePlaylistsController({
     return playlist.id;
   }, [confirmSaved, newPlaylistName, normalizePlaylistName, persistence, setStatusText, showAppToast]);
 
+  const saveSmartPlaylist = useCallback(async (playlistId: string | null, sourceName: string, sourceRules: SmartRules, creationId?: string) => {
+    const rules = cleanSmartRules(sourceRules);
+    if (!rules) { showAppToast("Complete all smart playlist rules before saving", "error"); return null; }
+    const name = normalizePlaylistName(sourceName, "smart playlist");
+    const current = persistence.current();
+    const id = playlistId || creationId || makeLocalId("playlist");
+    const existing = current.find(item => item.id === id);
+    if (playlistId && !existing?.rules) { showAppToast("This smart playlist no longer exists", "error"); return null; }
+    if (existing && !existing.rules) return null;
+    if (current.some(item => item.id !== id && item.name.trim().toLowerCase() === name.toLowerCase())) {
+      showAppToast("Playlist name already exists", "info"); return null;
+    }
+    if (listeningCounts === null && needsListeningCounts(rules)) {
+      showAppToast("Listening counts are unavailable. Sync or retry before saving these rules.", "error"); return null;
+    }
+    const songIds = evaluateSmartRules(rules, songs, listeningCounts ?? new Map());
+    setPlaylists(items => existing
+      ? items.map(item => item.id === id ? { ...item, name, rules, songIds } : item)
+      : [{id, name, rules, songIds, createdAt: Date.now()}, ...items]);
+    const saved = await confirmSaved(playlistId ? "Smart playlist updated" : "Smart playlist created",
+      items => items.some(item => item.id === id && item.name === name && JSON.stringify(item.rules) === JSON.stringify(rules)));
+    if (!saved) return null;
+    setSelectedPlaylistId(id);
+    return id;
+  }, [confirmSaved, listeningCounts, normalizePlaylistName, persistence, setPlaylists, showAppToast, songs]);
+
   const createPlaylistWithSong = useCallback((songId: string, forcedName: string) => {
     const sourceName = forcedName.trim();
     if (!sourceName || !songsById.has(songId)) return;
@@ -199,6 +244,7 @@ export function usePlaylistsController({
       (playlist) => playlist.name.trim().toLowerCase() === name.toLowerCase()
     );
     if (existingPlaylist) {
+      if (smartPlaylistLocked(existingPlaylist)) return;
       addSongToPlaylist(existingPlaylist.id, songId);
       setSelectedPlaylistId(existingPlaylist.id);
       setPlaylistPickerSong(null);
@@ -213,7 +259,7 @@ export function usePlaylistsController({
     setPlaylistPickerName("");
     void confirmSaved(`added to ${name}`, items => items.some(item => item.id === playlist.id && item.songIds.includes(songId)));
     return playlist.id;
-  }, [confirmSaved, addSongToPlaylist, normalizePlaylistName, persistence, setStatusText, showAppToast, songsById]);
+  }, [confirmSaved, addSongToPlaylist, normalizePlaylistName, persistence, setStatusText, showAppToast, songsById, smartPlaylistLocked]);
 
   const removePlaylist = useCallback((playlistId: string) => {
     const playlist = persistence.current().find((item) => item.id === playlistId);
@@ -281,7 +327,7 @@ export function usePlaylistsController({
       index += 1;
     }
 
-    const copy: Playlist = { id: makeLocalId("playlist"), name, songIds: [...source.songIds], createdAt: Date.now(), ...(source.coverArtwork ? { coverArtwork: source.coverArtwork } : {}) };
+    const copy: Playlist = { id: makeLocalId("playlist"), name, songIds: [...source.songIds], createdAt: Date.now(), ...(source.rules ? { rules: source.rules } : {}), ...(source.coverArtwork ? { coverArtwork: source.coverArtwork } : {}) };
     setPlaylists((items) => [copy, ...items]);
     setSelectedPlaylistId(copy.id);
     void confirmSaved(`duplicated ${source.name}`, items => items.some(item => item.id === copy.id));
@@ -299,12 +345,12 @@ export function usePlaylistsController({
 
   const removeSongFromPlaylist = useCallback((playlistId: string, songId: string) => {
     const playlist = persistence.current().find((item) => item.id === playlistId);
-    if (!playlist) return;
+    if (!playlist || smartPlaylistLocked(playlist)) return;
     setPlaylists((items) => items.map((item) =>
-      item.id === playlistId ? { ...item, songIds: item.songIds.filter((id) => id !== songId) } : item
+      item.id === playlistId && !item.rules ? { ...item, songIds: item.songIds.filter((id) => id !== songId) } : item
     ));
     void confirmSaved(`removed from ${playlist.name}`, items => items.some(item => item.id === playlistId && !item.songIds.includes(songId)));
-  }, [confirmSaved, persistence, setStatusText, showAppToast]);
+  }, [confirmSaved, persistence, setStatusText, showAppToast, smartPlaylistLocked]);
 
   const toggleSongPlaylist = useCallback((playlistId: string, songId: string) => {
     const playlist = persistence.current().find((item) => item.id === playlistId);
@@ -321,14 +367,14 @@ export function usePlaylistsController({
   ) => {
     if (!playlistId || !songId || !targetSongId || !songsById.has(songId) || songId === targetSongId) return;
     const playlist = persistence.current().find((item) => item.id === playlistId);
-    if (!playlist || !playlist.songIds.includes(targetSongId)) return;
+    if (!playlist || smartPlaylistLocked(playlist) || !playlist.songIds.includes(targetSongId)) return;
     const nextIds = playlist.songIds.includes(songId)
       ? reorderIdList(playlist.songIds, songId, targetSongId, side)
       : insertIdNearTarget(playlist.songIds, songId, targetSongId, side);
     if (nextIds.length === playlist.songIds.length && nextIds.every((id, index) => id === playlist.songIds[index])) return;
 
     setPlaylists((items) => items.map((item) =>
-      item.id === playlistId && item.songIds.includes(targetSongId) ? { ...item, songIds: item.songIds.includes(songId) ? reorderIdList(item.songIds, songId, targetSongId, side) : insertIdNearTarget(item.songIds, songId, targetSongId, side) } : item
+      item.id === playlistId && !item.rules && item.songIds.includes(targetSongId) ? { ...item, songIds: item.songIds.includes(songId) ? reorderIdList(item.songIds, songId, targetSongId, side) : insertIdNearTarget(item.songIds, songId, targetSongId, side) } : item
     ));
     setSelectedPlaylistId(playlistId);
     const reordering = playlist.songIds.includes(songId);
@@ -337,7 +383,7 @@ export function usePlaylistsController({
       const from = ids.indexOf(songId), to = ids.indexOf(targetSongId);
       return from >= 0 && to >= 0 && (side === "before" ? from < to : from > to);
     });
-  }, [confirmSaved, persistence, setStatusText, showAppToast, songsById]);
+  }, [confirmSaved, persistence, setStatusText, showAppToast, songsById, smartPlaylistLocked]);
 
   const handlePlaylistSongAppend = useCallback((playlistId: string, songId: string) => {
     if (!playlistId || !songId || !songsById.has(songId)) return;
@@ -365,6 +411,7 @@ export function usePlaylistsController({
     createPlaylist,
     createPlaylistWithSong,
     createPlaylistFromSongs,
+    saveSmartPlaylist, listeningCounts, smartNow, setSmartPreviewOpen, savePromptPlaylist,
     removePlaylist,
     startRenamePlaylist,
     cancelRenamePlaylist,

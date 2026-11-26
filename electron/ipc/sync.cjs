@@ -26,7 +26,7 @@ function registerSyncIpc(router, { app, repositories, coverPath, listSongsShaped
     serverName,
     appVersion: app.getVersion(),
     statePath: path.join(app.getPath("userData"), "phone-sync.json"),
-    callFeature: (channel, payload) => router.invoke(channel, payload),
+    callFeature: (channel, payload, peer) => router.invoke(channel, payload, peer),
     // The live connection: this window is the peer "computer" next to the connected phones.
     onLiveEvent: (event) => notify("sync:live", event),
     onPlayEvent: (event) => { try { observePlay(event); } catch (error) { console.log("[localtify sync scrobble]", error?.message || error); } },

@@ -284,3 +284,59 @@ test("playlist persistence does not acknowledge edits until committed", async ()
   assert.equal(await controller.flush(), true);
   assert.deepEqual(plain(controller.committed()[0].songIds), ["1","2","3"]);
 });
+
+test("smart rule changes rebase with concurrent metadata and never merge generated membership", () => {
+  const rules = { match: "all", rules: [], sort: "library", limit: null };
+  const old = {...playlist("p", ["a"]), rules};
+  const changed = {...old, rules:{...rules,limit:10}, songIds:["b"]};
+  const remote = {...old, name:"desktop", songIds:["c"]};
+  assert.deepEqual(plain(merge.phonePlaylistChanges([old],[remote],[changed]).put), [{...remote,rules:changed.rules,songIds:["b"]}]);
+  assert.deepEqual(plain(merge.phonePlaylistChanges([old],[remote],[{...old,songIds:["phone"]}]).put), []);
+  assert.deepEqual(plain(merge.phonePlaylistChanges([old],[remote],[{...old,rules:undefined,songIds:["phone"],name:"renamed"}]).put), [{...remote,name:"renamed"}]);
+});
+
+test("server rejects old phone smart edits and stale rules before applying any changes", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "localtify-smart-sync-"));
+  try {
+    const library = fakeLibrary(dir);
+    const rules = {match:"all",rules:[],sort:"library",limit:null};
+    const original = {...playlist("p",["a"]),rules};
+    library.repositories.playlists.save([original]);
+    const sync = createSyncServer({repositories:library.repositories, coverPath:()=>"", statePath:path.join(dir,"state.json")});
+    assert.throws(() => sync.applyChanges({playlists:{put:[playlist("p",["a"],"legacy")],delete:[]}}), /update Android/i);
+    assert.throws(() => sync.applyChanges({smartPlaylists:1,playlistExpected:[["p",{...original,rules:{...rules,limit:5}}]],playlists:{put:[original],delete:[]}}), /rebase required/);
+    assert.throws(() => sync.applyChanges({smartPlaylists:1,playlistExpected:[["p",original]],playlists:{put:[{...original,rules:{...rules,sort:"invalid"}}],delete:[]}}), /Invalid smart playlist rules/);
+    assert.throws(() => sync.applyChanges({smartPlaylists:1,playlistExpected:[["p",original]],playlists:{put:[playlist("p",["a"])],delete:[]}}), /Cannot remove smart playlist rules/);
+    assert.deepEqual(library.playlists,[original]);
+    sync.applyChanges({smartPlaylists:1,playlistExpected:[["p",original]],playlists:{put:[{...original,rules:{...rules,limit:5}}],delete:[]}});
+    assert.equal(library.playlists[0].rules.limit,5);
+  } finally { fs.rmSync(dir,{recursive:true,force:true}); }
+});
+
+test("legacy phones see only manual playlists; capable phones receive rules and counts", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(),"localtify-smart-compat-"));
+  const library = fakeLibrary(dir);
+  const smart = {...playlist("smart",["a"]),rules:{match:"all",rules:[],sort:"library",limit:null}};
+  library.repositories.playlists.save([playlist("manual",["a"]),smart]);
+  const server = createSyncServer({repositories:library.repositories,coverPath:()=>"",statePath:path.join(dir,"state.json")});
+  try {
+    const port = await server.start(0);
+    const url = "http://127.0.0.1:" + port;
+    const {code} = server.newPairingCode();
+    const pair = await (await fetch(url+"/v1/pair",{method:"POST",body:JSON.stringify({code})})).json();
+    const auth = {Authorization:"Bearer "+pair.token};
+    const legacy = await (await fetch(url+"/v1/snapshot",{headers:auth})).json();
+    assert.deepEqual(legacy.playlists.map(p=>p.id),["manual"]);
+    assert.equal(legacy.listeningCounts,undefined);
+    const current = await (await fetch(url+"/v1/snapshot",{headers:{...auth,"X-Localtify-Smart-Playlists":"1"}})).json();
+    assert.deepEqual(current.playlists,[playlist("manual",["a"]),smart]);
+    assert.deepEqual(current.listeningCounts,[["a",1,0]]);
+    const rejected = await fetch(url+"/v1/changes",{method:"POST",headers:auth,body:JSON.stringify({sequence:1,playlists:{put:[playlist("smart",[])],delete:[]}})});
+    assert.equal(rejected.status,426);
+    assert.equal((await rejected.json()).code,"SMART_PLAYLIST_UPGRADE");
+    assert.deepEqual(library.playlists,[playlist("manual",["a"]),smart]);
+    const accepted = await fetch(url+"/v1/changes",{method:"POST",headers:auth,body:JSON.stringify({sequence:1,playlists:{put:[playlist("manual",[],"renamed")],delete:[]}})});
+    assert.equal(accepted.status,200);
+    assert.equal(library.playlists[0].name,"renamed");
+  } finally {await server.stop();fs.rmSync(dir,{recursive:true,force:true});}
+});

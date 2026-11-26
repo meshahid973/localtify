@@ -1,17 +1,47 @@
 const path = require("node:path");
-const fs = require("node:fs/promises");
 const { createSimilarityService } = require("../analysis/similarity-service.cjs");
 const { createAnalysisService } = require("../analysis/service.cjs");
 
 function registerAnalysisIpc(router, { app, powerMonitor, repositories, ffmpegPath }) {
   let service;
   const root = path.join(app.getPath("userData"), "experimental-models");
-  void fs.readdir(root).then(entries => Promise.allSettled(entries.filter(name =>
-    name === "clap-htsat-unfused-text-q8-v1" || /^clap-htsat-unfused-text-q8-v1\.partial-[a-f0-9-]{36}$/i.test(name)
-  ).map(name => fs.rm(path.join(root, name), { recursive: true, force: true })))).catch(() => undefined);
   const similarity = createSimilarityService({ getDatabasePath: () => repositories.database.status().path });
-  router.handle("analysis:similar-songs", (_event, payload) => similarity.find(payload));
+  const requests = new Map();
+  const cancelled = new Map();
+  function rememberCancellation(key) {
+    const now = Date.now();
+    for (const [id, expires] of cancelled) if (expires <= now) cancelled.delete(id);
+    if (cancelled.size >= 256) cancelled.delete(cancelled.keys().next().value);
+    cancelled.set(key, now + 60_000);
+  }
+  function requestKey(event, requestId, peer) {
+    if (typeof requestId !== "string" || !/^[a-zA-Z0-9-]{1,80}$/.test(requestId)) throw new TypeError("Invalid recommendation request ID");
+    return (event.sender ? "renderer:" + event.sender.id : "phone:" + String(peer || "")) + ":" + requestId;
+  }
+  async function scoped(event, payload, peer, run) {
+    if (!payload?.requestId) return run(undefined);
+    const key = requestKey(event, payload.requestId, peer);
+    if ((cancelled.get(key) || 0) > Date.now()) throw new Error("Recommendation search stopped");
+    requests.get(key)?.abort();
+    const controller = new AbortController();
+    requests.set(key, controller);
+    try { return await run(controller.signal); }
+    finally { if (requests.get(key) === controller) requests.delete(key); }
+  }
+  router.handle("analysis:cancel-recommendation", (event, requestId, peer) => {
+    const key = requestKey(event, requestId, peer);
+    rememberCancellation(key);
+    const controller = requests.get(key);
+    controller?.abort();
+    return Boolean(controller);
+  });
+  router.handle("analysis:similar-songs", (event, payload, peer) => scoped(event, payload, peer, signal => similarity.find(payload, signal)));
   router.handle("analysis:daily-mixes", (_event, payload) => similarity.dailyMixes(payload));
+  router.handle("analysis:prompt-sound", (event, payload, peer) => scoped(event, payload, peer, async signal => {
+    const modelPath = await get().promptModelPath();
+    if (signal?.aborted) throw new Error("Recommendation search stopped");
+    return modelPath ? similarity.promptSound(payload, modelPath, signal) : { status: "model-missing", scores: [] };
+  }));
   const get = () => (service ||= createAnalysisService({
     root, ffmpegPath, repositories, powerMonitor
   }));
@@ -26,6 +56,7 @@ function registerAnalysisIpc(router, { app, powerMonitor, repositories, ffmpegPa
   router.handle("analysis:clear", () => get().clearAnalysis());
   router.handle("listening:set-enabled", (_event, enabled) => get().setHistoryEnabled(enabled));
   router.handle("listening:clear", () => get().clearHistory());
+  router.handle("listening:counts", () => repositories.listening.counts());
   router.handle("listening:summary", (_event, payload) => {
     const days = [7, 30, 90].includes(payload?.days) ? payload.days : 30;
     return repositories.listening.summary({ days });

@@ -1,3 +1,4 @@
+const { requireSmartRules } = require("../playlist-rules.cjs");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
 const http = require("node:http");
@@ -11,7 +12,7 @@ const MAX_BODY_BYTES = 8 * 1024 * 1024;
 /** Mac features a paired phone may use while it is on the home network; the phone keeps the answers for offline use. */
 const PHONE_FEATURES = new Set([
   "lyrics:get", "lyrics:search", "lyrics:select-match", "lyrics:set-offset", "lyrics:clear-selection",
-  "analysis:daily-mixes", "analysis:similar-songs", "discover:get", "discover:artist-bio",
+  "analysis:daily-mixes", "analysis:similar-songs", "analysis:prompt-sound", "analysis:cancel-recommendation", "discover:get", "discover:artist-bio",
   // Read-only: the phone shows which accounts the Mac sends its plays to.
   "listening:summary", "listening:calendar-summary", "scrobble:status"
 ]);
@@ -79,6 +80,7 @@ function cleanPlaylist(value) {
     name: cleanText(value.name) || "playlist",
     songIds: [...new Set(songIds)],
     createdAt: Number.isSafeInteger(value.createdAt) ? value.createdAt : Date.now(),
+    ...(value.rules != null ? { rules: requireSmartRules(value.rules) } : {}),
     ...(typeof value.coverArtwork === "string" && value.coverArtwork.length <= 24576 && /^data:image\/jpeg;base64,\/9j\/[A-Za-z0-9+/]*={0,2}$/.test(value.coverArtwork) ? { coverArtwork: value.coverArtwork } : {})
   };
 }
@@ -135,7 +137,7 @@ function createSyncServer({ repositories, coverPath, statePath, serverName = "co
     });
     const settings = repositories.settings?.get?.() || {};
     return {
-      protocol: PROTOCOL,
+      protocol: PROTOCOL, smartPlaylists: 1,
       // Phones that know the live connection use it; older ones ignore the field and keep syncing in batches.
       live: LIVE_VERSION,
       // So the phone can say "Mac" or "PC"; a pairing made before this was sent learns it at the next sync.
@@ -143,15 +145,17 @@ function createSyncServer({ repositories, coverPath, statePath, serverName = "co
       serverTime: now(),
       features: Object.fromEntries(FEATURE_SETTINGS.filter((key) => settings[key] !== undefined).map((key) => [key, settings[key]])),
       songs,
-      playlists: repositories.playlists.get()
+      playlists: repositories.playlists.get(),
+      listeningCounts: repositories.listening.counts?.() ?? null
     };
   }
 
   // Filesystem metadata is queried outside the Electron main-process synchronous path.
   // A bounded batch avoids tens of thousands of simultaneous stat operations.
-  async function snapshotAsync() {
+  async function snapshotAsync(includeSmart = true) {
     const source = repositories.songs.list();
-    const playlists = repositories.playlists.get();
+    const playlists = repositories.playlists.get().filter(item => includeSmart || !item.rules);
+    const listeningCounts = includeSmart ? repositories.listening.counts?.() ?? null : undefined;
     const songs = [];
     for (let offset = 0; offset < source.length; offset += 32) {
       const chunk = await Promise.all(source.slice(offset, offset + 32).map(async (song) => {
@@ -165,9 +169,9 @@ function createSyncServer({ repositories, coverPath, statePath, serverName = "co
     }
     const settings = repositories.settings?.get?.() || {};
     return {
-      protocol: PROTOCOL, live: LIVE_VERSION, platform, serverTime: now(),
+      protocol: PROTOCOL, smartPlaylists: 1, live: LIVE_VERSION, platform, serverTime: now(),
       features: Object.fromEntries(FEATURE_SETTINGS.filter(key => settings[key] !== undefined).map(key => [key, settings[key]])),
-      songs, playlists
+      songs, playlists, listeningCounts
     };
   }
 
@@ -200,12 +204,29 @@ function createSyncServer({ repositories, coverPath, statePath, serverName = "co
   }
 
   function applyChanges(body) {
+    // An old phone must never replace rules it cannot represent.
+    const smartPuts = Array.isArray(body?.playlists?.put) ? body.playlists.put : [];
+    const smartDeletes = Array.isArray(body?.playlists?.delete) ? body.playlists.delete : [];
+    const touchedIds = new Set([...smartPuts.map(item => item?.id), ...smartDeletes]);
+    if (touchedIds.size) {
+      const touchesSmart = smartPuts.some(item => item?.rules != null) || repositories.playlists.get().some(item => item.rules && touchedIds.has(item.id));
+      if (touchesSmart && (body.smartPlaylists !== 1 || !Array.isArray(body.playlistExpected))) {
+        const error = new Error("Smart playlist changed; update Android before editing smart playlists");
+        error.code = body.smartPlaylists === 1 ? "PLAYLIST_CONFLICT" : "SMART_PLAYLIST_UPGRADE";
+        throw error;
+      }
+      const current = new Map(repositories.playlists.get().map(item => [item.id, item]));
+      for (const item of smartPuts) {
+        if (item?.rules != null) requireSmartRules(item.rules);
+        else if (current.get(item?.id)?.rules) throw new Error("Cannot remove smart playlist rules through sync");
+      }
+    }
     // The receipt transaction checks the exact playlist baseline before changing any songs or events.
     if (body?.playlistExpected !== undefined) {
       if (!Array.isArray(body.playlistExpected)) throw new Error("Invalid playlist baseline");
       const current = new Map(repositories.playlists.get().map(item => [item.id, item]));
       const touched = new Set([...((body.playlists?.put || []).map(item => item.id)), ...(body.playlists?.delete || [])]);
-      const canonical = item => item ? [item.id, item.name, item.songIds, item.createdAt, item.coverArtwork || ""] : null;
+      const canonical = item => item ? [item.id, item.name, item.songIds, item.createdAt, item.coverArtwork || "", item.rules == null ? null : requireSmartRules(item.rules)] : null;
       const expected = new Map(body.playlistExpected);
       if (expected.size !== touched.size || [...touched].some(id => !expected.has(id) || JSON.stringify(canonical(current.get(id))) !== JSON.stringify(canonical(expected.get(id))))) {
         const error = new Error("Playlist changed while syncing; rebase required");
@@ -328,7 +349,7 @@ function createSyncServer({ repositories, coverPath, statePath, serverName = "co
     if (!device) return send(response, 401, { error: "This phone is not paired with this Mac" });
 
     if (request.method === "GET" && route === "/v1/snapshot") {
-      const data = await snapshotAsync();
+      const data = await snapshotAsync(request.headers["x-localtify-smart-playlists"] === "1");
       device.lastSyncAt = now();
       writeState();
       onChanged({ devices: true });
@@ -350,7 +371,7 @@ function createSyncServer({ repositories, coverPath, statePath, serverName = "co
     const featureMatch = /^\/v1\/call\/([a-z:-]+)$/.exec(route);
     if (request.method === "POST" && featureMatch && PHONE_FEATURES.has(featureMatch[1]) && callFeature) {
       const body = await readJson(request);
-      return send(response, 200, { result: (await callFeature(featureMatch[1], body?.payload)) ?? null });
+      return send(response, 200, { result: (await callFeature(featureMatch[1], body?.payload, device.id)) ?? null });
     }
     const fileMatch = /^\/v1\/(audio|cover)\/([^/]+)$/.exec(route);
     if (request.method === "GET" && fileMatch) {
@@ -366,7 +387,7 @@ function createSyncServer({ repositories, coverPath, statePath, serverName = "co
     return new Promise((resolve, reject) => {
       const next = http.createServer((request, response) => {
         handle(request, response).catch((error) => {
-          if (!response.headersSent) send(response, error?.code === "PLAYLIST_CONFLICT" ? 409 : 400, { error: error?.message || "bad request", ...(error?.code === "PLAYLIST_CONFLICT" ? {code: error.code} : {}) });
+          if (!response.headersSent) send(response, error?.code === "PLAYLIST_CONFLICT" ? 409 : error?.code === "SMART_PLAYLIST_UPGRADE" ? 426 : 400, { error: error?.message || "bad request", ...(["PLAYLIST_CONFLICT","SMART_PLAYLIST_UPGRADE"].includes(error?.code) ? {code: error.code} : {}) });
           else response.destroy();
         });
       });

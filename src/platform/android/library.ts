@@ -1,3 +1,4 @@
+import { addPendingListeningCounts, cleanSmartRules } from "../../features/playlists/smartPlaylist";
 import type { Song } from "../../features/library/song.types";
 import type { Settings } from "../../features/settings/settings.types";
 import type { PlayEvent } from "../../features/player/listeningHistory";
@@ -12,7 +13,7 @@ export type RemoteSong = SyncSongFields & Record<string, unknown> & { file: File
 /** `platform` is the computer's process.platform ("darwin", "win32", "linux"), for calling it a Mac or a PC. */
 export type Pairing = { url: string; token: string; name: string; platform?: string; sequence?: number };
 export type SyncRecord = { at: number; ok: boolean; message: string };
-type Saved = "recoveryArchives" | "detachedPairing" | "remoteSongs" | "edits" | "base" | "playlists" | "settings" | "macFeatures" | "pendingEvents" | "files" | "pairing" | "lastSync" | "pendingSync" | "likeClock" | "clockOffset";
+type Saved = "recoveryArchives" | "detachedPairing" | "remoteSongs" | "edits" | "base" | "playlists" | "settings" | "macFeatures" | "pendingEvents" | "listeningCounts" | "files" | "pairing" | "lastSync" | "pendingSync" | "likeClock" | "clockOffset";
 
 type LocalFiles = Record<string, { audio?: string; audioExt?: string; cover?: string; coverExt?: string }>;
 
@@ -32,6 +33,7 @@ export class PhoneLibrary {
   /** Feature switches set on the Mac (lyrics, analysis, discover); they win over the phone's own settings. */
   macFeatures: Partial<Settings> = {};
   pendingEvents: PlayEvent[] = [];
+  listeningCounts: Array<[string, number, number]> | null = null;
   files: LocalFiles = {};
   pairing: Pairing | null = null;
   detachedPairing: { pairing: Pairing; batch: SyncBatch } | null = null;
@@ -77,7 +79,7 @@ export class PhoneLibrary {
   load() {
     this.loading ??= (async () => {
       try { this.paths = await LocaltifyNative.getPaths(); } catch { /* keep defaults outside the app */ }
-      const [remoteSongs, edits, base, playlists, settings, macFeatures, pendingEvents, files, pairing, lastSync, pendingSync, likeClock, clockOffset, detachedPairing, recoveryArchives] = await Promise.all([
+      const [remoteSongs, edits, base, playlists, settings, macFeatures, pendingEvents, listeningCounts, files, pairing, lastSync, pendingSync, likeClock, clockOffset, detachedPairing, recoveryArchives] = await Promise.all([
         readValue<RemoteSong[]>("remoteSongs", []),
         readValue<Record<string, Partial<Song>>>("edits", {}),
         readValue("base", this.base),
@@ -86,6 +88,7 @@ export class PhoneLibrary {
         readValue<Partial<Settings>>("settings", { idleScreensaverEnabled: false, minimizeToTray: false, startWithWindows: false }),
         readValue<Partial<Settings>>("macFeatures", {}),
         readValue<PlayEvent[]>("pendingEvents", []),
+        readValue<Array<[string, number, number]> | null>("listeningCounts", null),
         readValue<LocalFiles>("files", {}),
         readValue<Pairing | null>("pairing", null),
         readValue<SyncRecord | null>("lastSync", null),
@@ -95,7 +98,7 @@ export class PhoneLibrary {
         readValue<PhoneLibrary["detachedPairing"]>("detachedPairing", null),
         readValue<RecoveryArchive[]>("recoveryArchives", [])
       ]);
-      Object.assign(this, { remoteSongs, edits, base, playlists, settings, macFeatures, pendingEvents, files, pairing, lastSync, pendingSync, likeClock, clockOffset, detachedPairing, recoveryArchives });
+      Object.assign(this, { remoteSongs, edits, base, playlists, settings, macFeatures, pendingEvents, listeningCounts, files, pairing, lastSync, pendingSync, likeClock, clockOffset, detachedPairing, recoveryArchives });
     })().catch(error => {
       // A transient IndexedDB open or read failure must not permanently
       // poison the boot promise for the lifetime of the WebView.
@@ -139,7 +142,7 @@ export class PhoneLibrary {
     }
   }
 
-  private readonly checkpointKeys = ["remoteSongs", "playlists", "base", "edits", "pendingEvents", "macFeatures", "pairing", "pendingSync"] as const;
+  private readonly checkpointKeys = ["remoteSongs", "playlists", "listeningCounts", "base", "edits", "pendingEvents", "macFeatures", "pairing", "pendingSync"] as const;
 
   async saveSyncCheckpoint() {
     // Until this commit succeeds, concurrent edit saves must carry the same baseline/acknowledgement with them.
@@ -229,11 +232,22 @@ export class PhoneLibrary {
   }
 
   savePlaylists(playlists: SyncPlaylist[], finishMigration = false) {
-    this.playlists = playlists.map(({ id, name, songIds, createdAt, coverArtwork }) => ({ id, name, songIds: [...songIds], createdAt, ...(coverArtwork ? { coverArtwork } : {}) }));
+    this.playlists = playlists.map(({ id, name, songIds, createdAt, rules, coverArtwork }) => {
+      const cleaned = cleanSmartRules(rules);
+      if (rules != null && !cleaned) throw new TypeError("Invalid smart playlist rules");
+      return { id, name, songIds: [...songIds], createdAt, ...(cleaned ? { rules: cleaned } : {}), ...(coverArtwork ? { coverArtwork } : {}) };
+    });
     this.revision += 1;
     if (finishMigration) this.settings = {...this.settings, playlistMigrationCompleted: true};
     void this.save(finishMigration ? ["playlists", "settings"] : ["playlists"]).catch(() => undefined);
     return this.playlists;
+  }
+
+  getListeningCounts() {
+    return addPendingListeningCounts(this.listeningCounts, this.pendingEvents, id => {
+      const song = this.remoteSong(id);
+      return song ? Number(song.durationMs) || (Number(song.duration) || 0) * 1000 : null;
+    });
   }
 
   recordPlayEvent(event: PlayEvent) {

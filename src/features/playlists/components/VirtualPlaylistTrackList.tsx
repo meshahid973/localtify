@@ -108,14 +108,14 @@ export const VirtualPlaylistTrackList = memo(function VirtualPlaylistTrackList({
   if (!selectedPlaylistId || !list.length) {
     return (
       <div
-        className={`playlistEmptyState playlistMascotEmptyV496 ${selectedPlaylistId ? "playlistDropEmpty" : ""}`}
+        className={`playlistEmptyState playlistMascotEmptyV496 ${selectedPlaylistId && reorderable ? "playlistDropEmpty" : ""}`}
         onDragOver={handleEmptyDragOver}
         onDrop={handleEmptyDrop}
       >
         <MascotStateArt state={selectedPlaylistId ? "question" : "empty"} className="playlistEmptyMascotV496" />
         <span className="mascotEmptyCopyV496">
           <strong>{selectedPlaylistId ? "This playlist is empty" : "Choose a playlist"}</strong>
-          <p>{selectedPlaylistId ? "Drop a song here, or use the + button on any song to add music." : "Your playlist songs will show up here."}</p>
+          <p>{selectedPlaylistId ? editable ? "Drop a song here, or use the + button on any song to add music." : "No songs match the current rules. Edit the rules to change this playlist." : "Your playlist songs will show up here."}</p>
         </span>
       </div>
     );
@@ -216,9 +216,9 @@ export const VirtualPlaylistTrackList = memo(function VirtualPlaylistTrackList({
                 <TrackMetadata song={song} className="playlistTrackText ltTrackMetadata" subtitle={song.fileExists === false ? "Missing local file" : undefined} />
               </button>
               <TrackDuration song={song} formatted={formatTime(song.duration)} className="playlistTrackDuration" />
-              <button className="iconAction iconActionSvg" type="button" disabled={!editable} onClick={() => onRemoveSong(selectedPlaylistId, song.id)} aria-label={`Remove ${song.title} from playlist`}>
+              {editable ? <button className="iconAction iconActionSvg" type="button" onClick={() => onRemoveSong(selectedPlaylistId, song.id)} aria-label={`Remove ${song.title} from playlist`}>
                 <X size={16} strokeWidth={2.5} />
-              </button>
+              </button> : null}
             </TrackRow>
           );
         })}

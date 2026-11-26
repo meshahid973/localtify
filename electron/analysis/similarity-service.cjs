@@ -1,11 +1,13 @@
 const path = require("node:path");
 const { Worker } = require("node:worker_threads");
 const { validateSimilarityRequest } = require("./similarity.cjs");
+const { validatePromptSoundRequest } = require("./prompt-sound.cjs");
 
 function createSimilarityService({ getDatabasePath, workerFactory = (file, options) => new Worker(file, options) }) {
   const active = new Set();
   let disposed = false;
-  function run(workerFile, request, extra = {}) {
+  function run(workerFile, request, extra = {}, signal) {
+    if (signal?.aborted) return Promise.reject(new Error("Recommendation search stopped"));
     if (disposed) throw new Error("Recommendation search is unavailable");
     if (active.size >= 2) throw new Error("Recommendations are still being calculated. Please retry shortly.");
     return new Promise((resolve, reject) => {
@@ -19,19 +21,23 @@ function createSimilarityService({ getDatabasePath, workerFactory = (file, optio
         if (settled) return;
         settled = true;
         clearTimeout(timer);
+        signal?.removeEventListener("abort", cancel);
         active.delete(cancel);
         void worker.terminate().catch(() => undefined);
         if (error) reject(error);
         else resolve(result);
       }
       active.add(cancel);
+      signal?.addEventListener("abort", cancel, { once: true });
       worker.once("message", (message) => message.error ? finish(new Error(message.error)) : finish(null, message.result));
       worker.once("error", () => finish(new Error("Recommendation search failed. Please retry.")));
       worker.once("exit", () => finish(new Error("Recommendation search stopped before completing. Please retry.")));
     });
   }
   return {
-    find: (payload) => run("similarity-worker.cjs", validateSimilarityRequest(payload)),
+    find: (payload, signal) => run("similarity-worker.cjs", validateSimilarityRequest(payload), {}, signal),
+    // `modelPath` is the installed text encoder, resolved by the caller from the model manager.
+    promptSound: (payload, modelPath, signal) => run("prompt-sound-worker.cjs", validatePromptSoundRequest(payload), { modelPath }, signal),
     dailyMixes: (payload) => run("daily-mixes-worker.cjs", require("./daily-mixes.cjs").validateDailyMixRequest(payload)),
     dispose: () => { disposed = true; for (const cancel of [...active]) cancel(); } };
 }

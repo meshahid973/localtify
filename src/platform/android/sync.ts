@@ -1,5 +1,6 @@
 import type { Settings } from "../../features/settings/settings.types";
 import { computerName, setPairedComputerPlatform } from "../../app/platform";
+import { cleanSmartRules } from "../../features/playlists/smartPlaylist";
 import { LocaltifyNative } from "./native";
 import { fileKey, phoneLibrary, type RemoteSong } from "./library";
 import { fromMacOrKept, markMacReachable } from "./macFeatures";
@@ -18,7 +19,7 @@ export type SyncProgress = {
   bytesTotal: number;
 };
 
-type Snapshot = { protocol: number; platform?: string; serverTime: number; features?: Partial<Settings>; songs: RemoteSong[]; playlists: SyncPlaylist[] };
+type Snapshot = { protocol: number; platform?: string; serverTime: number; features?: Partial<Settings>; songs: RemoteSong[]; playlists: SyncPlaylist[]; smartPlaylists?: number; listeningCounts?: Array<[string, number, number]> | null };
 
 const listeners = new Set<(progress: SyncProgress) => void>();
 let progress: SyncProgress = { phase: "idle", message: "", done: 0, total: 0, bytesDone: 0, bytesTotal: 0 };
@@ -77,7 +78,7 @@ async function call<T>(path: string, options: { method?: string; body?: unknown;
     response = await LocaltifyNative.request({
       url: `${base}${path}`,
       method: options.method || "GET",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(path === "/v1/snapshot" ? {"X-Localtify-Smart-Playlists":"1"} : {}) },
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
       timeoutMs: 60000
     });
@@ -86,7 +87,8 @@ async function call<T>(path: string, options: { method?: string; body?: unknown;
   }
   let parsed: unknown = {};
   try { parsed = response.body ? JSON.parse(response.body) : {}; } catch { /* non-JSON error page */ }
-  if (response.status === 409 && (parsed as {code?: string})?.code === "PLAYLIST_CONFLICT") throw new PlaylistSyncConflict();
+  const code = (parsed as {code?: string})?.code;
+  if ((response.status === 409 && code === "PLAYLIST_CONFLICT") || (response.status === 426 && code === "SMART_PLAYLIST_UPGRADE")) throw new PlaylistSyncConflict();
   if (response.status < 200 || response.status >= 300) throw new Error((parsed as { error?: string })?.error || `Your ${computerName()} answered with error ${response.status}`);
   return parsed as T;
 }
@@ -209,6 +211,10 @@ function adoptComputerPlatform(platform: string | undefined) {
 
 function requireCurrentProtocol(snapshot: Snapshot) {
   if (snapshot.protocol !== 2) throw new Error(`Update and restart localtify on your ${computerName()} before syncing with this Android version`);
+  if (!Array.isArray(snapshot.playlists) || snapshot.playlists.some(item => item.rules != null && !cleanSmartRules(item.rules))) throw new Error("Invalid playlist snapshot; local data kept");
+  const pending = phoneLibrary.pendingSync;
+  const hasSmart = [...phoneLibrary.playlists, ...phoneLibrary.base.playlists, ...(pending?.sentPlaylists ?? []), ...(pending?.playlists.put ?? [])].some(item => item.rules != null);
+  if (snapshot.smartPlaylists !== 1 && hasSmart) throw new Error("Update the computer before syncing smart playlists. Local changes were kept.");
 }
 
 async function adoptSnapshot(after: Snapshot, sent: Pick<SyncBatch, "sentSongs" | "sentPlaylists" | "playEvents">, sequence?: number) {
@@ -221,6 +227,7 @@ async function adoptSnapshot(after: Snapshot, sent: Pick<SyncBatch, "sentSongs" 
   phoneLibrary.edits = songs.edits;
   phoneLibrary.remoteSongs = after.songs;
   phoneLibrary.playlists = playlists.playlists;
+  phoneLibrary.listeningCounts = Array.isArray(after.listeningCounts) && after.listeningCounts.every(row => Array.isArray(row) && typeof row[0] === "string" && Number.isSafeInteger(row[1]) && row[1] >= 0 && Number.isSafeInteger(row[2]) && row[2] >= 0) ? after.listeningCounts : null;
   featuresChanged = adoptMacFeatures(after.features) || featuresChanged;
   phoneLibrary.base = { songs: Object.fromEntries(after.songs.map((song) => [song.id, baseFields(song)])), playlists: after.playlists };
   if (sequence !== undefined && phoneLibrary.pairing) phoneLibrary.pairing = { ...phoneLibrary.pairing, sequence };
@@ -254,7 +261,7 @@ async function exchangeEdits() {
         if (await adoptSnapshot(before, { sentSongs, sentPlaylists, playEvents })) continue;
         return;
       }
-      batch = { sequence: (phoneLibrary.pairing?.sequence || 0) + 1, pairingToken: phoneLibrary.pairing?.token || "", songs, playlists, playEvents, sentSongs, sentPlaylists, playlistExpected };
+      batch = { sequence: (phoneLibrary.pairing?.sequence || 0) + 1, pairingToken: phoneLibrary.pairing?.token || "", songs, playlists, playEvents, sentSongs, sentPlaylists, playlistExpected, ...(before.smartPlaylists === 1 ? {smartPlaylists: 1 as const} : {}) };
       phoneLibrary.pendingSync = batch;
     }
     if (batch.pairingToken !== phoneLibrary.pairing?.token) throw new Error("This pending sync belongs to another pairing");
@@ -264,7 +271,7 @@ async function exchangeEdits() {
     const { sequence, songs, playlists, playEvents } = batch;
     let receipt: {sequence: number};
     try {
-      receipt = await call<{ sequence: number }>("/v1/changes", { method: "POST", body: { sequence, songs, playlists, playEvents, ...(batch.playlistExpected !== undefined ? {playlistExpected: batch.playlistExpected} : {}) } });
+      receipt = await call<{ sequence: number }>("/v1/changes", { method: "POST", body: { sequence, songs, playlists, playEvents, ...(batch.smartPlaylists === 1 ? {smartPlaylists: 1} : {}), ...(batch.playlistExpected !== undefined ? {playlistExpected: batch.playlistExpected} : {}) } });
     } catch (error) {
       // Only this explicit rejection proves that the receipt and all edits were rolled back.
       // A network failure must replay the original immutable batch.

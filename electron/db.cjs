@@ -1,6 +1,7 @@
 const songAnalysis = require("./db/song-analysis.cjs");
 const dailyMixes = require("./db/daily-mixes.cjs");
 const playEvents = require("./db/play-events.cjs");
+const { listeningStats } = require("./analysis/listening-signals.cjs");
 const lyricsSelections = require("./db/lyrics-selections.cjs");
 const duplicateMerge = require("./db/duplicate-merge.cjs");
 const phoneSync = require("./db/phone-sync.cjs");
@@ -357,6 +358,19 @@ function normalizeOldSong(row) {
   };
 }
 
+const { requireSmartRules } = require("./playlist-rules.cjs");
+function playlistRulesJson(value) {
+  if (value == null || value === "") return null;
+  const rules = requireSmartRules(typeof value === "string" ? JSON.parse(value) : value);
+  return rules ? JSON.stringify(rules) : null;
+}
+
+// Legacy database rows may contain unsupported rule formats. Keep their cached
+// membership usable without evaluating or rewriting the original rule payload.
+function readPlaylistRulesJson(value) {
+  try { return playlistRulesJson(value); } catch { return null; }
+}
+
 function cleanPlaylistArtwork(value) { return typeof value === "string" && value.length <= 24576 && /^data:image\/jpeg;base64,\/9j\/[A-Za-z0-9+/]*={0,2}$/.test(value) ? value : null; }
 function normalizePlaylist(input, fallbackIndex = 0) {
   if (!input || typeof input !== "object") return null;
@@ -384,6 +398,7 @@ function normalizePlaylist(input, fallbackIndex = 0) {
     songIds,
     createdAt,
     sortOrder: Math.max(0, Math.floor(asNumber(input.sortOrder, fallbackIndex))),
+    rules: playlistRulesJson(input.rules),
     coverArtwork: cleanPlaylistArtwork(input.coverArtwork)
   };
 }
@@ -395,6 +410,7 @@ function rowToPlaylist(row, songIds = []) {
       name: row?.name,
       createdAt: row?.createdAt,
       sortOrder: row?.sortOrder,
+      rules: readPlaylistRulesJson(row?.rules),
       coverArtwork: row?.coverArtwork,
       songIds
     },
@@ -408,6 +424,7 @@ function rowToPlaylist(row, songIds = []) {
     name: playlist.name,
     songIds: playlist.songIds,
     createdAt: playlist.createdAt,
+    ...(playlist.rules ? { rules: JSON.parse(playlist.rules) } : {}),
     ...(playlist.coverArtwork ? { coverArtwork: playlist.coverArtwork } : {})
   };
 }
@@ -1049,12 +1066,15 @@ function savePlaylists(playlists, expected, finishMigration = false) {
         typeof playlist !== "object" || !Array.isArray(playlist.songIds))) {
     throw new TypeError("Invalid playlists snapshot");
   }
-  const normalized = playlists.map((playlist, index) => normalizePlaylist(playlist, index));
+  const normalized = playlists.map((playlist, index) => {
+    if (playlist.rules != null) requireSmartRules(playlist.rules);
+    return normalizePlaylist(playlist, index);
+  });
   if (normalized.some(playlist => !playlist)) throw new TypeError("Invalid playlist");
 
   const insertPlaylist = database.prepare(`
     INSERT INTO playlists (id, name, createdAt, sortOrder, rules, coverArtwork)
-    VALUES (@id, @name, @createdAt, @sortOrder, NULL, @coverArtwork)
+    VALUES (@id, @name, @createdAt, @sortOrder, @rules, @coverArtwork)
     ON CONFLICT(id) DO UPDATE SET
       name = excluded.name, createdAt = excluded.createdAt, sortOrder = excluded.sortOrder,
       rules = excluded.rules, coverArtwork = excluded.coverArtwork
@@ -1096,9 +1116,12 @@ function savePlaylists(playlists, expected, finishMigration = false) {
     const addedAt = Date.now();
     for (const [id, {playlist, sortOrder, songPositions}] of targets) {
       const previous = existing.get(id);
+      const previousRules = readPlaylistRulesJson(previous?.rules);
+      if (previousRules && !playlist.rules) throw new TypeError("Cannot remove smart playlist rules");
+      const storedRules = playlist.rules ?? previous?.rules ?? null;
       if (!previous || previous.name !== playlist.name || previous.createdAt !== playlist.createdAt ||
-          previous.sortOrder !== sortOrder || previous.rules != null || previous.coverArtwork !== playlist.coverArtwork) {
-        insertPlaylist.run({id,name:playlist.name,createdAt:playlist.createdAt,sortOrder,coverArtwork:playlist.coverArtwork});
+          previous.sortOrder !== sortOrder || previous.rules !== storedRules || previous.coverArtwork !== playlist.coverArtwork) {
+        insertPlaylist.run({id,name:playlist.name,createdAt:playlist.createdAt,sortOrder,rules:storedRules,coverArtwork:playlist.coverArtwork});
       }
       const old = members.get(id);
       if (old) for (const songId of old.keys()) if (!songPositions.has(songId)) deleteMember.run(id,songId);
@@ -1173,6 +1196,9 @@ module.exports = {
     saveSettings({ listeningHistoryClearedAt: Date.now() });
     return ensureDb().prepare("DELETE FROM play_events").run().changes;
   })(),
+  // All-time finished and skipped plays per song, for smart playlist rules.
+  getListeningCounts: () => [...listeningStats(ensureDb(), Date.now(), { days: 0, halfLifeDays: 0 })]
+    .map(([songId, { finishes, skips }]) => [songId, Math.round(finishes), Math.round(skips)]),
   getListeningSummary: (options) => require("./db/listening-summary.cjs").getRecordedListeningSummary(ensureDb(), options),
   getListeningCalendarSummary: (options) => require("./db/listening-summary.cjs").getRecordedListeningCalendarSummary(ensureDb(), options),
   listPlayEvents: (options) => playEvents.listPlayEvents(ensureDb(), options),

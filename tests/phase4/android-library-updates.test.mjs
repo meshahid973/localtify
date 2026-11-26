@@ -5,6 +5,11 @@ import { runInNewContext } from "node:vm";
 import ts from "typescript";
 
 function library(options = {}) {
+  const smart = {};
+  const smartOutput = ts.transpileModule(fs.readFileSync("src/features/playlists/smartPlaylist.ts", "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
+  }).outputText;
+  runInNewContext(smartOutput, { exports: smart, require: () => ({ normalizeSearchText: value => String(value ?? "").toLowerCase() }) });
   const writes = [];
   const exports = {};
   const output = ts.transpileModule(fs.readFileSync("src/platform/android/library.ts", "utf8"), {
@@ -12,6 +17,7 @@ function library(options = {}) {
   }).outputText;
   runInNewContext(output, { exports, structuredClone,
     require: (name) => {
+      if (name === "../../features/playlists/smartPlaylist") return smart;
       if (name === "./native") return { LocaltifyNative: {} };
       if (name === "./store") return {
         writeValues: async (values) => { writes.push(values); },
