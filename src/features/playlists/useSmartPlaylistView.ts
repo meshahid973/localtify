@@ -12,14 +12,13 @@ export function useSmartPlaylistView(stored: Playlist[], songs: Song[]) {
   useEffect(() => {
     if (!requiresCounts) return;
     let active = true, busy = false;
-    setListeningCounts(null);
     async function refresh() {
       if (!active || busy || document.hidden) return;
       busy = true;
       try {
         const rows = await window.localitfy.getListeningCounts?.();
         if (!active) return;
-        if (!Array.isArray(rows)) { setListeningCounts(null); return; }
+        if (!Array.isArray(rows)) return;
         const next = new Map(rows.map(([id, finishes, skips]) => [id, { finishes, skips }]));
         setListeningCounts(previous => previous && previous.size === next.size &&
           [...next].every(([id, row]) => previous.get(id)?.finishes === row.finishes && previous.get(id)?.skips === row.skips) ? previous : next);

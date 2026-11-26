@@ -81,6 +81,7 @@ contextBridge.exposeInMainWorld("localitfy", {
   getDailyMixes: (payload) => ipcRenderer.invoke("analysis:daily-mixes", payload),
   findSimilarSongs: (payload) => ipcRenderer.invoke("analysis:similar-songs", payload),
   scorePromptSound: (payload) => ipcRenderer.invoke("analysis:prompt-sound", payload),
+  cancelRecommendation: (requestId) => ipcRenderer.invoke("analysis:cancel-recommendation", requestId),
   getAnalysisStatus: () => ipcRenderer.invoke("analysis:status"),
   setAnalysisOnBattery: (allowed) => ipcRenderer.invoke("analysis:set-battery", allowed),
   setAnalysisEnabled: (enabled) => ipcRenderer.invoke("analysis:set-enabled", enabled),

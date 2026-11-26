@@ -130,10 +130,11 @@ export function createAndroidBridge(): Bridge {
     getWatchedFolderStatus: async () => ({ scanning: false, lastImport: null, folders: [] }),
     // Made on the Mac (audio analysis, lyrics lookups, Last.fm), kept on the phone for when it is away from home.
     getDailyMixes: (payload) => fromMacOrKept("analysis:daily-mixes", payload ?? {}, "mac:daily-mixes", { day: "", edition: 0, generatedAt: 0, eligible: 0, mixes: [] }),
-    findSimilarSongs: (query) => fromMacOrKept("analysis:similar-songs", query, `mac:similar:${JSON.stringify(query)}`, {
+    findSimilarSongs: (query) => query.requestId ? fromMac("analysis:similar-songs", query, 60000) : fromMacOrKept("analysis:similar-songs", query, `mac:similar:${JSON.stringify(query)}`, {
       seedId: "songId" in query ? query.songId : "seedKey" in query ? query.seedKey : "recent", status: "seed-unavailable", matches: [], compared: 0, seedCount: 0
     }),
     scorePromptSound: (payload) => fromMac("analysis:prompt-sound", payload, 60000),
+    cancelRecommendation: (requestId) => fromMac("analysis:cancel-recommendation", requestId),
     getLyrics: (payload) => !payload.cancel && phoneLibrary.effectiveSettings().lyricsEnabled !== true ? Promise.resolve({ status: "disabled", source: "none", lines: [] }) : payload.cancel ? fromMac<LyricsResult>("lyrics:get", payload) : fromMacOrKept<LyricsResult>("lyrics:get", payload, `mac:lyrics:${payload.id}`, { status: "offline", source: "none", lines: [] }, (result) => ["synced","plain","instrumental"].includes(result.status), 45000),
     searchLyrics: (payload) => fromMac("lyrics:search", payload, 15000),
     selectLyricsMatch: (payload) => keepLyrics(payload.id, fromMac("lyrics:select-match", payload, 15000)),

@@ -6,12 +6,32 @@ function registerAnalysisIpc(router, { app, powerMonitor, repositories, ffmpegPa
   let service;
   const root = path.join(app.getPath("userData"), "experimental-models");
   const similarity = createSimilarityService({ getDatabasePath: () => repositories.database.status().path });
-  router.handle("analysis:similar-songs", (_event, payload) => similarity.find(payload));
-  router.handle("analysis:daily-mixes", (_event, payload) => similarity.dailyMixes(payload));
-  router.handle("analysis:prompt-sound", async (_event, payload) => {
-    const modelPath = await get().promptModelPath();
-    return modelPath ? similarity.promptSound(payload, modelPath) : { status: "model-missing", scores: [] };
+  const requests = new Map();
+  function requestKey(event, requestId, peer) {
+    if (typeof requestId !== "string" || !/^[a-zA-Z0-9-]{1,80}$/.test(requestId)) throw new TypeError("Invalid recommendation request ID");
+    return (event.sender ? "renderer:" + event.sender.id : "phone:" + String(peer || "")) + ":" + requestId;
+  }
+  async function scoped(event, payload, peer, run) {
+    if (!payload?.requestId) return run(undefined);
+    const key = requestKey(event, payload.requestId, peer);
+    requests.get(key)?.abort();
+    const controller = new AbortController();
+    requests.set(key, controller);
+    try { return await run(controller.signal); }
+    finally { if (requests.get(key) === controller) requests.delete(key); }
+  }
+  router.handle("analysis:cancel-recommendation", (event, requestId, peer) => {
+    const controller = requests.get(requestKey(event, requestId, peer));
+    controller?.abort();
+    return Boolean(controller);
   });
+  router.handle("analysis:similar-songs", (event, payload, peer) => scoped(event, payload, peer, signal => similarity.find(payload, signal)));
+  router.handle("analysis:daily-mixes", (_event, payload) => similarity.dailyMixes(payload));
+  router.handle("analysis:prompt-sound", (event, payload, peer) => scoped(event, payload, peer, async signal => {
+    const modelPath = await get().promptModelPath();
+    if (signal?.aborted) throw new Error("Recommendation search stopped");
+    return modelPath ? similarity.promptSound(payload, modelPath, signal) : { status: "model-missing", scores: [] };
+  }));
   const get = () => (service ||= createAnalysisService({
     root, ffmpegPath, repositories, powerMonitor
   }));

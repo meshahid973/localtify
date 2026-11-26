@@ -48,3 +48,27 @@ test("similarity worker concurrency is bounded and shutdown rejects pending quer
   assert.equal(outcomes[1].status, "rejected");
   assert.throws(() => service.find({ songId: "three" }), /unavailable/);
 });
+
+test("cancelling a recommendation releases its worker slot without disposing other searches", async () => {
+  const controller = new AbortController();
+  let terminated = 0;
+  const workers = [];
+  const service = createSimilarityService({getDatabasePath:()=>"/library.sqlite", workerFactory:()=> {
+    const worker = new EventEmitter();
+    worker.terminate = async () => { terminated++; };
+    workers.push(worker);
+    return worker;
+  }});
+  const one = service.find({songId:"one"}, controller.signal);
+  const two = service.find({songId:"two"});
+  const rejected = assert.rejects(one,/stopped/);
+  controller.abort();
+  await rejected;
+  assert.equal(terminated,1);
+  const three = service.find({songId:"three"});
+  workers[1].emit("message",{result:{seedId:"two"}});
+  workers[2].emit("message",{result:{seedId:"three"}});
+  assert.equal((await two).seedId,"two");
+  assert.equal((await three).seedId,"three");
+  service.dispose();
+});

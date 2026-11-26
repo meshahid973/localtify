@@ -32,22 +32,42 @@ export default function PromptPlaylistDialog({ songs, currentId, hidden, playSon
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
   const [name, setName] = useState("");
   const seed = useRef(1);
-  const request = useRef(0);
-  useEffect(() => () => { request.current += 1; }, []);
+  const request = useRef<string | null>(null);
+  const savingRef = useRef(false);
+  const cancel = () => {
+    const id = request.current;
+    request.current = null;
+    if (id) void window.localitfy.cancelRecommendation?.(id).catch(() => undefined);
+  };
+  useEffect(() => () => {
+    const id = request.current;
+    request.current = null;
+    if (id) void window.localitfy.cancelRecommendation?.(id).catch(() => undefined);
+  }, []);
+  function changePrompt(value: string) {
+    cancel();
+    setPrompt(value);
+    setResult(null);
+    setSelected(new Set());
+    setLoading(false);
+  }
   const vocabulary = useMemo(() => promptVocabulary(songs), [songs]);
   const songsById = useMemo(() => new Map(songs.map((song) => [song.id, song])), [songs]);
 
   async function generate(text: string, again = false) {
-    if (!text.trim() || saving) return;
-    const token = ++request.current;
+    if (!text.trim() || savingRef.current) return;
+    cancel();
+    const token = crypto.randomUUID();
+    request.current = token;
     seed.current = again ? seed.current + 1 : 1;
     setLoading(true);
+    setResult(null);
     const plan = parsePrompt(text, vocabulary);
     let sound: Map<string, number> | undefined;
     let soundState: SoundState = null;
     if (plan.sound) {
       try {
-        const scored = await window.localitfy.scorePromptSound({ text: plan.sound });
+        const scored = await window.localitfy.scorePromptSound({ text: plan.sound, requestId: token });
         if (scored.status === "ready") { sound = new Map(scored.scores); soundState = "used"; }
         else soundState = scored.status;
       } catch { soundState = "error"; }
@@ -58,7 +78,7 @@ export default function PromptPlaylistDialog({ songs, currentId, hidden, playSon
       const names = new Set(plan.similarTo.map(artistKey));
       const seeds = songs.filter((song) => song.fileExists !== false && songArtistKeys(song).some((key) => names.has(key)));
       try {
-        const found = seeds.length ? await window.localitfy.findSimilarSongs({ songIds: seeds.slice(0, 2000).map((song) => song.id), seedKey: "prompt", limit: 50 }) : null;
+        const found = seeds.length ? await window.localitfy.findSimilarSongs({ songIds: seeds.slice(0, 2000).map((song) => song.id), seedKey: "prompt", limit: 50, requestId: token }) : null;
         if (found?.status === "ready") similar = new Map(found.matches.map((match) => [match.songId, match.score]));
       } catch { /* Falls back to shared artists and genres. */ }
     }
@@ -68,6 +88,7 @@ export default function PromptPlaylistDialog({ songs, currentId, hidden, playSon
     setResult({ plan, ids, sound: plan.sound ? soundState : null });
     setSelected(new Set(ids));
     if (!again) setName(plan.name);
+    request.current = null;
     setLoading(false);
   }
 
@@ -87,9 +108,9 @@ export default function PromptPlaylistDialog({ songs, currentId, hidden, playSon
 
   return (
     <PlaylistComposer kind="prompt" title="Describe a playlist" description="Find songs in your library that fit your idea." onClose={onClose} busy={saving}>
-      <div className="playlistComposerBody">
+      <div className="playlistComposerBody" inert={saving}>
         <form className="playlistPromptBox" onSubmit={event => { event.preventDefault(); void generate(prompt); }}>
-          <textarea autoFocus aria-label="Prompt" value={prompt} onChange={event => setPrompt(event.currentTarget.value)}
+          <textarea autoFocus aria-label="Prompt" value={prompt} onChange={event => changePrompt(event.currentTarget.value)}
             maxLength={300} rows={3} placeholder="Late-night music, songs like my favourites, or a 30-minute mix…" />
           <div className="playlistPromptBar">
             <span className="playlistComposerHint">{prompt.length}/300</span>
@@ -101,7 +122,7 @@ export default function PromptPlaylistDialog({ songs, currentId, hidden, playSon
         {!result ? <div className="playlistComposerExamples">
           <span className="playlistComposerHint">Try an idea</span>
           <div className="playlistComposerChips">{EXAMPLES.map(example =>
-            <ComposerButton key={example} variant="ghost" size="sm" disabled={loading} onClick={() => { setPrompt(example); void generate(example); }}>
+            <ComposerButton key={example} variant="ghost" size="sm" disabled={loading} onClick={() => { changePrompt(example); void generate(example); }}>
               {example}<ArrowUpRight size={12}/>
             </ComposerButton>)}</div>
         </div> : <div className="playlistComposerResults">
@@ -126,12 +147,12 @@ export default function PromptPlaylistDialog({ songs, currentId, hidden, playSon
                 const song = songsById.get(id);
                 if (!song) return null;
                 return <li key={id} className="promptPlaylistRow" data-current={currentId === id}>
-                  <label><input type="checkbox" checked={selected.has(id)} onChange={() => toggle(id)}/>
+                  <label><input type="checkbox" disabled={song.fileExists === false} checked={selected.has(id) && song.fileExists !== false} onChange={() => toggle(id)}/>
                     <Cover song={song} className="playlistRecommendationCover" preferThumbnail/>
                     <span className="playlistTrackText"><strong>{prettyTitle(song.title)}</strong><small>{prettyMeta(song.artist)}</small></span>
                   </label>
                   <span className="playlistTrackDuration">{formatTime(song.duration)}</span>
-                  <ComposerButton variant="ghost" size="icon" aria-label={`Play ${song.title}`} onClick={() => void selectSong(id,true)}><Play size={14}/></ComposerButton>
+                  <ComposerButton variant="ghost" size="icon" aria-label={`Play ${song.title}`} disabled={song.fileExists === false} onClick={() => void selectSong(id,true)}><Play size={14}/></ComposerButton>
                 </li>;
               })}
             </ol>
@@ -139,11 +160,11 @@ export default function PromptPlaylistDialog({ songs, currentId, hidden, playSon
         </div>}
       </div>
       {result?.ids.length ? <footer className="playlistComposerFooter">
-        <label className="playlistComposerField"><span>Playlist name</span><input value={name} onChange={event => setName(event.currentTarget.value)} maxLength={120} placeholder="Playlist name"/></label>
+        <label className="playlistComposerField"><span>Playlist name</span><input disabled={saving} value={name} onChange={event => setName(event.currentTarget.value)} maxLength={120} placeholder="Playlist name"/></label>
         <div className="playlistComposerActions">
-          <ComposerButton variant="ghost" disabled={loading} onClick={() => void generate(prompt,true)}><RefreshCw size={15}/> Regenerate</ComposerButton>
-          <ComposerButton disabled={!picked.length} onClick={() => playSongs(picked,name || result.plan.name)}><Play size={15}/> Play</ComposerButton>
-          <ComposerButton variant="primary" disabled={!picked.length || loading || saving} onClick={async () => { if (saving) return; setSaving(true); try { if (await savePlaylist(name || result.plan.name,picked)) onClose(); } finally { setSaving(false); } }}><Save size={15}/> {saving ? "Saving…" : "Save playlist"}</ComposerButton>
+          <ComposerButton variant="ghost" disabled={loading || saving} onClick={() => void generate(prompt,true)}><RefreshCw size={15}/> Regenerate</ComposerButton>
+          <ComposerButton disabled={!picked.length || saving || loading} onClick={() => playSongs(picked,name || result.plan.name)}><Play size={15}/> Play</ComposerButton>
+          <ComposerButton variant="primary" disabled={!picked.length || loading || saving} onClick={async () => { if (savingRef.current) return; savingRef.current = true; setSaving(true); try { if (await savePlaylist(name || result.plan.name,picked)) onClose(); } finally { savingRef.current = false; setSaving(false); } }}><Save size={15}/> {saving ? "Saving…" : "Save playlist"}</ComposerButton>
         </div>
       </footer> : null}
     </PlaylistComposer>

@@ -12,7 +12,7 @@ const MAX_BODY_BYTES = 8 * 1024 * 1024;
 /** Mac features a paired phone may use while it is on the home network; the phone keeps the answers for offline use. */
 const PHONE_FEATURES = new Set([
   "lyrics:get", "lyrics:search", "lyrics:select-match", "lyrics:set-offset", "lyrics:clear-selection",
-  "analysis:daily-mixes", "analysis:similar-songs", "analysis:prompt-sound", "discover:get", "discover:artist-bio",
+  "analysis:daily-mixes", "analysis:similar-songs", "analysis:prompt-sound", "analysis:cancel-recommendation", "discover:get", "discover:artist-bio",
   // Read-only: the phone shows which accounts the Mac sends its plays to.
   "listening:summary", "listening:calendar-summary", "scrobble:status"
 ]);
@@ -212,7 +212,7 @@ function createSyncServer({ repositories, coverPath, statePath, serverName = "co
       const touchesSmart = smartPuts.some(item => item?.rules != null) || repositories.playlists.get().some(item => item.rules && touchedIds.has(item.id));
       if (touchesSmart && (body.smartPlaylists !== 1 || !Array.isArray(body.playlistExpected))) {
         const error = new Error("Smart playlist changed; update Android before editing smart playlists");
-        error.code = "PLAYLIST_CONFLICT";
+        error.code = body.smartPlaylists === 1 ? "PLAYLIST_CONFLICT" : "SMART_PLAYLIST_UPGRADE";
         throw error;
       }
       const current = new Map(repositories.playlists.get().map(item => [item.id, item]));
@@ -350,6 +350,10 @@ function createSyncServer({ repositories, coverPath, statePath, serverName = "co
 
     if (request.method === "GET" && route === "/v1/snapshot") {
       const data = await snapshotAsync();
+      if (url.searchParams.get("smartPlaylists") !== "1") {
+        data.playlists = data.playlists.filter(item => !item.rules);
+        delete data.listeningCounts;
+      }
       device.lastSyncAt = now();
       writeState();
       onChanged({ devices: true });
@@ -371,7 +375,7 @@ function createSyncServer({ repositories, coverPath, statePath, serverName = "co
     const featureMatch = /^\/v1\/call\/([a-z:-]+)$/.exec(route);
     if (request.method === "POST" && featureMatch && PHONE_FEATURES.has(featureMatch[1]) && callFeature) {
       const body = await readJson(request);
-      return send(response, 200, { result: (await callFeature(featureMatch[1], body?.payload)) ?? null });
+      return send(response, 200, { result: (await callFeature(featureMatch[1], body?.payload, device.id)) ?? null });
     }
     const fileMatch = /^\/v1\/(audio|cover)\/([^/]+)$/.exec(route);
     if (request.method === "GET" && fileMatch) {

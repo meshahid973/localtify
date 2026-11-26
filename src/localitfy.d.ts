@@ -536,9 +536,10 @@ declare global {
       setSongCover?: (id: string, coverPath: string) => Promise<Song | null>;
 
       getDailyMixes: (payload?: { refresh?: boolean }) => Promise<import("./features/analysis/analysis.types").DailyMixesResult>;
-      findSimilarSongs: (payload: SimilarSongsQuery & { limit?: number }) => Promise<SimilarSongsResult>;
+      findSimilarSongs: (payload: SimilarSongsQuery & { limit?: number; requestId?: string }) => Promise<SimilarSongsResult>;
       /** How closely each analyzed song sounds like a text description (needs the optional prompt model). */
-      scorePromptSound: (payload: { text: string }) => Promise<PromptSoundResult>;
+      scorePromptSound: (payload: { text: string; requestId?: string }) => Promise<PromptSoundResult>;
+      cancelRecommendation: (requestId: string) => Promise<boolean>;
       getAnalysisStatus: () => Promise<AnalysisStatus>;
       setAnalysisOnBattery: (allowed: boolean) => Promise<AnalysisStatus>;
       setAnalysisEnabled: (enabled: boolean) => Promise<AnalysisStatus>;

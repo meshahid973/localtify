@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { makeLocalId } from "../../../shared/storage/localStorage";
 import PlaylistComposer, { ComposerButton } from "./PlaylistComposer";
 import SegmentedControl from "../../../vendor/arc/segmented-control/segmented-control";
@@ -31,6 +31,7 @@ export default function SmartPlaylistDialog({ playlist, songs, listeningCounts, 
   const [name, setName] = useState(playlist?.name || "");
   const [rules, setRules] = useState<SmartRules>(() => playlist?.rules || EMPTY_RULES);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [creationId] = useState(() => makeLocalId("playlist"));
   const saved = useMemo(() => cleanSmartRules(rules), [rules]);
   const matched = useMemo(() => !saved || (listeningCounts === null && needsListeningCounts(saved)) ? null : evaluateSmartRules(saved, songs, listeningCounts ?? new Map(), now).length, [saved, songs, listeningCounts, now]);
@@ -40,8 +41,8 @@ export default function SmartPlaylistDialog({ playlist, songs, listeningCounts, 
   return (
     <PlaylistComposer kind="smart" title={playlist ? "Edit smart playlist" : "New smart playlist"}
       description="Automatically update this playlist as your library changes." onClose={onClose} busy={saving}>
-      <form className="playlistComposerForm" onSubmit={async event => { event.preventDefault(); if (!saved || matched === null || saving) return; setSaving(true); try { if (await onSave(playlist?.id || null,name,saved,creationId)) onClose(); } finally { setSaving(false); } }}>
-        <div className="playlistComposerBody">
+      <form className="playlistComposerForm" onSubmit={async event => { event.preventDefault(); if (!saved || matched === null || savingRef.current) return; savingRef.current = true; setSaving(true); try { if (await onSave(playlist?.id || null,name,saved,creationId)) onClose(); } finally { savingRef.current = false; setSaving(false); } }}>
+        <div className="playlistComposerBody" inert={saving}>
           <label className="playlistComposerField"><span>Playlist name</span>
             <input aria-label="Playlist name" value={name} onChange={event => setName(event.currentTarget.value)} placeholder="My smart playlist" maxLength={120} autoFocus/>
           </label>
@@ -57,8 +58,8 @@ export default function SmartPlaylistDialog({ playlist, songs, listeningCounts, 
             {rules.rules.map((rule,index) => {
               const kind = SMART_FIELDS[rule.field].kind;
               return <li key={index} className="playlistComposerRule" data-kind={kind}>
-                <ArcDropdownMenu ariaLabel="Field" value={rule.field} items={FIELD_ITEMS} onValueChange={field => updateRule(index,defaultSmartRule(field))}/>
-                <ArcDropdownMenu ariaLabel="Condition" value={rule.op} items={toItems(SMART_OPS[kind]) as {value: SmartOp;label:string}[]} onValueChange={op => updateRule(index,{op})}/>
+                <ArcDropdownMenu ariaLabel="Field" value={rule.field} items={FIELD_ITEMS} disabled={saving} onValueChange={field => updateRule(index,defaultSmartRule(field))}/>
+                <ArcDropdownMenu ariaLabel="Condition" value={rule.op} items={toItems(SMART_OPS[kind]) as {value: SmartOp;label:string}[]} disabled={saving} onValueChange={op => updateRule(index,{op})}/>
                 {kind === "text" ? <input aria-label="Text" value={String(rule.value)} maxLength={100} placeholder={rule.field === "genre" ? "Genre" : "Value"} onChange={event => updateRule(index,{value:event.currentTarget.value})}/>
                 : kind === "flag" ? null : <label className="playlistComposerNumber"><input aria-label={kind === "days" ? "Days" : "Count"} type="number" min={0} max={100000} step={1} value={String(rule.value)}
                   onChange={event => updateRule(index,{value:event.currentTarget.value === "" ? "" : Number(event.currentTarget.value)})}/>{kind === "days" ? <span>days</span> : null}</label>}
@@ -69,7 +70,7 @@ export default function SmartPlaylistDialog({ playlist, songs, listeningCounts, 
           <div className="playlistComposerLine"><ComposerButton size="sm" variant="ghost" disabled={rules.rules.length >= 12}
             onClick={() => setRules(current => ({...current,rules:[...current.rules,defaultSmartRule()]}))}><Plus size={16}/> Add rule</ComposerButton></div>
           <div className="playlistComposerOptions">
-            <div className="playlistComposerField"><span>Sort by</span><ArcDropdownMenu ariaLabel="Order" value={rules.sort} items={SORT_ITEMS} onValueChange={sort => setRules(current => ({...current,sort}))}/></div>
+            <div className="playlistComposerField"><span>Sort by</span><ArcDropdownMenu ariaLabel="Order" value={rules.sort} items={SORT_ITEMS} disabled={saving} onValueChange={sort => setRules(current => ({...current,sort}))}/></div>
             <label className="playlistComposerField"><span>Song limit</span><input aria-label="Song limit" type="number" min={1} max={5000} step={1} placeholder="No limit" value={rules.limit ?? ""} onChange={event => setRules(current => ({...current,limit:event.currentTarget.value === "" ? null : Number(event.currentTarget.value)}))}/></label>
           </div>
         </div>

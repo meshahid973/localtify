@@ -145,7 +145,7 @@ export async function restorePausedPairing(address?: string) {
   try {
     await phoneLibrary.flushWrites(true);
     // Verify the original credential before restoring its exact receipt sequence.
-    await call<Snapshot>("/v1/snapshot", {base: url, token: saved.pairing.token});
+    await call<Snapshot>("/v1/snapshot?smartPlaylists=1", {base: url, token: saved.pairing.token});
     phoneLibrary.pairing = {...saved.pairing, url};
     phoneLibrary.pendingSync = saved.batch;
     phoneLibrary.detachedPairing = null;
@@ -241,7 +241,7 @@ async function adoptSnapshot(after: Snapshot, sent: Pick<SyncBatch, "sentSongs" 
 async function exchangeEdits() {
   for (let round = 0; round < 3; round += 1) {
     report({ phase: "connecting", message: `Connecting to ${phoneLibrary.pairing?.name || `your ${computerName()}`}…` });
-    const before = await call<Snapshot>("/v1/snapshot");
+    const before = await call<Snapshot>("/v1/snapshot?smartPlaylists=1");
     requireCurrentProtocol(before);
     adoptComputerPlatform(before.platform);
     let batch = phoneLibrary.pendingSync;
@@ -281,7 +281,7 @@ async function exchangeEdits() {
       continue;
     }
     if (receipt.sequence !== sequence) throw new Error(`Your ${computerName()} did not acknowledge this sync batch. Update and restart localtify there`);
-    const after = await call<Snapshot>("/v1/snapshot");
+    const after = await call<Snapshot>("/v1/snapshot?smartPlaylists=1");
     requireCurrentProtocol(after);
     if (!await adoptSnapshot(after, batch, sequence)) return;
   }
