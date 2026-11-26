@@ -81,7 +81,7 @@ test("manual album totals stay accurate without spread argument limits", () => {
 
 test("album editor does not search and sort songs while closed", () => {
   const controller = read("src/features/albums/useAlbumsController.ts");
-  assert.match(controller, /albumBuilderOpen \? pickAlbumDraftSearchResults\(songs, albumDraftSearch, albumDraftSongIds\) : \[\]/);
+  assert.match(controller, /albumBuilderOpen \? pickAlbumDraftSearchResults\(songs, deferredAlbumDraftSearch, albumDraftSongIds\) : \[\]/);
   assert.match(controller, /\[albumBuilderOpen, songs, albumDraftSearch, albumDraftSongIds\]/);
 });
 
