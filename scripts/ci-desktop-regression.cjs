@@ -342,20 +342,31 @@ server.listen(5173,async()=>{
           }
           if(view==="downloads") {
             for(const [menuKind,selector] of [["tools",".downloadsTools button"],["row",".downloadsRowMenu button"]]) {
-              await win.webContents.executeJavaScript(`document.querySelector(${JSON.stringify(selector)}).click()`);
+              const triggerPoint=await win.webContents.executeJavaScript(`(()=>{
+                const trigger=document.querySelector(${JSON.stringify(selector)});
+                trigger.scrollIntoView({block:"nearest"});
+                const r=trigger.getBoundingClientRect();
+                return {x:Math.round(r.left+r.width/2),y:Math.round(r.top+r.height/2)};
+              })()`);
+              win.webContents.sendInputEvent({type:"mouseMove",...triggerPoint});
+              win.webContents.sendInputEvent({type:"mouseDown",button:"left",clickCount:1,...triggerPoint});
+              win.webContents.sendInputEvent({type:"mouseUp",button:"left",clickCount:1,...triggerPoint});
               await until(()=>win.webContents.executeJavaScript(`(()=>{
-                const menu=document.querySelector('.ltOpticalMenu'),item=menu?.querySelector('[role=menuitem]:not([data-disabled])');
-                if(!menu||!item)return false;
+                const trigger=document.querySelector(${JSON.stringify(selector)});
+                const menu=document.querySelector('.ltOpticalMenu[data-open]:not([data-ending-style])'),item=menu?.querySelector('[role=menuitem]:not([data-disabled])');
+                if(!menu||!item||trigger?.getAttribute('aria-expanded')!=='true')return false;
                 const list=menu.querySelector('[data-glass-list]'),r=item.getBoundingClientRect(),at=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);
-                if(!list)return false;
-                const listStyle=getComputedStyle(list),menuStyle=getComputedStyle(menu);
-                return menuStyle.outlineStyle==='none' && Number(listStyle.opacity)>.95 && listStyle.clipPath==='none' &&
-                  Number(getComputedStyle(item).opacity)>.95 && item.contains(at) && (r.width>0&&r.height>0);
-              })()`),"readable "+menuKind+" menu without decorative outline");
+                if(!list||menu.hasAttribute('data-glass-off'))return false;
+                const listStyle=getComputedStyle(list),menuStyle=getComputedStyle(menu),itemStyle=getComputedStyle(item);
+                return Number(menuStyle.getPropertyValue('--glass-out'))>=.99 &&
+                  menuStyle.outlineStyle==='none' && itemStyle.outlineStyle==='none' && getComputedStyle(trigger).outlineStyle==='none' &&
+                  Number(listStyle.opacity)>.95 && listStyle.clipPath==='none' &&
+                  Number(itemStyle.opacity)>.95 && item.contains(at) && (r.width>0&&r.height>0);
+              })()`),"settled readable "+menuKind+" menu without decorative outline");
               await screenshot(win,`glass-${mode}-downloads-${menuKind}-menu`);
               win.webContents.sendInputEvent({type:"keyDown",keyCode:"Escape"});
               win.webContents.sendInputEvent({type:"keyUp",keyCode:"Escape"});
-              await until(()=>win.webContents.executeJavaScript("!Array.from(document.querySelectorAll('.ltOpticalMenu')).some(menu=>menu.getClientRects().length>0)"),"dismiss download glass menu");
+              await until(()=>win.webContents.executeJavaScript(`!document.querySelector('.ltOpticalMenu[data-open]') && !Array.from(document.querySelectorAll('.ltOpticalMenu')).some(menu=>menu.getClientRects().length>0) && document.querySelector(${JSON.stringify(selector)})?.getAttribute('aria-expanded')!=='true'`),"dismiss download glass menu");
             }
           }
         }

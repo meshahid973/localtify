@@ -847,6 +847,14 @@ export function drawAround(
   })
 }
 
+/** A removed view must not stay reachable through a pending artwork load. */
+export function releaseGlassSnapshotSubscriber(callback: () => void) {
+  for (const pending of waiting.values()) {
+    pending.callbacks.delete(callback)
+    if (!pending.callbacks.size) pending.dispose()
+  }
+}
+
 /** Drop only optical copies and subscriptions. Never modify application-owned artwork. */
 export function releaseGlassSnapshots() {
   for (const pending of waiting.values()) pending.dispose()

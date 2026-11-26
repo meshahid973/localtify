@@ -1424,6 +1424,7 @@ function createEngine(): GlassEngine | null {
   type Layer = ReturnType<typeof layer>
   type Layers = { back: Layer; front: Layer | null; used: number }
   const LAYER_SIZES = 12
+  const LAYER_PIXEL_BUDGET = 4 * 1024 * 1024
   const layersOf = new Map<string, Layers>()
   let layerUse = 0
   const sized = (w: number, h: number) => {
@@ -1436,7 +1437,12 @@ function createEngine(): GlassEngine | null {
     const key = `${w}x${h}|${fw}x${fh}`
     let l = layersOf.get(key)
     if (!l) {
-      if (layersOf.size >= LAYER_SIZES) {
+      const pixels = () => [...layersOf.values()].reduce((total, entry) => total +
+        entry.back.canvas.width * entry.back.canvas.height +
+        (entry.front ? entry.front.canvas.width * entry.front.canvas.height : 0), 0)
+      // Keep the current view at full resolution, evict old scratch sizes before
+      // adding a large card or popup rather than retaining several large stores.
+      while (layersOf.size && (layersOf.size >= LAYER_SIZES || pixels() + w * h + fw * fh > LAYER_PIXEL_BUDGET)) {
         // The size drawn longest ago gives its canvases back.
         let oldest = ''
         let least = Infinity

@@ -33,7 +33,7 @@ import { localtifyOptics } from './localtify-optics'
 
 import { useEffect, useRef } from 'react'
 
-import { drawAround, drawDom } from './dom-snapshot'
+import { releaseGlassSnapshotSubscriber, drawAround, drawDom } from './dom-snapshot'
 import {
   DESIGN_HEIGHT,
   PULL,
@@ -769,6 +769,8 @@ export function GlassLayer({
       ro.disconnect()
       mo.disconnect()
       paletteObserver?.disconnect()
+      releaseGlassSnapshotSubscriber(stalePage)
+      releaseGlassSnapshotSubscriber(dirty)
       page.canvas.width = page.canvas.height = 1
       canvas.width = canvas.height = 1
       removeEventListener('scroll', onScroll, { capture: true })
