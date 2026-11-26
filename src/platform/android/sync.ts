@@ -78,7 +78,7 @@ async function call<T>(path: string, options: { method?: string; body?: unknown;
     response = await LocaltifyNative.request({
       url: `${base}${path}`,
       method: options.method || "GET",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(path === "/v1/snapshot" ? {"X-Localtify-Smart-Playlists":"1"} : {}) },
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
       timeoutMs: 60000
     });
@@ -87,7 +87,8 @@ async function call<T>(path: string, options: { method?: string; body?: unknown;
   }
   let parsed: unknown = {};
   try { parsed = response.body ? JSON.parse(response.body) : {}; } catch { /* non-JSON error page */ }
-  if (response.status === 409 && (parsed as {code?: string})?.code === "PLAYLIST_CONFLICT") throw new PlaylistSyncConflict();
+  const code = (parsed as {code?: string})?.code;
+  if ((response.status === 409 && code === "PLAYLIST_CONFLICT") || (response.status === 426 && code === "SMART_PLAYLIST_UPGRADE")) throw new PlaylistSyncConflict();
   if (response.status < 200 || response.status >= 300) throw new Error((parsed as { error?: string })?.error || `Your ${computerName()} answered with error ${response.status}`);
   return parsed as T;
 }
@@ -145,7 +146,7 @@ export async function restorePausedPairing(address?: string) {
   try {
     await phoneLibrary.flushWrites(true);
     // Verify the original credential before restoring its exact receipt sequence.
-    await call<Snapshot>("/v1/snapshot?smartPlaylists=1", {base: url, token: saved.pairing.token});
+    await call<Snapshot>("/v1/snapshot", {base: url, token: saved.pairing.token});
     phoneLibrary.pairing = {...saved.pairing, url};
     phoneLibrary.pendingSync = saved.batch;
     phoneLibrary.detachedPairing = null;
@@ -241,7 +242,7 @@ async function adoptSnapshot(after: Snapshot, sent: Pick<SyncBatch, "sentSongs" 
 async function exchangeEdits() {
   for (let round = 0; round < 3; round += 1) {
     report({ phase: "connecting", message: `Connecting to ${phoneLibrary.pairing?.name || `your ${computerName()}`}…` });
-    const before = await call<Snapshot>("/v1/snapshot?smartPlaylists=1");
+    const before = await call<Snapshot>("/v1/snapshot");
     requireCurrentProtocol(before);
     adoptComputerPlatform(before.platform);
     let batch = phoneLibrary.pendingSync;
@@ -281,7 +282,7 @@ async function exchangeEdits() {
       continue;
     }
     if (receipt.sequence !== sequence) throw new Error(`Your ${computerName()} did not acknowledge this sync batch. Update and restart localtify there`);
-    const after = await call<Snapshot>("/v1/snapshot?smartPlaylists=1");
+    const after = await call<Snapshot>("/v1/snapshot");
     requireCurrentProtocol(after);
     if (!await adoptSnapshot(after, batch, sequence)) return;
   }

@@ -312,3 +312,31 @@ test("server rejects old phone smart edits and stale rules before applying any c
     assert.equal(library.playlists[0].rules.limit,5);
   } finally { fs.rmSync(dir,{recursive:true,force:true}); }
 });
+
+test("legacy phones see only manual playlists; capable phones receive rules and counts", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(),"localtify-smart-compat-"));
+  const library = fakeLibrary(dir);
+  const smart = {...playlist("smart",["a"]),rules:{match:"all",rules:[],sort:"library",limit:null}};
+  library.repositories.playlists.save([playlist("manual",["a"]),smart]);
+  const server = createSyncServer({repositories:library.repositories,coverPath:()=>"",statePath:path.join(dir,"state.json")});
+  try {
+    const port = await server.start(0);
+    const url = "http://127.0.0.1:" + port;
+    const {code} = server.newPairingCode();
+    const pair = await (await fetch(url+"/v1/pair",{method:"POST",body:JSON.stringify({code})})).json();
+    const auth = {Authorization:"Bearer "+pair.token};
+    const legacy = await (await fetch(url+"/v1/snapshot",{headers:auth})).json();
+    assert.deepEqual(legacy.playlists.map(p=>p.id),["manual"]);
+    assert.equal(legacy.listeningCounts,undefined);
+    const current = await (await fetch(url+"/v1/snapshot",{headers:{...auth,"X-Localtify-Smart-Playlists":"1"}})).json();
+    assert.deepEqual(current.playlists,[playlist("manual",["a"]),smart]);
+    assert.deepEqual(current.listeningCounts,[["a",1,0]]);
+    const rejected = await fetch(url+"/v1/changes",{method:"POST",headers:auth,body:JSON.stringify({sequence:1,playlists:{put:[playlist("smart",[])],delete:[]}})});
+    assert.equal(rejected.status,426);
+    assert.equal((await rejected.json()).code,"SMART_PLAYLIST_UPGRADE");
+    assert.deepEqual(library.playlists,[playlist("manual",["a"]),smart]);
+    const accepted = await fetch(url+"/v1/changes",{method:"POST",headers:auth,body:JSON.stringify({sequence:1,playlists:{put:[playlist("manual",[],"renamed")],delete:[]}})});
+    assert.equal(accepted.status,200);
+    assert.equal(library.playlists[0].name,"renamed");
+  } finally {await server.stop();fs.rmSync(dir,{recursive:true,force:true});}
+});

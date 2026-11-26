@@ -152,10 +152,10 @@ function createSyncServer({ repositories, coverPath, statePath, serverName = "co
 
   // Filesystem metadata is queried outside the Electron main-process synchronous path.
   // A bounded batch avoids tens of thousands of simultaneous stat operations.
-  async function snapshotAsync() {
+  async function snapshotAsync(includeSmart = true) {
     const source = repositories.songs.list();
-    const playlists = repositories.playlists.get();
-    const listeningCounts = repositories.listening.counts?.() ?? null;
+    const playlists = repositories.playlists.get().filter(item => includeSmart || !item.rules);
+    const listeningCounts = includeSmart ? repositories.listening.counts?.() ?? null : undefined;
     const songs = [];
     for (let offset = 0; offset < source.length; offset += 32) {
       const chunk = await Promise.all(source.slice(offset, offset + 32).map(async (song) => {
@@ -349,11 +349,7 @@ function createSyncServer({ repositories, coverPath, statePath, serverName = "co
     if (!device) return send(response, 401, { error: "This phone is not paired with this Mac" });
 
     if (request.method === "GET" && route === "/v1/snapshot") {
-      const data = await snapshotAsync();
-      if (url.searchParams.get("smartPlaylists") !== "1") {
-        data.playlists = data.playlists.filter(item => !item.rules);
-        delete data.listeningCounts;
-      }
+      const data = await snapshotAsync(request.headers["x-localtify-smart-playlists"] === "1");
       device.lastSyncAt = now();
       writeState();
       onChanged({ devices: true });
@@ -391,7 +387,7 @@ function createSyncServer({ repositories, coverPath, statePath, serverName = "co
     return new Promise((resolve, reject) => {
       const next = http.createServer((request, response) => {
         handle(request, response).catch((error) => {
-          if (!response.headersSent) send(response, error?.code === "PLAYLIST_CONFLICT" ? 409 : 400, { error: error?.message || "bad request", ...(error?.code === "PLAYLIST_CONFLICT" ? {code: error.code} : {}) });
+          if (!response.headersSent) send(response, error?.code === "PLAYLIST_CONFLICT" ? 409 : error?.code === "SMART_PLAYLIST_UPGRADE" ? 426 : 400, { error: error?.message || "bad request", ...(["PLAYLIST_CONFLICT","SMART_PLAYLIST_UPGRADE"].includes(error?.code) ? {code: error.code} : {}) });
           else response.destroy();
         });
       });

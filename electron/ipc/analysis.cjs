@@ -7,6 +7,13 @@ function registerAnalysisIpc(router, { app, powerMonitor, repositories, ffmpegPa
   const root = path.join(app.getPath("userData"), "experimental-models");
   const similarity = createSimilarityService({ getDatabasePath: () => repositories.database.status().path });
   const requests = new Map();
+  const cancelled = new Map();
+  function rememberCancellation(key) {
+    const now = Date.now();
+    for (const [id, expires] of cancelled) if (expires <= now) cancelled.delete(id);
+    if (cancelled.size >= 256) cancelled.delete(cancelled.keys().next().value);
+    cancelled.set(key, now + 60_000);
+  }
   function requestKey(event, requestId, peer) {
     if (typeof requestId !== "string" || !/^[a-zA-Z0-9-]{1,80}$/.test(requestId)) throw new TypeError("Invalid recommendation request ID");
     return (event.sender ? "renderer:" + event.sender.id : "phone:" + String(peer || "")) + ":" + requestId;
@@ -14,6 +21,7 @@ function registerAnalysisIpc(router, { app, powerMonitor, repositories, ffmpegPa
   async function scoped(event, payload, peer, run) {
     if (!payload?.requestId) return run(undefined);
     const key = requestKey(event, payload.requestId, peer);
+    if ((cancelled.get(key) || 0) > Date.now()) throw new Error("Recommendation search stopped");
     requests.get(key)?.abort();
     const controller = new AbortController();
     requests.set(key, controller);
@@ -21,7 +29,9 @@ function registerAnalysisIpc(router, { app, powerMonitor, repositories, ffmpegPa
     finally { if (requests.get(key) === controller) requests.delete(key); }
   }
   router.handle("analysis:cancel-recommendation", (event, requestId, peer) => {
-    const controller = requests.get(requestKey(event, requestId, peer));
+    const key = requestKey(event, requestId, peer);
+    rememberCancellation(key);
+    const controller = requests.get(key);
     controller?.abort();
     return Boolean(controller);
   });
