@@ -1,0 +1,292 @@
+.releaseNotesOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1400;
+  display: grid;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  place-items: center;
+  padding: var(--lt-space-4);
+  background: var(--lt-overlay-scrim);
+}
+
+.releaseNotesDialog {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: min(620px, 100%);
+  max-height: min(680px, 100%);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  color: var(--lt-text);
+  background: var(--lt-bg);
+  border: 1px solid var(--lt-border-strong);
+  border-radius: var(--lt-radius-panel);
+  box-shadow: var(--lt-shadow-menu);
+  text-align: left;
+  font-weight: 500;
+  letter-spacing: normal;
+}
+
+.releaseNotesHead,
+.releaseNotesFooter {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--lt-space-3);
+  padding: var(--lt-space-3) var(--lt-space-5);
+}
+
+.releaseNotesHead {
+  justify-content: space-between;
+  border-bottom: 1px solid var(--lt-border);
+}
+
+.releaseNotesLabel {
+  min-width: 0;
+  font-size: var(--lt-text-label);
+  font-weight: 600;
+  letter-spacing: -.015em;
+}
+
+.releaseNotesActions {
+  display: flex;
+  align-items: center;
+  gap: var(--lt-space-2);
+  min-width: 0;
+}
+
+.releaseNotesVersionPicker {
+  display: grid;
+  align-items: center;
+  position: relative;
+  min-width: 0;
+}
+
+.releaseNotesVersionPicker select {
+  appearance: none;
+  min-width: 0;
+  max-width: 100%;
+  min-height: var(--lt-control-height);
+  padding: 0 30px 0 var(--lt-space-3);
+  border: 1px solid var(--lt-border);
+  border-radius: var(--lt-control-radius);
+  background: var(--lt-bg);
+  color: var(--lt-text);
+  font: inherit;
+  font-size: var(--lt-text-sm);
+  font-weight: 550;
+  cursor: pointer;
+  text-overflow: ellipsis;
+}
+
+.releaseNotesVersionPicker svg {
+  position: absolute;
+  right: var(--lt-space-2);
+  color: var(--lt-muted);
+  pointer-events: none;
+}
+
+.releaseNotesVersionPicker select:hover {
+  border-color: var(--lt-border-strong);
+  background: var(--lt-fill-subtle);
+}
+
+.releaseNotesContent {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: var(--lt-space-5) clamp(20px, 5vw, 36px);
+}
+
+.releaseNotesContent:focus-visible {
+  outline: 2px solid var(--lt-accent);
+  outline-offset: -3px;
+}
+
+.releaseNotesIntro {
+  display: grid;
+  gap: var(--lt-space-2);
+  margin-bottom: var(--lt-space-4);
+}
+
+.releaseNotesMeta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  column-gap: var(--lt-space-3);
+  row-gap: var(--lt-space-1);
+  color: var(--lt-muted);
+  font-size: var(--lt-text-sm);
+}
+
+.releaseNotesMeta span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lt-space-1);
+}
+
+.releaseNotesMeta svg {
+  color: var(--lt-success);
+}
+
+.releaseNotesMeta time {
+  font-variant-numeric: tabular-nums;
+}
+
+.releaseNotesIntro h2 {
+  margin: 0;
+  color: var(--lt-text);
+  font-size: clamp(var(--lt-text-page), 4vw, 36px);
+  line-height: 1.12;
+  font-weight: 700;
+  letter-spacing: -.05em;
+  overflow-wrap: anywhere;
+}
+
+.releaseNotesIntro h2 span {
+  font-variant-numeric: tabular-nums;
+}
+
+.releaseNotesMarkdown,
+.releaseNotesMissing {
+  color: var(--lt-muted);
+  font-size: var(--lt-text-label);
+  font-weight: 500;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.releaseNotesMarkdown > :first-child { margin-top: 0; }
+.releaseNotesMarkdown > :last-child { margin-bottom: 0; }
+
+.releaseNotesMarkdown p {
+  margin: var(--lt-space-2) 0;
+}
+
+.releaseNotesMarkdown > p:first-child {
+  color: var(--lt-text);
+}
+
+.releaseNotesMarkdown :is(h1, h2, h3, h4, h5, h6) {
+  margin: var(--lt-space-5) 0 var(--lt-space-2);
+  color: var(--lt-text);
+  font-size: var(--lt-text-heading);
+  line-height: var(--lt-leading);
+  font-weight: 650;
+  letter-spacing: -.025em;
+}
+
+.releaseNotesMarkdown :is(ul, ol) {
+  margin: var(--lt-space-2) 0;
+  padding-inline-start: var(--lt-space-4);
+}
+
+.releaseNotesMarkdown li + li {
+  margin-top: var(--lt-space-2);
+}
+
+.releaseNotesMarkdown li::marker {
+  color: var(--lt-faint);
+}
+
+.releaseNotesMarkdown strong {
+  color: var(--lt-text);
+  font-weight: 600;
+}
+
+.releaseNotesMarkdown a {
+  color: var(--lt-text);
+  text-underline-offset: 3px;
+}
+
+.releaseNotesMarkdown img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--lt-radius-item);
+}
+
+.releaseNotesMarkdown code {
+  font-size: .9em;
+}
+
+.releaseNotesMarkdown pre {
+  padding: var(--lt-space-3);
+  border-radius: var(--lt-radius-control);
+  background: var(--lt-fill);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.releaseNotesMarkdown blockquote {
+  margin: var(--lt-space-3) 0;
+  padding-inline-start: var(--lt-space-3);
+  border-inline-start: 2px solid var(--lt-border-strong);
+}
+
+.releaseNotesMarkdown hr {
+  border: 0;
+  border-top: 1px solid var(--lt-border);
+  margin: var(--lt-space-5) 0;
+}
+
+.releaseNotesMissing {
+  margin: 0;
+}
+
+.releaseNotesFooter {
+  justify-content: flex-end;
+  border-top: 1px solid var(--lt-border);
+}
+
+.releaseNotesFooter a {
+  margin-inline-end: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lt-space-1);
+  color: var(--lt-muted);
+  font-size: var(--lt-text-sm);
+  text-decoration: none;
+}
+
+.releaseNotesFooter a:hover {
+  color: var(--lt-text);
+  text-decoration: underline;
+}
+
+.releaseNotesFooter button {
+  min-width: 92px;
+  color: var(--button-text-on-accent);
+}
+
+@media (max-width: 480px), (max-height: 440px) {
+  .releaseNotesOverlay {
+    padding: var(--lt-space-2);
+  }
+  .releaseNotesHead,
+  .releaseNotesFooter {
+    padding: var(--lt-space-2) var(--lt-space-4);
+  }
+  .releaseNotesContent {
+    padding: var(--lt-space-4);
+  }
+}
+
+@media (max-width: 360px) {
+  .releaseNotesHead {
+    gap: var(--lt-space-2);
+  }
+  .releaseNotesActions {
+    gap: var(--lt-space-1);
+  }
+  .releaseNotesLabel {
+    font-size: var(--lt-text-sm);
+  }
+  .releaseNotesVersionPicker select {
+    max-width: 140px;
+  }
+}

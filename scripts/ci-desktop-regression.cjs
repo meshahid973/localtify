@@ -701,9 +701,63 @@ server.listen(5173,async()=>{
       return (Math.max(text,fill)+0.05)/(Math.min(text,fill)+0.05);
     })()`);
     assert.ok(doneContrast>=4.5,"Changelog Done button must meet WCAG AA text contrast: "+doneContrast);
+    assert.equal(await win.webContents.executeJavaScript("getComputedStyle(document.querySelector('.releaseNotesDialog')).backgroundColor"),"rgb(0, 0, 0)","OLED release notes surface");
+    const releaseWindowSize=win.getSize();
+    win.setMinimumSize(320,320);
+    for(const [width,height] of [[1280,800],[480,320],[390,844]]) {
+      win.setSize(width,height);
+      await until(()=>win.webContents.executeJavaScript(`innerWidth===${width} && innerHeight===${height}`),"release notes viewport "+width+"x"+height,5000);
+      const geometry=await win.webContents.executeJavaScript(`(()=>{
+        const modal=document.querySelector('.releaseNotesDialog'), content=modal.querySelector('.releaseNotesContent');
+        const bounds=modal.getBoundingClientRect(), footer=modal.querySelector('.releaseNotesFooter button').getBoundingClientRect();
+        const select=modal.querySelector('select').getBoundingClientRect(), close=modal.querySelector('.releaseNotesClose').getBoundingClientRect();
+        return {inside:bounds.top>=-1&&bounds.bottom<=innerHeight+1&&bounds.left>=-1&&bounds.right<=innerWidth+1,
+          footer:footer.bottom<=bounds.bottom&&footer.top>=bounds.top, controls:select.right<=close.left+1&&close.right<=bounds.right,
+          readingHeight:content.clientHeight, horizontalOverflow:content.scrollWidth>content.clientWidth+1};
+      })()`);
+      assert.ok(geometry.inside&&geometry.footer&&geometry.controls&&geometry.readingHeight>=80&&!geometry.horizontalOverflow,"release notes geometry "+JSON.stringify(geometry));
+      await screenshot(win,"whats-new-"+width+"x"+height);
+    }
+    await win.webContents.executeJavaScript(`(()=>{
+      const select=document.querySelector('.releaseNotesVersionPicker select');
+      const installed=[...select.options].find(option=>option.textContent.includes("Installed"));
+      select.value=installed.value;select.dispatchEvent(new Event('change',{bubbles:true}));
+    })()`);
+    await until(()=>win.webContents.executeJavaScript("document.querySelector('.releaseNotesMeta')?.textContent.includes('Installed') && document.querySelector('.releaseNotesMarkdown')?.textContent.includes('Smart playlists')"),"installed notes from bundled release");
+    const releaseTypography=await win.webContents.executeJavaScript("({body:Number(getComputedStyle(document.querySelector('.releaseNotesMarkdown p')).fontWeight),strong:Number(getComputedStyle(document.querySelector('.releaseNotesMarkdown strong')).fontWeight)})");
+    assert.ok(releaseTypography.body<=500&&releaseTypography.strong>releaseTypography.body,"release notes use distinct body and emphasis weights");
+    win.setSize(480,320);
+    await until(()=>win.webContents.executeJavaScript("innerWidth===480 && innerHeight===320"),"compact installed release");
+    const longLayout=await win.webContents.executeJavaScript(`(()=>{
+      const dialog=document.querySelector('.releaseNotesDialog'), content=dialog.querySelector('.releaseNotesContent');
+      const bounds=dialog.getBoundingClientRect(), footer=dialog.querySelector('.releaseNotesFooter button').getBoundingClientRect();
+      return {fits:bounds.top>=0 && bounds.bottom<=innerHeight && footer.bottom<=bounds.bottom, scrollable:content.scrollHeight>content.clientHeight && content.clientHeight>=80};
+    })()`);
+    assert.ok(longLayout.fits&&longLayout.scrollable,"long release notes remain readable "+JSON.stringify(longLayout));
+    await screenshot(win,"whats-new-installed-compact");
+    win.setSize(1280,800);
+    await until(()=>win.webContents.executeJavaScript("innerWidth===1280 && innerHeight===800"),"desktop installed release");
+    await screenshot(win,"whats-new-installed");
+    await win.webContents.executeJavaScript("(()=>{const select=document.querySelector('.releaseNotesVersionPicker select');select.value='0.5.0';select.dispatchEvent(new Event('change',{bubbles:true}));})()");
+    await until(()=>win.webContents.executeJavaScript("document.querySelector('#releaseNotesTitle')?.textContent.includes('0.5.0')"),"archived release");
+    await win.webContents.executeJavaScript("document.querySelector('.releaseNotesContent').scrollTop=1000");
+    await win.webContents.executeJavaScript("(()=>{const select=document.querySelector('.releaseNotesVersionPicker select');select.value='9.9.9';select.dispatchEvent(new Event('change',{bubbles:true}));})()");
+    await until(()=>win.webContents.executeJavaScript("document.querySelector('.releaseNotesMarkdown')?.textContent.includes('QA release details') && document.querySelector('.releaseNotesContent').scrollTop===0"),"remote notes and scroll reset");
+    win.setMinimumSize(...originalMinSize);
+    win.setSize(...releaseWindowSize);
     await screenshot(win,"whats-new-release-history");
-    await win.webContents.executeJavaScript("document.querySelector('.releaseNotesClose').click()");
+    await win.webContents.executeJavaScript("document.querySelector('.releaseNotesClose').focus();document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}))");
     await until(()=>win.webContents.executeJavaScript("!document.querySelector('.releaseNotesDialog')"),"close release notes");
+    await win.webContents.executeJavaScript("document.querySelector('.settingsModeButton:has([data-preview-mode=light])').click()");
+    await until(()=>win.webContents.executeJavaScript("document.querySelector('.app').dataset.theme==='light'"),"release notes light theme");
+    await win.webContents.executeJavaScript("Array.from(document.querySelectorAll('.localtifyUpdateBanner button')).find(b=>b.textContent.includes('What'))?.click()");
+    await until(()=>win.webContents.executeJavaScript("document.querySelector('.releaseNotesMarkdown')?.textContent.includes('QA release details')"),"release notes reopened");
+    assert.equal(await win.webContents.executeJavaScript("getComputedStyle(document.querySelector('.releaseNotesDialog')).backgroundColor"),"rgb(245, 245, 247)","light release notes use the active theme");
+    await screenshot(win,"whats-new-light");
+    await win.webContents.executeJavaScript("document.querySelector('.releaseNotesFooter button').click()");
+    await until(()=>win.webContents.executeJavaScript("!document.querySelector('.releaseNotesDialog')"),"Done closes release notes");
+    await win.webContents.executeJavaScript("document.querySelector('.settingsModeButton:has([data-preview-mode=dark])').click()");
+    await until(()=>win.webContents.executeJavaScript("document.querySelector('.app').dataset.theme==='dark'"),"restore dark theme");
     await win.webContents.executeJavaScript("document.querySelector('.localtifyUpdateBanner [aria-label=\"Dismiss update notice\"]').click()");
     await until(()=>win.webContents.executeJavaScript("!document.querySelector('.localtifyUpdateBanner')"),"dismiss update banner");
     // Exercise shared menu navigation, queue editing and both listening layouts.
