@@ -1,4 +1,4 @@
-A more refined Localtify, with faster libraries, smarter playlists and a more consistent listening experience.
+Localtify 0.5.1 brings faster libraries, smarter playlists and a more consistent listening experience.
 
 ## Listening and library
 

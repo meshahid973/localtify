@@ -7,9 +7,6 @@ export const releaseHistory:readonly ReleaseEntry[]=[
   {version:APP_VERSION,date:null,notes:installedNotes,published:false},
   ...(officialArchive as ReleaseEntry[]).filter(entry=>entry.version!==APP_VERSION)
 ];
-export function findRelease(version:string) {
-  return releaseHistory.find(entry=>entry.version===String(version).replace(/^v/i,""));
-}
 const RELEASES_API="https://api.github.com/repos/meshahid973/localtify/releases?per_page=100";
 let cached:readonly ReleaseEntry[]|null=null;
 let cachedUntil=0;

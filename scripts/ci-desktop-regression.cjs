@@ -721,6 +721,18 @@ server.listen(5173,async()=>{
     const selectRelease = target => win.webContents.executeJavaScript(`(()=>{const select=document.querySelector('.releaseNotesVersionPicker select');select.value=${JSON.stringify(target)};select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     await selectRelease(version);
     await until(()=>win.webContents.executeJavaScript("document.querySelector('#releaseNotesTitle')?.textContent.includes("+JSON.stringify(version)+") && document.querySelector('.releaseNotesMarkdown')?.textContent.includes('Smart playlists')"),"installed notes from bundled release");
+    win.setSize(480,320);
+    await until(()=>win.webContents.executeJavaScript("innerWidth===480 && innerHeight===320"),"compact installed release");
+    const longLayout=await win.webContents.executeJavaScript(`(()=>{
+      const dialog=document.querySelector('.releaseNotesDialog'), content=dialog.querySelector('.releaseNotesContent');
+      const bounds=dialog.getBoundingClientRect(), footer=dialog.querySelector('.releaseNotesFooter button').getBoundingClientRect();
+      return {fits:bounds.top>=0 && bounds.bottom<=innerHeight && footer.bottom<=bounds.bottom, scrollable:content.scrollHeight>content.clientHeight && content.clientHeight>=80};
+    })()`);
+    assert.ok(longLayout.fits&&longLayout.scrollable,"long release notes remain readable "+JSON.stringify(longLayout));
+    await screenshot(win,"whats-new-installed-compact");
+    win.setSize(1280,800);
+    await until(()=>win.webContents.executeJavaScript("innerWidth===1280 && innerHeight===800"),"desktop installed release");
+    await screenshot(win,"whats-new-installed");
     await selectRelease("0.5.0");
     await until(()=>win.webContents.executeJavaScript("document.querySelector('#releaseNotesTitle')?.textContent.includes('0.5.0')"),"archived release");
     await win.webContents.executeJavaScript("document.querySelector('.releaseNotesContent').scrollTop=1000");
