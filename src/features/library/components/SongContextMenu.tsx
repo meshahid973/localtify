@@ -63,7 +63,7 @@ export default function SongContextMenu({
             <small>{prettyMeta(song.artist)}</small>
           </span>
         </div>
-        <button type="button" role="menuitem" onClick={() => { onClose(); void selectSong(song.id, true); }}>
+        <button type="button" role="menuitem" disabled={song.fileExists === false} onClick={() => { onClose(); void selectSong(song.id, true); }}>
           <span className="songContextMenuIcon"><Play size={13} strokeWidth={3} /></span> play now
         </button>
         <button type="button" role="menuitem" disabled={song.fileExists === false} onClick={() => { onClose(); queueSong(song.id, true); }}>

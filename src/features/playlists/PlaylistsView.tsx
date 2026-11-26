@@ -38,7 +38,7 @@ export type PlaylistsViewProps = {
   appendPlaylistSongAction: (playlistId: string, songId: string) => void;
   cancelRenamePlaylist: Controller["cancelRenamePlaylist"];
   createPlaylist: Controller["createPlaylist"];
-  currentId: string | null;
+  currentId: string;
   draggedSongId: string;
   dropPlaylistSongAction: (playlistId: string, songId: string, targetSongId: string, side: LibraryDropSide) => void;
   duplicatePlaylist: Controller["duplicatePlaylist"];

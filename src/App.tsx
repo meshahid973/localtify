@@ -526,7 +526,6 @@ function MainModeApp() {
     createPlaylist,
     saveSmartPlaylist, listeningCounts, smartNow, setSmartPreviewOpen, savePromptPlaylist,
     createPlaylistWithSong,
-    createPlaylistFromSongs,
     removePlaylist,
     startRenamePlaylist,
     cancelRenamePlaylist,
@@ -4708,7 +4707,7 @@ function MainModeApp() {
       songs
     },
     playlists: {
-      dailyMixes: { songs, savePlaylist: createPlaylistFromSongs,
+      dailyMixes: { songs,
         openAnalysisSettings: () => { setSettingsSearch(""); setSettingsCategory("experimental"); changeView("settings"); } },
       activePlaylistId,
       appendPlaylistSongAction,

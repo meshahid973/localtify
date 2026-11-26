@@ -122,3 +122,35 @@ test("date rules and daily shuffle refresh from time rather than persisted membe
   const all = Array.from({length:50},(_,i)=>song("s"+i));
   assert.notDeepEqual([...materializeSmartPlaylists(shuffled,all,new Map(),NOW)[0].songIds],[...materializeSmartPlaylists(shuffled,all,new Map(),NOW+DAY)[0].songIds]);
 });
+
+test("materialization reuses unaffected results and clears deleted playlist cache entries",()=>{
+  const {materializeSmartPlaylists}=loadSmart();
+  const playlist={id:"a",name:"likes",createdAt:1,songIds:[],rules:{match:"all",rules:[{field:"liked",op:"is",value:""}],sort:"library",limit:null}};
+  const cache=new Map();
+  const first=materializeSmartPlaylists([playlist],library,new Map(),NOW,cache)[0];
+  const second=materializeSmartPlaylists([playlist],library,new Map(),NOW+DAY,cache)[0];
+  assert.equal(first.songIds,second.songIds);
+  const updated=materializeSmartPlaylists([playlist],library.map(song=>({...song,liked:false})),new Map(),NOW,cache)[0];
+  assert.deepEqual([...updated.songIds],[]);
+  materializeSmartPlaylists([],library,null,NOW,cache);
+  assert.equal(cache.size,0);
+});
+
+test("generated playlist retry finds its previously assigned suffixed name",()=>{
+  const exports={};
+  runInNewContext(ts.transpileModule(fs.readFileSync("src/features/playlists/generatedPlaylist.ts","utf8"),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports});
+  const byId=new Map(library.map(song=>[song.id,song]));
+  const existing=[{id:"original",name:"Mix",songIds:["never"]},{id:"retry",name:"Mix (2)",songIds:["recent-fave"]}];
+  const result=exports.prepareGeneratedPlaylist("Mix",["recent-fave"],byId,existing);
+  assert.equal(result.existingId,"retry");assert.equal(result.name,"Mix (2)");
+});
+
+test("sorted playback retains membership changes without rewriting saved order",()=>{
+  const exports={};
+  const js=ts.transpileModule(fs.readFileSync("src/features/player/playbackSource.ts","utf8"),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+  runInNewContext(js,{exports,require:()=>({isPlayableSong:song=>Boolean(song)})});
+  const playlist={id:"a",songIds:["a","b","c"]};
+  assert.deepEqual([...exports.resolvePlaylistPlaybackIds(playlist,{id:"a",songIds:["c","removed","a"]})],["c","a","b"]);
+  assert.equal(exports.resolvePlaylistPlaybackIds(playlist,{id:"other",songIds:[]}),playlist.songIds);
+  assert.deepEqual(playlist.songIds,["a","b","c"]);
+});

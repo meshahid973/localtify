@@ -113,6 +113,7 @@ export function usePlaylistsController({
     return true;
   }, [flushPlaylists, persistence, setStatusText, showAppToast]);
   const [newPlaylistName, setNewPlaylistName] = useState("");
+  const pendingUnnamedPlaylist = useRef<string | null>(null);
   const [playlistPickerName, setPlaylistPickerName] = useState("");
   const [activePlaylistId, setActivePlaylistId] = useState<string | null>(null);
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(null);
@@ -196,13 +197,15 @@ export function usePlaylistsController({
 
   const createPlaylist = useCallback(async (forcedName?: string) => {
     const sourceName = typeof forcedName === "string" ? forcedName : newPlaylistName;
-    const name = normalizePlaylistName(sourceName, `playlist ${persistence.current().length + 1}`);
+    const pending = !sourceName.trim() && pendingUnnamedPlaylist.current ? persistence.current().find(item=>item.id===pendingUnnamedPlaylist.current) : undefined;
+    const name = pending?.name ?? normalizePlaylistName(sourceName, `playlist ${persistence.current().length + 1}`);
     const existingPlaylist = persistence.current().find(
       (playlist) => playlist.name.trim().toLowerCase() === name.toLowerCase()
     );
 
     if (existingPlaylist) {
       if (!await confirmSaved("Playlist already exists", items => items.some(item => item.id === existingPlaylist.id))) return null;
+      pendingUnnamedPlaylist.current = null;
       setSelectedPlaylistId(existingPlaylist.id);
       if (typeof forcedName === "string") setPlaylistPickerName("");
       else setNewPlaylistName("");
@@ -211,7 +214,9 @@ export function usePlaylistsController({
 
     const playlist: Playlist = { id: makeLocalId("playlist"), name, songIds: [], createdAt: Date.now() };
     setPlaylists((items) => [playlist, ...items]);
+    if (!sourceName.trim()) pendingUnnamedPlaylist.current = playlist.id;
     if (!await confirmSaved(`Created playlist: ${name}`, items => items.some(item => item.id === playlist.id))) return null;
+    pendingUnnamedPlaylist.current = null;
     setSelectedPlaylistId(playlist.id);
     if (typeof forcedName === "string") setPlaylistPickerName("");
     else setNewPlaylistName("");

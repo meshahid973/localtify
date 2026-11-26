@@ -157,6 +157,8 @@ server.listen(5173,async()=>{
       })()`);
       assert.ok(geometry.listHeight>=60&&geometry.reachable&&geometry.artwork<=50,"playlist picker geometry "+JSON.stringify(geometry));
     }
+    await win.webContents.executeJavaScript(`(()=>{const input=document.querySelector('.playlistPickerModal input[type=search]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(input,"no matching qa playlist 123");input.dispatchEvent(new Event("input",{bubbles:true}));})()`);
+    await until(()=>win.webContents.executeJavaScript("document.querySelector('.playlistPickerModal').textContent.includes('No matching playlists')"),"playlist picker search");
     await win.webContents.executeJavaScript("document.querySelector('.playlistPickerModal').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");
     await until(()=>win.webContents.executeJavaScript("!document.querySelector('.playlistPickerModal')"),"playlist picker Escape");
     win.setMinimumSize(...originalMinSize);
@@ -177,6 +179,8 @@ server.listen(5173,async()=>{
     await win.webContents.executeJavaScript("document.querySelector('.smartPlaylistComposer button[type=submit]').click()");
     await until(()=>win.webContents.executeJavaScript("!document.querySelector('.smartPlaylistComposer')"),"smart playlist rule edit committed");
     assert.equal(await win.webContents.executeJavaScript("window.localitfy.getPlaylists().then(items=>items.find(item=>item.name==='qa smart playlist').rules.limit)"),1);
+    await win.webContents.executeJavaScript("(()=>{const original=window.confirm;window.confirm=()=>false;try{document.querySelector('.playlistDetailPage .playlistManageActions button.danger').click()}finally{window.confirm=original}})()");
+    assert.equal(await win.webContents.executeJavaScript("!!document.querySelector('.playlistDetailPage .collectionHero')"),true,"cancelled playlist deletion keeps page open");
     await win.webContents.executeJavaScript("(()=>{const original=window.confirm;window.confirm=()=>true;try{document.querySelector('.playlistDetailPage .playlistManageActions button.danger').click()}finally{window.confirm=original}})()");
     await until(()=>win.webContents.executeJavaScript("window.localitfy.getPlaylists().then(items=>!items.some(item=>item.name==='qa smart playlist'))"),"remove fixture smart playlist");
     await win.webContents.executeJavaScript("document.querySelector('.sidebar [data-nav-id=home]').click()");
