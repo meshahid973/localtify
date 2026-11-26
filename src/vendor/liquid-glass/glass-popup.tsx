@@ -389,9 +389,14 @@ function createMorph(matchWidth: boolean, opening: GlassPopupOpening, from: Glas
     if (panelView) panelView.dirty = true
     engine?.wake()
   }
-  const stalePages = () => {
-    for (const picture of pages) picture.stale = true
-    dirty()
+  const staleCallbacks = new WeakMap<Page, () => void>()
+  const stalePage = (page: Page) => {
+    let callback = staleCallbacks.get(page)
+    if (!callback) {
+      callback = () => { page.stale = true; dirty() }
+      staleCallbacks.set(page, callback)
+    }
+    return callback
   }
 
   /**
@@ -775,7 +780,7 @@ function createMorph(matchWidth: boolean, opening: GlassPopupOpening, from: Glas
   }
 
   /** `card`: 0 draws the control's glass (the surface melted into it wears its own), 1 the surface alone. */
-  const lensFor = (box: Box, s: NonNullable<ReturnType<typeof shape>>, page: Page, repaint: () => void, card = 0): Omit<GlassLens, 'left' | 'top'> => {
+  const lensFor = (box: Box, s: NonNullable<ReturnType<typeof shape>>, page: Page, card = 0): Omit<GlassLens, 'left' | 'top'> => {
     // A swollen control's bevel and shadow swell with it, on both canvases alike.
     const unit = (s.a.height * s.sc) / DESIGN_HEIGHT
     return {
@@ -852,7 +857,7 @@ function createMorph(matchWidth: boolean, opening: GlassPopupOpening, from: Glas
               origin: { left: box.L, top: box.T },
               region,
               skip: (el) => el === host || el === content || el.hasAttribute('data-glass-skip'),
-              onStale: stalePages,
+              onStale: stalePage(page),
               found,
             })
             page.pinned = found.pinned
@@ -1194,7 +1199,7 @@ function createMorph(matchWidth: boolean, opening: GlassPopupOpening, from: Glas
             : '',
         )
         return {
-          ...lensFor(box, s, page, dirty, s.grow ? s.card : 0),
+          ...lensFor(box, s, page, s.grow ? s.card : 0),
           // What the control's rim mirrors while it is clear glass: the page around it. (Painted in its own fill it mirrors nothing, and neither does the surface: it is unlit.)
           reflection: undefined,
           blob: s.parted ? undefined : s.blob,
@@ -1424,8 +1429,8 @@ function createMorph(matchWidth: boolean, opening: GlassPopupOpening, from: Glas
         // While the two canvases draw one shape, this one takes the control's light of a press
         // (LIGHT) rather than none of its own: lit on one side of the seam only, the control's box showed as a lighter square.
         const lightOf = !s.parted && !s.morph && triggerView ? triggerView : undefined
-        if (s.grow) return { ...lensFor(box, s, page, dirty, s.card), ...single(s, box), reflection: undefined, lightOf, left: L - c.left - s.edge.left, top: T - c.top - s.edge.top }
-        return { ...lensFor(box, s, page, dirty, s.parted ? 1 : s.morph ? s.card : 0), ...alone, lightOf, left: L - c.left - s.edge.left, top: T - c.top - s.edge.top }
+        if (s.grow) return { ...lensFor(box, s, page, s.card), ...single(s, box), reflection: undefined, lightOf, left: L - c.left - s.edge.left, top: T - c.top - s.edge.top }
+        return { ...lensFor(box, s, page, s.parted ? 1 : s.morph ? s.card : 0), ...alone, lightOf, left: L - c.left - s.edge.left, top: T - c.top - s.edge.top }
       },
       drawn: () => {
         if (panelDrawn) return
