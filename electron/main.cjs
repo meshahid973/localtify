@@ -692,14 +692,17 @@ const ALBUM_FOLDER_IMPORT_PROGRESS_EVERY_TRACKS = 5;
 const ALBUM_FOLDER_DISC_FOLDER_RE = /^(?:cd|disc|disk|side|volume|vol)\s*[-_ ]?\d{1,2}$/i;
 
 function findAlbumFolderCoverPath(folderPath) { return findFolderCover(folderPath); }
-function folderHasAudioFiles(folderPath) { return listAudioFilesInDirectory(folderPath, { maxDepth: 0, maxFiles: 1 }).length > 0; }
+async function folderHasAudioFiles(folderPath) { return (await listAudioFilesInDirectory(folderPath, { maxDepth: 0, maxFiles: 1 })).length > 0; }
 function isDiscLikeAlbumSubfolderName(name = "") { return ALBUM_FOLDER_DISC_FOLDER_RE.test(String(name || "").trim()); }
-function folderHasDiscAudioFiles(folderPath) {
+async function folderHasDiscAudioFiles(folderPath) {
   let entries = [];
-  try { entries = fs.readdirSync(folderPath, { withFileTypes: true }); } catch { return false; }
-  return entries.some((entry) => entry.isDirectory() && isDiscLikeAlbumSubfolderName(entry.name) && folderHasAudioFiles(path.join(folderPath, entry.name)));
+  try { entries = await fs.promises.readdir(folderPath, { withFileTypes: true }); } catch { return false; }
+  for (const entry of entries) {
+    if (entry.isDirectory() && isDiscLikeAlbumSubfolderName(entry.name) && await folderHasAudioFiles(path.join(folderPath, entry.name))) return true;
+  }
+  return false;
 }
-function isAlbumFolderCandidate(folderPath) { return folderHasAudioFiles(folderPath) || folderHasDiscAudioFiles(folderPath); }
+async function isAlbumFolderCandidate(folderPath) { return await folderHasAudioFiles(folderPath) || await folderHasDiscAudioFiles(folderPath); }
 function isIgnoredAlbumLibraryFolderName(name = "") { return String(name || "").startsWith(".") || name === "localitfy-bin" || name === "spotify-covers" || name === "node_modules" || name === "release" || name === "dist"; }
 async function findAlbumFoldersFromRoot(rootPath, mode = "single") {
   const root = String(rootPath || "");
@@ -717,10 +720,10 @@ async function findAlbumFoldersFromRoot(rootPath, mode = "single") {
     if (!folderPath || seen.has(folderKey)) continue;
     seen.add(folderKey);
     const isRoot = folderKey === filePathKey(root);
-    if (isAlbumFolderCandidate(folderPath)) { folders.push(folderPath); continue; }
+    if (await isAlbumFolderCandidate(folderPath)) { folders.push(folderPath); continue; }
     if (depth >= ALBUM_FOLDER_LIBRARY_SCAN_MAX_DEPTH) continue;
     let entries = [];
-    try { entries = fs.readdirSync(folderPath, { withFileTypes: true }); } catch { continue; }
+    try { entries = await fs.promises.readdir(folderPath, { withFileTypes: true }); } catch { continue; }
     for (const entry of entries) {
       if (!entry.isDirectory() || isIgnoredAlbumLibraryFolderName(entry.name)) continue;
       queue.push({ folderPath: path.join(folderPath, entry.name), depth: depth + 1 });
@@ -732,7 +735,7 @@ async function findAlbumFoldersFromRoot(rootPath, mode = "single") {
 
 async function buildAlbumFolderPreview(folderPath, index, existingPaths) {
   const folderTitle = cleanAlbumFolderText(path.basename(folderPath), `album ${index + 1}`);
-  const audioFiles = listAudioFilesInDirectory(folderPath, { maxDepth: 1, maxFiles: ALBUM_FOLDER_MAX_TRACKS_PER_ALBUM });
+  const audioFiles = await listAudioFilesInDirectory(folderPath, { maxDepth: 1, maxFiles: ALBUM_FOLDER_MAX_TRACKS_PER_ALBUM });
   const folderCoverPath = findAlbumFolderCoverPath(folderPath);
   let albumEmbeddedCoverPath = "";
   const parsedTracks = [];

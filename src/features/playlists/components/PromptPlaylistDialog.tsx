@@ -11,6 +11,7 @@ import { buildPromptPlaylist, describePrompt, parsePrompt, planHasLibraryTerms, 
 
 export type PromptPlaylistDialogProps = {
   songs: Song[];
+  songsById: Map<string, Song>;
   currentId: string;
   hidden: (song: Song) => boolean;
   playSongs: (ids: string[], label: string) => unknown;
@@ -24,7 +25,7 @@ const EXAMPLES = ["chill songs for studying", "upbeat songs for a party, 1 hour"
 type SoundState = "used" | "model-missing" | "no-profiles" | "error" | null;
 type Result = { plan: PromptPlan; ids: string[]; sound: SoundState };
 
-export default function PromptPlaylistDialog({ songs, currentId, hidden, playSongs, selectSong, savePlaylist, openAnalysisSettings, onClose }: PromptPlaylistDialogProps) {
+export default function PromptPlaylistDialog({ songs, songsById, currentId, hidden, playSongs, selectSong, savePlaylist, openAnalysisSettings, onClose }: PromptPlaylistDialogProps) {
   const [prompt, setPrompt] = useState("");
   const [result, setResult] = useState<Result | null>(null);
   const [loading, setLoading] = useState(false);
@@ -52,7 +53,6 @@ export default function PromptPlaylistDialog({ songs, currentId, hidden, playSon
     setLoading(false);
   }
   const vocabulary = useMemo(() => promptVocabulary(songs), [songs]);
-  const songsById = useMemo(() => new Map(songs.map((song) => [song.id, song])), [songs]);
 
   async function generate(text: string, again = false) {
     if (!text.trim() || savingRef.current) return;

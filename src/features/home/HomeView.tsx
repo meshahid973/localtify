@@ -91,7 +91,7 @@ export default function HomeView(props: HomeViewProps) {
 
   // Only work out the shelves that are on screen; a hidden shelf costs nothing.
   const showRecent = showing("recentlyPlayed"), showLiked = showing("likedSongs");
-  const showRediscover = showing("rediscover"), showUnplayed = showing("notPlayedYet"), showMixes = showing("dailyMixes");
+  const showRediscover = showing("rediscover"), showUnplayed = showing("notPlayedYet");
   const recentlyPlayedSongs = useMemo(() => (showRecent ? pickRecentlyPlayed(songs) : []), [showRecent, songs]);
   const likedSongs = useMemo(() => (showLiked ? pickLikedSongs(songs) : []), [showLiked, songs]);
   const rediscoverSongs = useMemo(() => showRediscover ? diversifyHomeRecommendations(pickRediscover(songs, new Date(), 32), showingListenNow ? listenNowSongs : []) : [], [showRediscover, songs, day, showingListenNow, listenNowSongs]);

@@ -6,7 +6,7 @@ import type { Song } from "../../library/song.types";
 import { prettyMeta, prettyTitle } from "../../search";
 import { formatTime } from "../../../shared/utils/format";
 import type { Playlist } from "../playlist.types";
-import { RECOMMENDATION_PAGE, audioRecommendationSeeds, pickRecommendations, rankScores, relatedSongScores } from "../playlistRecommendations";
+import { RECOMMENDATION_PAGE, audioRecommendationSeeds, pickRecommendations, rankScores, relatedSongScoresAsync } from "../playlistRecommendations";
 
 export type PlaylistRecommendationsProps = {
   playlist: Playlist;
@@ -47,7 +47,9 @@ export default function PlaylistRecommendations({ playlist, songs, songsById, pl
       } catch { /* Without saved audio analysis, library relationships still give suggestions. */ }
       finally { requesting = false; }
       if (cancelled) return;
-      const related = rankScores(relatedSongScores(members, songs, playlists)).slice(0, 120);
+      const scores = await relatedSongScoresAsync(members, songs, playlists, () => cancelled);
+      if (cancelled || !scores) return;
+      const related = rankScores(scores).slice(0, 120);
       const ids = [...new Set([...bySound, ...related])].filter((id) => { const song = songsById.get(id); return !!song && !hidden(song); });
       setPool({ playlistId: playlist.id, ids, bySound: bySound.length >= RECOMMENDATION_PAGE / 2 });
     })();

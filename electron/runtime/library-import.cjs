@@ -54,31 +54,37 @@ function createLibraryImportRuntime({getSongs, getSong, insertSongs, patchSong, 
     return { id, title, artist, album, genre, filePath, coverPath: coverResult.coverPath || "", coverSource: coverResult.coverSource || "none", coverUpdatedAt: coverResult.coverUpdatedAt || new Date().toISOString(), duration, durationMs: durationMs || (duration > 0 ? duration * 1000 : 0), track: Number(metadata?.track || 0) || 0, disc: Number(metadata?.disc || 0) || 0, year: metadata?.year || "", bitrate: 0, addedAt: Date.now() };
   }
 
-  function listAudioFilesInDirectory(directory, options = {}) {
+  async function listAudioFilesInDirectory(directory, options = {}) {
     const root = String(directory || "");
     const maxDepth = Number.isFinite(Number(options.maxDepth)) ? Number(options.maxDepth) : 2;
     const maxFiles = Number.isFinite(Number(options.maxFiles)) ? Number(options.maxFiles) : 1500;
     const out = [];
-    if (!root || !path.isAbsolute(root) || !fs.existsSync(root)) return out;
-    const walk = (dir, depth) => {
+    if (!root || !path.isAbsolute(root)) return out;
+    const walk = async (dir, depth) => {
       if (out.length >= maxFiles || depth > maxDepth) return;
       let entries = [];
-      try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+      try { entries = await fs.promises.readdir(dir, { withFileTypes: true }); } catch { return; }
       for (const entry of entries) {
         if (out.length >= maxFiles) break;
         const fullPath = path.join(dir, entry.name);
         if (entry.isDirectory()) {
           if (entry.name.startsWith(".") || entry.name === "localitfy-bin" || entry.name === "spotify-covers") continue;
-          walk(fullPath, depth + 1);
+          await walk(fullPath, depth + 1);
           continue;
         }
         if (!entry.isFile() || !isAudioFile(fullPath) || isDownloadFileInProgress(fullPath) || /\.(part|tmp|download|crdownload)$/i.test(entry.name)) continue;
         out.push(fullPath);
       }
     };
-    walk(root, 0);
-    return out.map(file => ({file, mtime: getFileInfoCached(file).mtimeMs || 0}))
-      .sort((a,b) => b.mtime - a.mtime).map(entry => entry.file);
+    await walk(root, 0);
+    if (out.length < 2) return out;
+    const ranked = [];
+    for (let i=0;i<out.length;i++) {
+      if (i && i % 64 === 0) await new Promise(resolve => setImmediate(resolve));
+      const file = out[i];
+      ranked.push({file, mtime: getFileInfoCached(file).mtimeMs || 0});
+    }
+    return ranked.sort((a,b) => b.mtime - a.mtime).map(entry => entry.file);
   }
 
   async function makeSongFromFileWithMetadata(filePath, tracks = [], pixelArtFiles = [], usedCovers = new Set()) {
@@ -113,7 +119,7 @@ function createLibraryImportRuntime({getSongs, getSong, insertSongs, patchSong, 
   async function importNewAudioFilesFromDirectory(directory, tracks = [], options = {}) {
     const includeSongs = options.includeSongs !== false;
     const shapeResult = () => includeSongs ? listSongsShaped() : undefined;
-    const result = await importNewAudioFiles(listAudioFilesInDirectory(directory, options), tracks);
+    const result = await importNewAudioFiles(await listAudioFilesInDirectory(directory, options), tracks);
     if (result.importedCount) console.log("[localtify library refresh] imported new audio files from folder", { folder: directory, changedCount: result.changedCount });
     return { ...result, songs: shapeResult() };
   }
@@ -137,7 +143,7 @@ function createLibraryImportRuntime({getSongs, getSong, insertSongs, patchSong, 
   }
 
   async function repairSpotifyMetadataForFolder(directory, tracks = [], options = {}) {
-    const audioFiles = listAudioFilesInDirectory(directory, options);
+    const audioFiles = await listAudioFilesInDirectory(directory, options);
     if (!audioFiles.length || !Array.isArray(tracks) || !tracks.length) return { changedCount: 0, songs: listSongsShaped() };
     const songs = getSongs();
     const byPath = new Map(songs.filter((song) => song?.filePath).map((song) => [filePathKey(String(song.filePath)), song]));

@@ -10,7 +10,7 @@ const NOW = Date.parse("2026-10-30T12:00:00Z");
 function compile(file, modules = {}) {
   const output = ts.transpileModule(fs.readFileSync(file, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   const exports = {};
-  runInNewContext(output, { exports, require: (name) => modules[Object.keys(modules).find((key) => name.endsWith(key))] });
+  runInNewContext(output, { exports, performance, setTimeout, require: (name) => modules[Object.keys(modules).find((key) => name.endsWith(key))] });
   return exports;
 }
 const credits = compile("src/features/artists/artistCredits.ts");
@@ -224,4 +224,14 @@ test("generated playlist retries reuse exact membership under a collision suffix
   const playlists=[{id:"smart",name:"Mix",songIds:["kanye"],rules:{}},{id:"saved",name:"Mix (2)",songIds:["kanye"]}];
   assert.equal(generated.prepareGeneratedPlaylist("Mix",["kanye"],songs,playlists).existingId,"saved");
   assert.equal(generated.prepareGeneratedPlaylist("Mix",["punk"],songs,playlists).name,"Mix (3)");
+});
+
+test("cooperative recommendations retain exact scoring and stop when superseded", async () => {
+  const fixture = Array.from({length:4000},(_,i)=>({...library[i % library.length],id:"fixture-"+i}));
+  const seeds=fixture.slice(0,200);
+  const expected=recommendations.relatedSongScores(seeds,fixture);
+  const actual=await recommendations.relatedSongScoresAsync(seeds,fixture,[],()=>false);
+  assert.deepEqual(Array.from(actual),Array.from(expected));
+  let checks=0;
+  assert.equal(await recommendations.relatedSongScoresAsync(seeds,fixture,[],()=>++checks>2),null);
 });

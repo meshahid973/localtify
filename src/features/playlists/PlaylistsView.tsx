@@ -162,7 +162,7 @@ export default function PlaylistsView(props: PlaylistsViewProps) {
 
   const promptDialog = prompting ? (
     <Suspense fallback={null}>
-      <PromptPlaylistDialog songs={songs} currentId={currentId} hidden={hidden} playSongs={props.playSongs}
+      <PromptPlaylistDialog songs={songs} songsById={songsById} currentId={currentId} hidden={hidden} playSongs={props.playSongs}
         selectSong={props.selectSong} savePlaylist={props.savePromptPlaylist}
         openAnalysisSettings={() => { setPrompting(false); props.dailyMixes.openAnalysisSettings(); }} onClose={() => setPrompting(false)} />
     </Suspense>
