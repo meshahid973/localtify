@@ -336,6 +336,7 @@ async function createRuntime() {
   const canRest = typeof heart?.start === 'function' && typeof heart?.stop === 'function'
   let beating = true
   const wake = () => {
+    if (!views.size) return
     if (canRest && !beating) {
       beating = true
       heart!.start!()
@@ -619,6 +620,7 @@ async function createRuntime() {
       const blank = inside && v.ctx.getImageData(px, py, 1, 1).data[3] === 0
       v.verifyLeft = blank ? v.verifyLeft - 1 : 0
       if (blank) v.dirty = true
+      else v.canvas.dataset.glassControlReady = ''
     }
   }
 
@@ -669,9 +671,22 @@ async function createRuntime() {
       }
     }
   }
-  wake()
-
+  let trimPending = false
+  const trim = () => {
+    trimPending = views.size > 0
+    if (trimPending) return
+    cancelAnimationFrame(raf)
+    raf = last = 0
+    glW = glH = 1
+    renderer.setSize(1, 1, false)
+    if (canRest && beating) {
+      beating = false
+      heart!.stop!()
+    }
+  }
+  trim()
   return {
+    trim,
     async createView(canvas: HTMLCanvasElement, spec: () => GlassViewSpec): Promise<GlassViewHandle> {
       const bgLayer = makeLayer()
       const fgLayer = makeLayer()
@@ -730,6 +745,8 @@ async function createRuntime() {
           material.dispose()
           bgLayer.tex.dispose()
           fgLayer.tex.dispose()
+          delete canvas.dataset.glassControlReady
+          if (trimPending && !views.size) trim()
         },
       }
     },

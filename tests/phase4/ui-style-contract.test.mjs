@@ -304,8 +304,6 @@ test("albums have a default navigation destination and a working detail view", (
   assert.match(nav, /id:"albums"/);
   assert.doesNotMatch(nav, /id:"liked"/);
   const shell = read("src/features/shell/AppShell.tsx");
-  assert.match(shell, /\["albums", "Albums"\]/);
   assert.match(shell, /<AlbumPage/);
   assert.match(read("src/features/shell/appActions.ts"), /function albumTarget/);
-  assert.match(shell, /\["liked", "Liked"\]/);
 });

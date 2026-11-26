@@ -13,7 +13,7 @@
 // and stays still under the pointer: a card holds content, it is not a button. Size and
 // padding are yours, with classes. COPY VERBATIM. MIT — https://github.com/bilalgursen/liquid-glass
 
-import { useMemo, type CSSProperties, type HTMLAttributes, type ReactNode } from 'react'
+import { Children, cloneElement, useMemo, type CSSProperties, type ComponentPropsWithRef, type ReactElement, type ReactNode } from 'react'
 
 import { GlassLayer, type GlassMaterial, type GlassOptics } from './glass-layer'
 
@@ -30,7 +30,8 @@ export type GlassCardProps = {
   /** Fine-tuning of the glass: tint colour, a rim line, frost mix, bend, light and shadow. Merged over the card's own. */
   optics?: GlassOptics
   className?: string
-} & Omit<HTMLAttributes<HTMLDivElement>, 'children' | 'className'>
+  asChild?: boolean
+} & Omit<ComponentPropsWithRef<'div'>, 'children' | 'className'>
 
 // The card's own glass: the rim pulls the backdrop towards the centre by 6.5% of the viewport,
 // fading as (1 − d / (1.35 × half))^9.75; then a 5 px frost over the bent picture, a 70% tint and
@@ -67,7 +68,7 @@ const fallback: Record<GlassMaterial, string> = {
   tinted: '',
 }
 
-export function GlassCard({ children, material = 'clear', tint = TINT, blur = BLUR, live = false, optics, className = '', style, ...rest }: GlassCardProps) {
+export function GlassCard({ children, material = 'clear', tint = TINT, blur = BLUR, live = false, optics, className = '', style, asChild = false, ...rest }: GlassCardProps) {
   // Rounded unless you bring your own corners: any `rounded-*` class replaces the default
   // (the stylesheet's order, not the class order, would otherwise decide which one wins).
   const corners = /(^|\s)!?rounded-/.test(className) ? '' : 'rounded-[28px]'
@@ -80,15 +81,22 @@ export function GlassCard({ children, material = 'clear', tint = TINT, blur = BL
     () => ({ ...CARD_OPTICS, ...optics, dark: { borderAlpha: optics?.borderAlpha ?? DARK_BORDER_ALPHA, ...optics?.dark } }),
     [optics],
   )
-  return (
-    <div data-glass-host="" className={`${corners} ${fallback[material]} ${className}`} style={{ ...look, ...style }} {...rest}>
+  const content = (body: ReactNode) => (
+    <>
       {/* The glass layer must be the host's first child. */}
       <GlassLayer material={material} tint={tint} blur={blur} live={live} swell={false} optics={glass} />
       {/* The drop shadow, under the glass: an outer box-shadow never paints inside its own box. */}
       <span aria-hidden className="pointer-events-none absolute inset-0 rounded-[inherit]" style={{ zIndex: -2, boxShadow: SHADOW }} />
-      {children}
-    </div>
+      {body}
+    </>
   )
+  const classes = `${corners} ${fallback[material]} ${className}`
+  if (asChild) {
+    const child = Children.only(children) as ReactElement<{ className?: string; style?: CSSProperties; children?: ReactNode }>
+    return cloneElement(child, { ...rest, 'data-glass-host': '', className: `${classes} ${child.props.className ?? ''}`,
+      style: { ...look, ...style, ...child.props.style } } as Record<string, unknown>, content(child.props.children))
+  }
+  return <div data-glass-host="" className={classes} style={{ ...look, ...style }} {...rest}>{content(children)}</div>
 }
 
 export default GlassCard

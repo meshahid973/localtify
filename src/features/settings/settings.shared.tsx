@@ -137,7 +137,8 @@ export function SettingsChoiceGroup<T extends string>({ label, value, options, o
   const { kit } = useAppearance();
   if (kit && compact && !disabled) return <div id={id} className="settingsChoiceGroup">
     <span className="settingsChoiceGroupLabel">{label}</span>
-    <kit.GlassTabs aria-label={label} value={value} options={options} onValueChange={onChange} size="sm" />
+    <kit.GlassTabs aria-label={label} value={value} options={options} onValueChange={onChange} size="sm"
+      className="ltOpticalTabs" highlightClassName="ltOpticalTabSelection" />
   </div>;
   return <div id={id} className="settingsChoiceGroup" role="group" aria-label={label}>
     <span className="settingsChoiceGroupLabel">{label}</span>

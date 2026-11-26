@@ -1,4 +1,4 @@
-import { GlassDecoration, useAppearance } from "../../../shared/appearance/appearance";
+import { TransportButton, TransportGroup } from "./TransportGroup";
 import { Slider } from "../../../shared/ui/Slider";
 import { VolumeSlider } from "./VolumeSlider";
 import { Fragment } from "react";
@@ -130,7 +130,6 @@ export default function PlayerBar(props: PlayerBarProps) {
     toggleMute,
     connect
   } = props;
-  const { kit } = useAppearance();
   return (
           <footer
             className={`playerBar ambientSurface ${isPlaying ? "playerPlaying" : "playerIdle"} ${draggedSongId ? "songDragActive" : ""} ${queueDropHot ? "queueDropHot" : ""}`}
@@ -217,9 +216,8 @@ export default function PlayerBar(props: PlayerBarProps) {
             </div>
 
             <div className="playerCenter">
-              <div className="controlRow ltOpticalTransport" data-glass-host={kit ? "" : undefined}>
-                <GlassDecoration surface backdrop=".playerBar" />
-                <button
+              <TransportGroup className="controlRow" active={!props.immersiveOpen}>
+                <TransportButton
                   type="button"
                   className={isShuffle ? "circleButton active" : "circleButton"}
                   onClick={() => setIsShuffle((value) => !value)}
@@ -227,17 +225,17 @@ export default function PlayerBar(props: PlayerBarProps) {
                   aria-pressed={isShuffle}
                 >
                   <Shuffle className="playerControlIcon" size={15} strokeWidth={2.15} aria-hidden="true" />
-                </button>
-                <button type="button" className="circleButton" onClick={playPrevious} aria-label="previous song">
+                </TransportButton>
+                <TransportButton type="button" className="circleButton" onClick={playPrevious} aria-label="previous song">
                   <SkipBack className="playerControlIcon" size={17} strokeWidth={2.15} aria-hidden="true" />
-                </button>
-                <button type="button" className={`circleButton main ${playButtonBurst ? `playButtonBurst playButtonBurst${playButtonBurst % 2}` : ""}`} onClick={togglePlay} aria-label={isPlaying ? "pause" : "play"}>
+                </TransportButton>
+                <TransportButton type="button" className={`circleButton main ${playButtonBurst ? `playButtonBurst playButtonBurst${playButtonBurst % 2}` : ""}`} onClick={togglePlay} aria-label={isPlaying ? "pause" : "play"}>
                   <PlayerPlayPauseMorphIcon playing={isPlaying} />
-                </button>
-                <button type="button" className="circleButton" onClick={() => playNext(true)} aria-label="next song">
+                </TransportButton>
+                <TransportButton type="button" className="circleButton" onClick={() => playNext(true)} aria-label="next song">
                   <SkipForward className="playerControlIcon" size={17} strokeWidth={2.15} aria-hidden="true" />
-                </button>
-                <button
+                </TransportButton>
+                <TransportButton
                   className={`circleButton repeatButton ${repeatMode !== "off" ? `active repeat-${repeatMode}` : ""}`}
                   onClick={toggleRepeat}
                   type="button"
@@ -248,8 +246,8 @@ export default function PlayerBar(props: PlayerBarProps) {
                 >
                   <Repeat2 className="playerControlIcon" size={16} strokeWidth={2.15} aria-hidden="true" />
                   {repeatButtonStateText ? <span className="repeatStateMark" aria-hidden="true">{repeatButtonStateText}</span> : null}
-                </button>
-              </div>
+                </TransportButton>
+              </TransportGroup>
 
               <div className="progressRow progressResetSweep" key={`progress-${nowPlayingTransitionKey}-${Boolean(props.immersiveOpen)}`}>
                 <span ref={(node) => { progressTimeLabelRefs.current[1] = props.immersiveOpen ? null : node; }}>{formatTime(displayedTime)}</span>

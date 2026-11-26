@@ -229,6 +229,7 @@ export type GlassView = {
 export type GlassEngine = {
   add: (view: GlassView) => void
   remove: (view: GlassView) => void
+  trim: () => void
   /** Schedule a frame (call after changing state the springs read). */
   wake: () => void
   /** Any CSS colour (oklch, var(), color-mix…) → 0..1 RGBA. */
@@ -2428,14 +2429,21 @@ function createEngine(): GlassEngine | null {
     }
   }
   const wake = () => {
-    if (!raf && !dead) raf = requestAnimationFrame(frame)
+    if (!raf && !dead && views.size) raf = requestAnimationFrame(frame)
   }
   const invalidateAll = () => {
     for (const v of views) v.dirty = true
     wake()
   }
 
-  window.addEventListener(
+  const lifetime = new AbortController()
+  function listen<K extends keyof WindowEventMap>(type: K, callback: (event: WindowEventMap[K]) => void, options?: AddEventListenerOptions | boolean) {
+    window.addEventListener(type, callback, {
+      ...(typeof options === 'boolean' ? { capture: options } : options),
+      signal: lifetime.signal,
+    })
+  }
+  listen(
     'pointermove',
     (e) => {
       if (e.pointerType !== 'mouse') return
@@ -2451,10 +2459,10 @@ function createEngine(): GlassEngine | null {
     pointer.active = false
     pointer.moved = true
     wake()
-  })
+  }, { signal: lifetime.signal })
   // Pull (PULL): a press holds the innermost glass under it that asks to be pulled, and it is
   // followed over the whole window until it lets go.
-  window.addEventListener(
+  listen(
     'pointerdown',
     (e) => {
       if (!PULL.on || e.button !== 0 || reduced.matches || !(e.target instanceof Node) || HANDED_ON.has(e)) return
@@ -2484,7 +2492,7 @@ function createEngine(): GlassEngine | null {
     },
     { passive: true, capture: true },
   )
-  window.addEventListener(
+  listen(
     'pointermove',
     (e) => {
       for (const p of pulls.values()) {
@@ -2503,15 +2511,15 @@ function createEngine(): GlassEngine | null {
       wake()
     }
   }
-  window.addEventListener('pointerup', unhold, { passive: true, capture: true })
-  window.addEventListener('pointercancel', unhold, { passive: true, capture: true })
+  listen('pointerup', unhold, { passive: true, capture: true })
+  listen('pointercancel', unhold, { passive: true, capture: true })
   // Pointer light (LIGHT): where the lighting pointer is, what it is over and whether it is held.
   // Which glass that lights is decided when each glass is drawn, so every change asks for a frame.
   const lightMoved = () => {
     pointer.moved = true
     wake()
   }
-  window.addEventListener(
+  listen(
     'pointermove',
     (e) => {
       // Only the held pointer counts (a lens may come under it): one that moves over the page without pressing asks for nothing.
@@ -2523,7 +2531,7 @@ function createEngine(): GlassEngine | null {
     },
     { passive: true, capture: true },
   )
-  window.addEventListener(
+  listen(
     'pointerdown',
     (e) => {
       if (!LIGHT.on || e.button !== 0 || HANDED_ON.has(e)) return
@@ -2541,11 +2549,11 @@ function createEngine(): GlassEngine | null {
     for (const s of lights.values()) s.press = false
     lightMoved()
   }
-  window.addEventListener('pointerup', lift, { passive: true, capture: true })
-  window.addEventListener('pointercancel', lift, { passive: true, capture: true })
+  listen('pointerup', lift, { passive: true, capture: true })
+  listen('pointercancel', lift, { passive: true, capture: true })
   // A button's flash (GLOW): a press lights the innermost button under it where it lands, and
   // holds it until that pointer lets go; Space or Enter lights the focused button's centre.
-  window.addEventListener(
+  listen(
     'pointerdown',
     (e) => {
       if (e.button !== 0 || HANDED_ON.has(e) || !(e.target instanceof Node)) return
@@ -2575,8 +2583,8 @@ function createEngine(): GlassEngine | null {
       wake()
     }
   }
-  window.addEventListener('pointerup', unflash, { passive: true, capture: true })
-  window.addEventListener('pointercancel', unflash, { passive: true, capture: true })
+  listen('pointerup', unflash, { passive: true, capture: true })
+  listen('pointercancel', unflash, { passive: true, capture: true })
   const flashKey = (e: KeyboardEvent) => {
     if (e.key !== ' ' && e.key !== 'Enter') return
     const down = e.type === 'keydown'
@@ -2611,9 +2619,9 @@ function createEngine(): GlassEngine | null {
     }
     wake()
   }
-  window.addEventListener('keydown', flashKey, true)
-  window.addEventListener('keyup', flashKey, true)
-  window.addEventListener(
+  listen('keydown', flashKey, true)
+  listen('keyup', flashKey, true)
+  listen(
     'focusout',
     () => {
       for (const f of flashes.values()) f.key = false
@@ -2637,9 +2645,9 @@ function createEngine(): GlassEngine | null {
     }
     wake()
   }
-  window.addEventListener('keydown', key, true)
-  window.addEventListener('keyup', key, true)
-  window.addEventListener(
+  listen('keydown', key, true)
+  listen('keyup', key, true)
+  listen(
     'focusout',
     () => {
       for (const s of lights.values()) s.key = false
@@ -2648,16 +2656,23 @@ function createEngine(): GlassEngine | null {
     true,
   )
   // Theme switches (class="dark", data-theme, color-scheme) re-read every colour.
-  new MutationObserver(invalidateAll).observe(document.documentElement, {
+  const rootObserver = new MutationObserver(invalidateAll)
+  rootObserver.observe(document.documentElement, {
     attributes: true,
     attributeFilter: ['class', 'data-theme', 'style'],
   })
-  new MutationObserver(invalidateAll).observe(document.body, { attributes: true, attributeFilter: ['data-theme'], subtree: true })
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', invalidateAll)
+  const themeObserver = new MutationObserver(invalidateAll)
+  themeObserver.observe(document.body, { attributes: true, attributeFilter: ['data-theme'], subtree: true })
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', invalidateAll, { signal: lifetime.signal })
   // A radial bend scales with the viewport.
-  window.addEventListener('resize', invalidateAll, { passive: true })
+  listen('resize', invalidateAll, { passive: true })
   glCanvas.addEventListener('webglcontextlost', () => {
     dead = true
+    lifetime.abort()
+    rootObserver.disconnect()
+    themeObserver.disconnect()
+    cancelAnimationFrame(raf)
+    for (const picture of mirrored.values()) clearTimeout(picture.timer)
     for (const v of views) {
       v.lost()
       v.ctx.clearRect(0, 0, v.canvas.width, v.canvas.height)
@@ -2671,9 +2686,30 @@ function createEngine(): GlassEngine | null {
     }
     pulls.clear()
     engine = undefined
-  })
+    contextLoss.dispatchEvent(new Event('loss'))
+  }, { once: true })
 
   return {
+    trim: () => {
+      if (views.size || dead) return
+      // Leave the compiled program warm but release the peak-sized scratch buffers.
+      cancelAnimationFrame(raf)
+      raf = last = 0
+      for (const pair of layersOf.values()) {
+        pair.back.canvas.width = pair.back.canvas.height = 0
+        if (pair.front) pair.front.canvas.width = pair.front.canvas.height = 0
+      }
+      layersOf.clear()
+      for (const scratch of [back, front, around]) scratch.canvas.width = scratch.canvas.height = 0
+      glCanvas.width = glCanvas.height = 1
+      gl.deleteTexture(frostPic.tex)
+      gl.deleteFramebuffer(frostPic.fbo)
+      frostPic.tex = frostPic.fbo = null
+      frostPic.w = frostPic.h = 0
+      gl.activeTexture(gl.TEXTURE3)
+      gl.bindTexture(gl.TEXTURE_2D, blank.front)
+      gl.activeTexture(gl.TEXTURE0)
+    },
     add: (v) => {
       views.add(v)
       meltsChanged = true
@@ -2716,6 +2752,13 @@ function createEngine(): GlassEngine | null {
   }
 }
 
+const contextLoss = new EventTarget()
+
+export function onGlassContextLoss(callback: () => void) {
+  contextLoss.addEventListener('loss', callback)
+  return () => contextLoss.removeEventListener('loss', callback)
+}
+
 let engine: GlassEngine | null | undefined
 
 /** The shared engine (created on first use, client only). `null` = no WebGL2: use the CSS look. */
@@ -2723,4 +2766,8 @@ export function getGlassEngine(): GlassEngine | null {
   if (typeof window === 'undefined') return null
   if (engine === undefined) engine = createEngine()
   return engine
+}
+
+export function trimGlassEngine() {
+  engine?.trim()
 }

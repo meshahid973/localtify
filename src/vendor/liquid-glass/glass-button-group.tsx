@@ -34,7 +34,7 @@ import {
   type ReactNode,
 } from 'react'
 
-import { GlassLayer, type GlassMaterial } from './glass-layer'
+import { GlassLayer, type GlassMaterial, type GlassOptics } from './glass-layer'
 import { GlassPopupAnchor, GlassPopupContext } from './glass-popup'
 
 export type GlassButtonGroupSize = 'sm' | 'md' | 'lg'
@@ -50,6 +50,8 @@ export type GlassButtonGroupProps = {
   material?: GlassMaterial
   /** Clear glass: how much tint covers the backdrop (0–1). */
   tint?: number
+  optics?: GlassOptics
+  backdrop?: string
   className?: string
 } & Omit<HTMLAttributes<HTMLDivElement>, 'children' | 'className'>
 
@@ -99,6 +101,8 @@ export function GlassButtonGroup({
   size = 'md',
   material = 'tinted',
   tint,
+  optics,
+  backdrop,
   className = '',
   ...rest
 }: GlassButtonGroupProps) {
@@ -127,7 +131,8 @@ export function GlassButtonGroup({
       {...rest}
     >
       {/* The glass layer must be the host's first child. */}
-      {popup ? <GlassPopupAnchor popup={popup} /> : <GlassLayer material={material} tint={tint} optics={vertical ? STACKED : undefined} />}
+      {popup ? <GlassPopupAnchor popup={popup} /> : <GlassLayer material={material} tint={tint}
+        optics={vertical ? { ...STACKED, ...optics } : optics} backdrop={backdrop} />}
       <GroupContext.Provider value={{ size, vertical }}>{children}</GroupContext.Provider>
     </div>
   )

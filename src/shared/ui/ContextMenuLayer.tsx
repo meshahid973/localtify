@@ -1,4 +1,3 @@
-import { GlassDecoration, useAppearance } from "../appearance/appearance";
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -112,7 +111,6 @@ export function ContextMenuLayer({
     enabled[next].scrollIntoView({block:"nearest"});
   };
 
-  const { kit } = useAppearance();
   if (!anchor) return null;
   return createPortal(
     <div className="songContextMenuLayer" onClick={onClose}
@@ -121,13 +119,11 @@ export function ContextMenuLayer({
         ref={menuRef}
         className={`songContextMenu ltOverlaySurface${className ? ` ${className}` : ""}`}
         style={{ left: anchor.x, top: anchor.y }}
-        data-glass-host={kit ? "" : undefined}
         role="menu"
         aria-label={label}
         onClick={(event) => event.stopPropagation()}
         onKeyDown={handleMenuKeyDown}
       >
-        <GlassDecoration surface />
         {children}
       </div>
     </div>,

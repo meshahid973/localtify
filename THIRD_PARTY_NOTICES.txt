@@ -42,6 +42,7 @@ Separate reuse authorization has been reported by the maintainer; its written sc
 Liquid Glass UI
 Source: https://github.com/bilalgursen/liquid-glass/tree/6b3913ff171ad592a4d8c8b8a9d72fb64647c305
 Files: src/vendor/liquid-glass/
+Localtify adapts component styling, host composition and renderer resource lifetimes. The upstream shaders and springs are retained.
 
 MIT License
 

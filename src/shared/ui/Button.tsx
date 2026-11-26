@@ -1,6 +1,6 @@
 import { forwardRef } from "react";
 import "./controls.css";
-import { GlassDecoration, useAppearance } from "../appearance/appearance";
+import { OpticalButton } from "../appearance/OpticalButton";
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?:
@@ -35,18 +35,16 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     },
     ref,
   ) => {
-    const { kit } = useAppearance();
     return (
-      <button
+      <OpticalButton
         ref={ref}
         type={type}
         className={`ltButton ${variantClasses[variant]} ${sizeClasses[size]} ${className}`.trim()}
-        data-glass-host={kit ? "" : undefined}
+        primary={variant === "primary" || variant === "glass-primary"}
         {...rest}
       >
-        <GlassDecoration tinted={variant === "primary" || variant === "glass-primary"} />
         {children}
-      </button>
+      </OpticalButton>
     );
   },
 );

@@ -2,7 +2,8 @@ import { useRef, type ReactNode, type MouseEvent, type PointerEvent } from "reac
 import { createPortal } from "react-dom";
 import { motion } from "motion/react";
 import { useAppReducedMotion } from "../hooks/useAppReducedMotion";
-import { GlassDecoration, useAppearance } from "../appearance/appearance";
+import { useAppearance } from "../appearance/appearance";
+import { panelOptics } from "../appearance/OpticalCard";
 import { useModalFocus } from "../hooks/useModalFocus";
 
 type Props = {
@@ -33,9 +34,8 @@ export default function Dialog({ open, onClose, children, className, backdropCla
         Math.hypot(event.clientX - start.x, event.clientY - start.y) > 6) return;
     onClose();
   };
-  const body = <div className={backdropClassName} onPointerDown={onPointerDown} onClick={onBackdropClick}>
-    <motion.div ref={dialogRef} tabIndex={-1} role={role} aria-modal="true" aria-label={label}
-      aria-labelledby={labelledBy} aria-describedby={describedBy} className={`${className} ltOpticalSurface`} data-glass-host={kit ? "" : undefined}
+  const dialog = <motion.div ref={dialogRef} tabIndex={-1} role={role} aria-modal="true" aria-label={label}
+      aria-labelledby={labelledBy} aria-describedby={describedBy} className={className}
       initial={reduced || !animated ? false : { opacity: 0, scale: .97, y: 10 }}
       animate={animated && !reduced ? { opacity: 1, scale: 1, y: 0 } : undefined}
       transition={{ duration: reduced || !animated ? 0 : .2, ease: [0.22, 1, 0.36, 1] }}
@@ -43,9 +43,10 @@ export default function Dialog({ open, onClose, children, className, backdropCla
       onKeyDown={event => { if (event.key === "Escape" && !event.defaultPrevented && dismissible && isTop()) {
         event.preventDefault(); event.stopPropagation(); onClose();
       } }}>
-      <GlassDecoration surface />
       {children}
-    </motion.div>
+    </motion.div>;
+  const body = <div className={backdropClassName} onPointerDown={onPointerDown} onClick={onBackdropClick}>
+    {kit ? <kit.GlassCard asChild className="ltOpticalCard rounded-[inherit]" tint={.66} blur={2} optics={panelOptics}>{dialog}</kit.GlassCard> : dialog}
   </div>;
   return portal ? createPortal(body, document.querySelector(".app") || document.body) : body;
 }

@@ -1,4 +1,4 @@
-import { useAppearance } from "../../../shared/appearance/appearance";
+import { OpticalCard } from "../../../shared/appearance/OpticalCard";
 import { Check } from "lucide-react";
 import SidebarTabsSettings from "./SidebarTabsSettings";
 import { isAndroidApp } from "../../../app/platform";
@@ -18,7 +18,6 @@ export type AppearanceSettingsProps = {
 
 export default function AppearanceSettings(props: AppearanceSettingsProps) {
   const { settings, updateSetting } = props;
-  const { kit } = useAppearance();
   const phone = isAndroidApp();
   const selected = normalizeThemeId(settings.theme);
   return (
@@ -26,8 +25,7 @@ export default function AppearanceSettings(props: AppearanceSettingsProps) {
       <header className="settingsCategoryHeader">
         <div><h4>Appearance</h4></div>
       </header>
-      <div id="settings-appearance-theme" className="settingsPanelCard ltOpticalPanel">
-        {kit && <kit.GlassCard aria-hidden="true" className="ltOpticalPanelMaterial rounded-[inherit]" tint={.8} blur={3} />}
+      <OpticalCard id="settings-appearance-theme" className="settingsPanelCard">
         <div className="settingsPanelHeader"><div><strong>Theme</strong></div></div>
         <ToggleRow label="Liquid Glass" help="Use optical glass on interface controls." checked={settings.liquidGlass === true}
           onChange={value => void updateSetting("liquidGlass", value)} />
@@ -44,7 +42,7 @@ export default function AppearanceSettings(props: AppearanceSettingsProps) {
             </button>
           ))}
         </div>
-      </div>
+      </OpticalCard>
 
       <div id="settings-appearance-ambience" className="settingsPanelCard settingsCoverTintCard">
         <div className="settingsPanelHeader"><div><strong>Artwork ambience</strong></div></div>

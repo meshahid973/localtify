@@ -71,7 +71,7 @@ const CARD = { tint: 0.7, blur: 5, bendCurve: 9.75, bendDepth: 1.35 }
 /** Under a control painted in its own colour, the surface's tint covers this much. */
 const FILLED = 0.92
 /** The surface has no light of its own: this thin white line draws its edge, a soft CSS shadow lifts it. */
-const LINE = { alpha: 0.6, darkAlpha: 0.25, width: 1.3 }
+const LINE = { alpha: 0.18, darkAlpha: 0.13, width: 1 }
 /** Room around the trigger's own canvas, and around the popup's. */
 const TRIGGER_PAD = 16
 /** How far (px) the control's canvas reaches past the seam, under the popup's, so no line shows where they meet. */
@@ -790,7 +790,7 @@ function createMorph(matchWidth: boolean, opening: GlassPopupOpening, from: Glas
       shadowSoftness: 34 * lerp(0.6, 1, s.t),
       shadowOffset: 22 * lerp(0.5, 1, s.t),
       strength: 1 - card,
-      tune: { bendCurve: lerp(1.6, CARD.bendCurve, card), bendDepth: lerp(1, CARD.bendDepth, card), fresnel: 1 - card },
+      tune: { bendCurve: lerp(1.6, CARD.bendCurve, card), bendDepth: lerp(1, CARD.bendDepth, card), fresnel: 0.65 * (1 - card), rim: 0.45 },
       color: tint,
       border: card > 0 ? [1, 1, 1] : undefined,
       borderAlpha: card > 0 ? card * (tint[0] > 0.5 ? LINE.alpha : LINE.darkAlpha) : undefined,
@@ -1552,7 +1552,7 @@ export function GlassPopupSurface({ popup: morph }: { popup: GlassPopup }) {
   useEffect(() => morph.setPanel(canvasRef.current, holdRef.current, shadowRef.current), [morph])
   return (
     <>
-      <canvas ref={canvasRef} aria-hidden style={canvasStyle} />
+      <canvas ref={canvasRef} data-glass-skip="" aria-hidden style={canvasStyle} />
       <span ref={holdRef} aria-hidden data-glass-hold="" />
       <span ref={shadowRef} aria-hidden data-glass-card-shadow="" />
     </>
@@ -1569,7 +1569,7 @@ export function GlassPopupAnchor({ popup }: { popup: GlassPopup }) {
       <style href="liquid-glass-popup" precedence="default">
         {CSS}
       </style>
-      <canvas ref={canvasRef} aria-hidden style={canvasStyle} />
+      <canvas ref={canvasRef} data-glass-skip="" aria-hidden style={canvasStyle} />
     </>
   )
 }

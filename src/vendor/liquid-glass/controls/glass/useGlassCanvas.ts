@@ -17,6 +17,7 @@ export function useGlassCanvas(spec: GlassViewSpec) {
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
+    canvas.setAttribute('data-glass-skip', '')
     let disposed = false
     // three.js loads lazily so the page still prerenders on the server.
     import('./runtime')

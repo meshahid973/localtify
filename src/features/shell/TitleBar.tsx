@@ -1,4 +1,4 @@
-import { useAppearance } from "../../shared/appearance/appearance";
+import { controlOptics, useAppearance } from "../../shared/appearance/appearance";
 import type { ReactNode } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { NavigationHistory } from "./useNavigationHistory";
@@ -38,9 +38,9 @@ export default function TitleBar({
 
       {!mini && history ? (
         <nav className="titleHistoryNav" aria-label="history">
-          {kit ? <kit.GlassButtonGroup size="sm" material="clear" className="ltOpticalHistory">
-            <kit.GlassButtonGroupItem onClick={history.back} disabled={!history.canGoBack} aria-label="Go back"><ChevronLeft size={17} aria-hidden="true" /></kit.GlassButtonGroupItem>
-            <kit.GlassButtonGroupItem onClick={history.forward} disabled={!history.canGoForward} aria-label="Go forward"><ChevronRight size={17} aria-hidden="true" /></kit.GlassButtonGroupItem>
+          {kit ? <kit.GlassButtonGroup size="sm" material="clear" tint={.18} optics={controlOptics} backdrop=".titleBar" className="ltOpticalHistory">
+            <kit.GlassButtonGroupItem onClick={history.back} disabled={!history.canGoBack} aria-label="Go back" title={`Go back (${mac ? "⌘[" : "Alt+←"})`}><ChevronLeft size={17} aria-hidden="true" /></kit.GlassButtonGroupItem>
+            <kit.GlassButtonGroupItem onClick={history.forward} disabled={!history.canGoForward} aria-label="Go forward" title={`Go forward (${mac ? "⌘]" : "Alt+→"})`}><ChevronRight size={17} aria-hidden="true" /></kit.GlassButtonGroupItem>
           </kit.GlassButtonGroup> : <><button type="button" onClick={history.back} disabled={!history.canGoBack} aria-label="Go back" title={`Go back (${mac ? "⌘[" : "Alt+←"})`}>
             <ChevronLeft size={17} strokeWidth={2.4} aria-hidden="true" />
           </button>

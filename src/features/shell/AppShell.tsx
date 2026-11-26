@@ -28,6 +28,7 @@ import type { LocalAlbumEntry } from "../albums/album.types";
 import { useDownloadTagPrompt } from "../tagging/useDownloadTagPrompt";
 import SidebarNav from "./SidebarNav";
 import { libraryViews } from "./navigation.constants";
+import { LibrarySectionNavigation } from "./LibrarySectionNavigation";
 import "./library-navigation.css";
 import { isAndroidApp } from "../../app/platform";
 import {
@@ -139,7 +140,7 @@ export default function AppShell(props: AppShellProps) {
 
   return (
     <AppearanceProvider enabled={settings.liquidGlass === true} tone={effectiveTheme === "light" ? "light" : "dark"}
-      reducedMotion={settings.reducedMotion} backgrounded={isAppBackgrounded}>
+      reducedMotion={settings.reducedMotion} backgrounded={isAppBackgrounded} controlsNeeded={!isAndroidApp() || view === "settings"}>
     <MotionConfig reducedMotion={settings.reducedMotion ? "always" : "user"}>
     <AppReducedMotionContext.Provider value={settings.reducedMotion}>
     <AppActionsContext.Provider value={actions}>
@@ -255,11 +256,7 @@ export default function AppShell(props: AppShellProps) {
               className={`pageTransition pageTransition-${view}`}
               data-view={view}
             >
-              {libraryViews.includes(view) ? <nav className="librarySectionNav" aria-label="Library sections">
-                {([["library", "Songs"], ["albums", "Albums"], ["artists", "Artists"], ["genres", "Genres"], ["playlists", "Playlists"], ["liked", "Liked"]] as const).map(([id, label]) =>
-                  <button key={id} type="button" data-library-section={id} aria-current={view === id ? "page" : undefined} onClick={() => nav.go(id)}>{label}</button>
-                )}
-              </nav> : null}
+              {libraryViews.includes(view) ? <LibrarySectionNavigation view={view} go={nav.go} /> : null}
               <PageErrorBoundary key={view + ":" + (detail?.id ?? "")}>
               {view === "home" ? <HomeView {...home} /> : null}
 

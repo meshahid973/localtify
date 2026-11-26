@@ -1,3 +1,4 @@
+import { TransportButton, TransportGroup } from "./TransportGroup";
 import { Slider } from "../../../shared/ui/Slider";
 import { VolumeSlider } from "./VolumeSlider";
 import { IconButton } from "../../../shared/ui/IconButton";
@@ -140,15 +141,15 @@ export default function ImmersivePlayer({ player, song, queue, lyrics, backgroun
         </div>
       </div>
 
-      <div className="immersiveTransport">
-        <IconButton type="button" className="immersiveIcon" aria-label="Shuffle" aria-pressed={isShuffle} onClick={() => setIsShuffle(value => !value)}><Shuffle size={20} aria-hidden="true" /></IconButton>
-        <IconButton type="button" className="immersiveIcon" aria-label="Previous song" onClick={playPrevious}><SkipBack size={26} aria-hidden="true" /></IconButton>
-        <IconButton type="button" className="immersivePlay" aria-label={isPlaying ? "Pause" : "Play"} onClick={togglePlay}><PlayerPlayPauseMorphIcon playing={isPlaying} /></IconButton>
-        <IconButton type="button" className="immersiveIcon" aria-label="Next song" onClick={() => playNext(true)}><SkipForward size={26} aria-hidden="true" /></IconButton>
-        <IconButton type="button" className="immersiveIcon" aria-label={repeatButtonAriaLabel} aria-pressed={repeatMode !== "off"} onClick={toggleRepeat}>
+      <TransportGroup className="immersiveTransport">
+        <TransportButton type="button" className="ltIconButton immersiveIcon" aria-label="Shuffle" title="Shuffle" aria-pressed={isShuffle} onClick={() => setIsShuffle(value => !value)}><Shuffle size={20} aria-hidden="true" /></TransportButton>
+        <TransportButton type="button" className="ltIconButton immersiveIcon" aria-label="Previous song" title="Previous song" onClick={playPrevious}><SkipBack size={26} aria-hidden="true" /></TransportButton>
+        <TransportButton type="button" className="ltIconButton immersivePlay" aria-label={isPlaying ? "Pause" : "Play"} title={isPlaying ? "Pause" : "Play"} onClick={togglePlay}><PlayerPlayPauseMorphIcon playing={isPlaying} /></TransportButton>
+        <TransportButton type="button" className="ltIconButton immersiveIcon" aria-label="Next song" title="Next song" onClick={() => playNext(true)}><SkipForward size={26} aria-hidden="true" /></TransportButton>
+        <TransportButton type="button" className="ltIconButton immersiveIcon" aria-label={repeatButtonAriaLabel} title={repeatButtonAriaLabel} aria-pressed={repeatMode !== "off"} onClick={toggleRepeat}>
           <Repeat2 size={20} aria-hidden="true" />{repeatButtonStateText ? <span className="immersiveRepeatMark" aria-hidden="true">{repeatButtonStateText}</span> : null}
-        </IconButton>
-      </div>
+        </TransportButton>
+      </TransportGroup>
 
       <div className="immersiveTools" hidden={minimal}>
         <div className="immersiveVolume">

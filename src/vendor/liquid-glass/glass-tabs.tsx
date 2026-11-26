@@ -20,7 +20,7 @@ import type { ReactNode } from 'react'
 
 import { GlassLens } from './glass-lens'
 
-export type GlassTabOption<T extends string> = { value: T; label: ReactNode; icon?: ReactNode; 'aria-label'?: string }
+export type GlassTabOption<T extends string> = { value: T; label: ReactNode; icon?: ReactNode; 'aria-label'?: string; description?: string }
 
 export type GlassTabsProps<T extends string> = {
   options: readonly GlassTabOption<T>[]
@@ -33,6 +33,7 @@ export type GlassTabsProps<T extends string> = {
   /** Classes of the selected (resting) pill; its background colour is the lens colour. */
   highlightClassName?: string
   className?: string
+  itemProps?: (value: T) => { 'aria-current'?: 'page' } & Record<`data-${string}`, string>
 }
 
 const sizes = {
@@ -49,6 +50,7 @@ export function GlassTabs<T extends string>({
   size = 'md',
   highlightClassName = 'bg-white dark:bg-neutral-700',
   className = '',
+  itemProps,
   ...aria
 }: GlassTabsProps<T>) {
   return (
@@ -70,6 +72,8 @@ export function GlassTabs<T extends string>({
             key={o.value}
             value={o.value}
             aria-label={o['aria-label']}
+            title={o.description}
+            {...itemProps?.(o.value)}
             className={`relative inline-flex cursor-pointer items-center justify-center rounded-full font-semibold whitespace-nowrap transition-colors duration-200 outline-none select-none focus-visible:ring-2 focus-visible:ring-[#3291FF] [&_svg]:shrink-0 ${sizes[size]} ${
               selected
                 ? 'text-neutral-900 dark:text-white [[data-glass-traveling]_&]:text-neutral-500 dark:[[data-glass-traveling]_&]:text-neutral-400'

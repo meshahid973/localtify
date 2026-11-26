@@ -140,13 +140,13 @@
 }
 
 .controlRow{
-  width: 100% !important;
+  width: 100%;
   min-height: 44px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
   gap: 9px !important;
-  padding: 0 !important;
+  padding: 0;
   overflow: visible !important;
   background: transparent !important;
   border: 0 !important;
@@ -597,7 +597,7 @@ body.localitfyThemePainting .app .volumeWrap input[type="range"],
 .playerBar .controlRow{
   min-height: 42px !important;
   gap: 18px !important;
-  padding: 0 !important;
+  padding: 0;
   background: transparent !important;
   border: 0 !important;
   box-shadow: none !important;

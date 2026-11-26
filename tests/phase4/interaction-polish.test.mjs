@@ -31,7 +31,8 @@ test("menu typeahead cycles matches, refines prefixes and handles empty menus", 
 
 test("shared icon buttons retain names, form safety and disabled semantics", () => {
   const appearance = compile("src/shared/appearance/appearance.tsx");
-  const { IconButton } = compile("src/shared/ui/IconButton.tsx", { "./icon-button.css": {}, "../appearance/appearance": appearance });
+  const opticalButton = compile("src/shared/appearance/OpticalButton.tsx", { "./appearance": appearance });
+  const { IconButton } = compile("src/shared/ui/IconButton.tsx", { "./icon-button.css": {}, "../appearance/OpticalButton": opticalButton });
   const html = renderToStaticMarkup(React.createElement(IconButton, { "aria-label": "Shuffle", "aria-pressed": true, disabled: true, className: "transport" }));
   assert.match(html, /type="button"/);
   assert.match(html, /aria-label="Shuffle"/);

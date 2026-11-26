@@ -12,6 +12,7 @@ import type { Song } from "../library/song.types";
 import { Cover } from "../covers/Cover";
 import { buildDiscoverShelves } from "./discoverShelves";
 import { ArcDropdownMenu } from "../../shared/ui/ArcDropdownMenu";
+import { OpticalButton } from "../../shared/appearance/OpticalButton";
 import "./discover.css";
 
 
@@ -188,7 +189,7 @@ export default function DiscoverView({ settings, updateSetting, sendToDownloads,
   return <section className="discoverPage" aria-busy={loading}>
     <PageHeader title="Discover" description={ready && seedsLine ? seedsLine : undefined}>
       {!needsSetup && (ready || result?.status === "error") ? <button type="button" className="softButton" disabled={loading} onClick={() => void load(true)}><RefreshCw size={15} /> {loading ? "Finding music…" : "Refresh"}</button> : null}
-      {!phone && !needsSetup ? <button type="button" className="softButton" onClick={openDiscoverSettings} aria-label="Open Discover settings"><Settings2 size={15} /> Settings</button> : null}
+      {!phone && !needsSetup ? <OpticalButton type="button" className="softButton" onClick={openDiscoverSettings} aria-label="Open Discover settings"><Settings2 size={15} /> Settings</OpticalButton> : null}
     </PageHeader>
     {needsSetup ? setup : null}
     {settings.discoverEnabled && result?.status === "needs-key" ? <div className="discoverKeyNotice" role="status">
@@ -200,7 +201,7 @@ export default function DiscoverView({ settings, updateSetting, sendToDownloads,
       <form className="discoverSearch" onSubmit={event => { event.preventDefault(); void searchCatalog(); }}>
         <ArcDropdownMenu<CatalogKind> ariaLabel="Search category" value={catalogKind} disabled={catalogLoading} items={[{ value: "recording", label: "Songs" }, { value: "artist", label: "Artists" }]} onValueChange={value => { setCatalogKind(value); setCatalog(null); setRelatedTitle(""); }} />
         <input type="search" aria-label="Search public music catalog" placeholder="Search songs and artists" value={catalogTerm} maxLength={160} disabled={catalogLoading} onChange={event => { setCatalogTerm(event.currentTarget.value); setCatalog(null); setRelatedTitle(""); }} />
-        <button className="discoverPrimaryAction" type="submit" disabled={catalogLoading || catalogTerm.trim().length < 2}><Search size={15} /><span>{catalogLoading ? "Searching…" : "Search"}</span></button>
+        <OpticalButton primary className="discoverPrimaryAction" type="submit" disabled={catalogLoading || catalogTerm.trim().length < 2}><Search size={15} /><span>{catalogLoading ? "Searching…" : "Search"}</span></OpticalButton>
       </form>
       {catalogLoading ? <p className="discoverBecause" role="status">Searching…</p> : null}
       {result?.status === "needs-key" && !catalog && !catalogLoading && !catalogTerm.trim()
@@ -282,7 +283,7 @@ export default function DiscoverView({ settings, updateSetting, sendToDownloads,
     {picked.size ? <div className="discoverTray" role="region" aria-label="Picked songs">
       <span>{picked.size} song{picked.size === 1 ? "" : "s"} picked</span>
       <button type="button" className="softButton" onClick={() => setPicked(new Map())}>Clear</button>
-      <button type="button" className="heroMain" onClick={sendPicked}><Plus size={15} /><span>Send to Downloads</span></button>
+      <OpticalButton primary type="button" className="heroMain" onClick={sendPicked}><Plus size={15} /><span>Send to Downloads</span></OpticalButton>
     </div> : null}
 
   </section>;

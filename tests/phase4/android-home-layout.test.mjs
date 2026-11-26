@@ -23,7 +23,10 @@ function home(android, songs, hidden = []) {
   const Home = compile("src/features/home/HomeView.tsx", {
     "./home.css": {},
     "../../shared/appearance/appearance": appearance,
-    "../../shared/ui/IconButton": compile("src/shared/ui/IconButton.tsx", { "./icon-button.css": {}, "../appearance/appearance": appearance }),
+    "../../shared/ui/IconButton": compile("src/shared/ui/IconButton.tsx", {
+      "./icon-button.css": {},
+      "../appearance/OpticalButton": compile("src/shared/appearance/OpticalButton.tsx", { "./appearance": appearance }),
+    }),
     "../../app/platform": { isAndroidApp: () => android },
     "../covers/Cover": { Cover: () => null },
     "../../shared/ui/LocaltifyViewUi": { MascotStateArt: () => null },

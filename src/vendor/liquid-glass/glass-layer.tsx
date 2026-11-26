@@ -785,6 +785,7 @@ export function GlassLayer({
       <GlassStyles />
       <canvas
         ref={canvasRef}
+        data-glass-skip=""
         aria-hidden
         style={{ position: 'absolute', zIndex: -1, maxWidth: 'none', pointerEvents: 'none', width: 0, height: 0 }}
       />
