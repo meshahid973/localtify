@@ -66,9 +66,9 @@ try {
     if (summary.comparison.totalMs !== 0 || summary.comparison.changePercent !== null) throw new Error("empty listening comparison fabricated a baseline");
     const rules = { match: "all", rules: [{ field: "liked", op: "is", value: "" }], sort: "random", limit: 50 };
     db.savePlaylists([{ id: "smart", name: "Smart", songIds: ["legacy-song"], createdAt: now, rules },
-      { id: "plain", name: "Plain", songIds: [], createdAt: now, rules: "not json" }]);
+      { id: "plain", name: "Plain", songIds: [], createdAt: now }]);
     const saved = db.getPlaylists();
-    for (const invalid of [null, {}, [null], [{ id: "smart", name: "Broken", songIds: null }]]) {
+    for (const invalid of [null, {}, [null], [{ id: "smart", name: "Broken", songIds: null }], [{ id: "smart", name: "Broken", songIds: [], rules: {match: "all", rules: [], sort: "unknown", limit: null} }]]) {
       let rejected = false;
       try { db.savePlaylists(invalid); } catch (error) { rejected = error instanceof TypeError; }
       if (!rejected || JSON.stringify(db.getPlaylists()) !== JSON.stringify(saved)) throw new Error("Malformed playlist snapshot modified the library");

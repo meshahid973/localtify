@@ -57,37 +57,40 @@ export const SMART_PRESETS: { name: string; rules: SmartRules }[] = [
   { name: "Never played", rules: { match: "all", sort: "random", limit: 100, rules: [{ field: "plays", op: "atMost", value: 0 }] } }
 ];
 
-function wholeNumber(value: unknown, max: number) {
-  const number = Math.floor(Number(value));
-  return Number.isFinite(number) ? Math.min(max, Math.max(0, number)) : null;
-}
-
-/** Saved rules, or undefined if `value` is not a usable rule set. */
+/** Reject invalid conditions as a unit rather than broadening the playlist silently. */
 export function cleanSmartRules(value: unknown): SmartRules | undefined {
-  if (!value || typeof value !== "object") return undefined;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
   const source = value as Partial<SmartRules>;
-  if (!Array.isArray(source.rules)) return undefined;
+  if ((source.match !== "all" && source.match !== "any") ||
+      typeof source.sort !== "string" || !Object.hasOwn(SMART_SORTS, source.sort) ||
+      !Array.isArray(source.rules) || source.rules.length > MAX_RULES ||
+      (source.limit !== null && (typeof source.limit !== "number" || !Number.isInteger(source.limit) || source.limit < 1 || source.limit > MAX_LIMIT))) return undefined;
   const rules: SmartRule[] = [];
-  for (const item of source.rules.slice(0, MAX_RULES)) {
-    const field = item?.field as SmartField;
-    const meta = Object.hasOwn(SMART_FIELDS, field) ? SMART_FIELDS[field] : null;
-    if (!meta || !Object.hasOwn(SMART_OPS[meta.kind], item.op)) continue;
-    if (meta.kind === "text") {
-      const text = String(item.value ?? "").trim().slice(0, 100);
-      if (text) rules.push({ field, op: item.op, value: text });
-    } else if (meta.kind === "flag") rules.push({ field, op: item.op, value: "" });
-    else {
-      const number = wholeNumber(item.value, 100_000);
-      if (number !== null) rules.push({ field, op: item.op, value: number });
+  for (const item of source.rules) {
+    if (!item || typeof item.field !== "string" || !Object.hasOwn(SMART_FIELDS, item.field)) return undefined;
+    const field = item.field;
+    const kind = SMART_FIELDS[field].kind;
+    if (typeof item.op !== "string" || !Object.hasOwn(SMART_OPS[kind], item.op)) return undefined;
+    if (kind === "text") {
+      if (typeof item.value !== "string" || !item.value.trim() || item.value.trim().length > 100) return undefined;
+      rules.push({ field, op: item.op, value: item.value.trim() });
+    } else if (kind === "flag") {
+      if (item.value !== "") return undefined;
+      rules.push({ field, op: item.op, value: "" });
+    } else {
+      if (typeof item.value !== "number" || !Number.isInteger(item.value) || item.value < 0 || item.value > 100_000) return undefined;
+      rules.push({ field, op: item.op, value: item.value });
     }
   }
-  const limit = source.limit == null ? null : wholeNumber(source.limit, MAX_LIMIT);
-  return {
-    match: source.match === "any" ? "any" : "all",
-    rules,
-    sort: Object.hasOwn(SMART_SORTS, source.sort || "") ? source.sort as SmartSort : "library",
-    limit: limit ? limit : null
-  };
+  return { match: source.match, rules, sort: source.sort, limit: source.limit };
+}
+
+export function needsListeningCounts(rules: SmartRules) {
+  return rules.rules.some(rule => rule.field === "finishes" || rule.field === "skips");
+}
+
+export function usesClock(rules: SmartRules) {
+  return rules.sort === "random" || rules.rules.some(rule => rule.field === "added" || rule.field === "lastPlayed");
 }
 
 function textMatches(haystack: string | undefined, needle: string) {
@@ -112,7 +115,7 @@ function ruleMatches(song: Song, rule: SmartRule, counts: ListeningCounts, now: 
     return rule.op === "atLeast" ? count >= limit : count <= limit;
   }
   const time = timeOf(rule.field === "added" ? song.dateAdded : song.lastPlayed);
-  const recent = time !== null && now - time <= limit * DAY_MS;
+  const recent = time !== null && time <= now && now - time <= limit * DAY_MS;
   // A song that was never played counts as "not played in the last N days".
   return rule.op === "within" ? recent : !recent;
 }
@@ -140,7 +143,7 @@ export function evaluateSmartRules(rules: SmartRules, songs: readonly Song[], co
     random: (a, b) => dailyShuffleKey(a.id, day) - dailyShuffleKey(b.id, day)
   };
   const compare = order[rules.sort];
-  if (compare) picked.sort(compare);
+  if (compare) picked.sort((a, b) => compare(a, b) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   return (rules.limit ? picked.slice(0, rules.limit) : picked).map((song) => song.id);
 }
 
@@ -155,4 +158,12 @@ export function describeSmartRules(rules: SmartRules) {
   });
   const conditions = parts.length ? parts.join(rules.match === "all" ? " · " : " or ") : "every song";
   return [conditions, rules.sort === "library" ? "" : SMART_SORTS[rules.sort], rules.limit ? `up to ${rules.limit}` : ""].filter(Boolean).join(" · ");
+}
+
+export function materializeSmartPlaylists(playlists: readonly import("./playlist.types").Playlist[], songs: readonly Song[], counts: ListeningCounts | null, now: number) {
+  return playlists.map(playlist => {
+    if (!playlist.rules || (counts === null && needsListeningCounts(playlist.rules))) return playlist;
+    const songIds = evaluateSmartRules(playlist.rules, songs, counts ?? new Map(), now);
+    return songIds.length === playlist.songIds.length && songIds.every((id, index) => id === playlist.songIds[index]) ? playlist : { ...playlist, songIds };
+  });
 }

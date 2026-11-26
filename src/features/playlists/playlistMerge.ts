@@ -1,8 +1,12 @@
 import type { Playlist as SyncPlaylist } from "./playlist.types";
 
+function sameRules(a: SyncPlaylist, b: SyncPlaylist) {
+  return JSON.stringify(a.rules ?? null) === JSON.stringify(b.rules ?? null);
+}
+
 function samePlaylist(a: SyncPlaylist, b: SyncPlaylist) {
   return a.name === b.name && (a.coverArtwork || "") === (b.coverArtwork || "") &&
-    a.songIds.length === b.songIds.length && a.songIds.every((id, index) => id === b.songIds[index]);
+    sameRules(a, b) && (!!a.rules || (a.songIds.length === b.songIds.length && a.songIds.every((id, index) => id === b.songIds[index])));
 }
 
 // Keep unchanged relative order from the receiving device. Apply the incoming device's
@@ -74,7 +78,7 @@ export function phonePlaylistChanges(base: SyncPlaylist[], mac: SyncPlaylist[], 
     }
     if (!b) {
       if (!m) put.push(p);
-      else if (!samePlaylist(m, p)) put.push({...m, songIds: mergeSongIds([], m.songIds, p.songIds)});
+      else if (!samePlaylist(m, p)) put.push(p.rules || m.rules ? (p.rules ? p : m) : {...m, songIds: mergeSongIds([], m.songIds, p.songIds)});
       continue;
     }
     if (samePlaylist(p, b)) continue;
@@ -83,11 +87,14 @@ export function phonePlaylistChanges(base: SyncPlaylist[], mac: SyncPlaylist[], 
       put.push(p);
       continue;
     }
+    const rulesChanged = !sameRules(b, p);
+    const rules = rulesChanged ? p.rules : m.rules;
     put.push({
       ...m,
+      ...(rulesChanged ? { rules } : {}),
       name: p.name !== b.name ? p.name : m.name,
       ...((p.coverArtwork || "") !== (b.coverArtwork || "") ? { coverArtwork: p.coverArtwork } : {}),
-      songIds: mergeSongIds(b.songIds, m.songIds, p.songIds)
+      songIds: rules ? (rulesChanged ? p.songIds : m.songIds) : mergeSongIds(b.songIds, m.songIds, p.songIds)
     });
   }
   return { put, delete: remove };

@@ -358,13 +358,11 @@ function normalizeOldSong(row) {
   };
 }
 
-// Smart playlist rules are stored as JSON and validated by the renderer, which owns their meaning.
+const { requireSmartRules } = require("./playlist-rules.cjs");
 function playlistRulesJson(value) {
   if (value == null || value === "") return null;
-  try {
-    const text = typeof value === "string" ? JSON.stringify(JSON.parse(value)) : JSON.stringify(value);
-    return text && text.length <= 20_000 && text.startsWith("{") ? text : null;
-  } catch { return null; }
+  const rules = requireSmartRules(typeof value === "string" ? JSON.parse(value) : value);
+  return rules ? JSON.stringify(rules) : null;
 }
 
 function cleanPlaylistArtwork(value) { return typeof value === "string" && value.length <= 24576 && /^data:image\/jpeg;base64,\/9j\/[A-Za-z0-9+/]*={0,2}$/.test(value) ? value : null; }
@@ -1062,7 +1060,10 @@ function savePlaylists(playlists, expected, finishMigration = false) {
         typeof playlist !== "object" || !Array.isArray(playlist.songIds))) {
     throw new TypeError("Invalid playlists snapshot");
   }
-  const normalized = playlists.map((playlist, index) => normalizePlaylist(playlist, index));
+  const normalized = playlists.map((playlist, index) => {
+    if (playlist.rules != null) requireSmartRules(playlist.rules);
+    return normalizePlaylist(playlist, index);
+  });
   if (normalized.some(playlist => !playlist)) throw new TypeError("Invalid playlist");
 
   const insertPlaylist = database.prepare(`

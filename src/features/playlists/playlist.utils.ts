@@ -18,6 +18,7 @@ export function cleanPlaylistList(value: unknown, validIds?: Pick<ReadonlySet<st
     if (!id || seen.has(id)) return;
     seen.add(id);
     const rules = cleanSmartRules(source.rules);
+    if (source.rules != null && !rules) throw new TypeError("Invalid smart playlist rules");
     const coverArtwork = cleanPlaylistArtwork(source.coverArtwork);
     output.push({
       id,

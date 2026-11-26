@@ -284,3 +284,12 @@ test("playlist persistence does not acknowledge edits until committed", async ()
   assert.equal(await controller.flush(), true);
   assert.deepEqual(plain(controller.committed()[0].songIds), ["1","2","3"]);
 });
+
+test("smart rule changes rebase with concurrent metadata and never merge generated membership", () => {
+  const rules = { match: "all", rules: [], sort: "library", limit: null };
+  const old = {...playlist("p", ["a"]), rules};
+  const changed = {...old, rules:{...rules,limit:10}, songIds:["b"]};
+  const remote = {...old, name:"desktop", songIds:["c"]};
+  assert.deepEqual(plain(merge.phonePlaylistChanges([old],[remote],[changed]).put), [{...remote,rules:changed.rules,songIds:["b"]}]);
+  assert.deepEqual(plain(merge.phonePlaylistChanges([old],[remote],[{...old,songIds:["phone"]}]).put), []);
+});

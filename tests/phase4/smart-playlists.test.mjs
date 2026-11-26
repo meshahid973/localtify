@@ -67,17 +67,35 @@ test("saved rules are cleaned and described", () => {
     { field: "genre", op: "contains", value: "  " }, { field: "plays", op: "atLeast", value: "7.9" }, { field: "mood", op: "is", value: 1 },
     { field: "liked", op: "contains", value: "x" }, { field: "added", op: "within", value: -4 }
   ] });
-  assert.deepEqual(JSON.parse(JSON.stringify(cleaned)), { match: "all", sort: "library", limit: null,
-    rules: [{ field: "plays", op: "atLeast", value: 7 }, { field: "added", op: "within", value: 0 }] });
+  assert.equal(cleaned, undefined);
   assert.equal(describeSmartRules(SMART_PRESETS[0].rules), "liked · last played not in the last 60 days · shuffled daily · up to 50");
   for (const preset of SMART_PRESETS) assert.deepEqual(cleanSmartRules(preset.rules), preset.rules, preset.name);
 });
 
 test("smart playlists fill themselves and can't be edited by hand", () => {
-  assert.match(controller, /evaluateSmartRules\(playlist\.rules, songs, listeningCounts\)/);
+  const view = fs.readFileSync("src/features/playlists/useSmartPlaylistView.ts", "utf8");
+  assert.match(view, /materializeSmartPlaylists\(stored, songs, listeningCounts/);
+  assert.doesNotMatch(view, /setPlaylists\(|savePlaylists\(/);
   for (const action of ["addSongToPlaylist", "removeSongFromPlaylist", "handlePlaylistSongDrop"]) {
     const body = controller.slice(controller.indexOf(`const ${action} = useCallback`));
     assert.match(body.slice(0, 600), /smartPlaylistLocked\(playlist\)/, action);
   }
   assert.match(picker, /playlists\.filter\(\(playlist\) => !playlist\.rules\)/);
+});
+
+test("strict rules validation matches the Electron boundary", async () => {
+  const { createRequire } = await import("node:module");
+  const { cleanSmartRules: backend } = createRequire(import.meta.url)("../../electron/playlist-rules.cjs");
+  const { cleanSmartRules, SMART_PRESETS } = loadSmart();
+  const base = SMART_PRESETS[0].rules;
+  for (const value of [base, ...SMART_PRESETS.map(item => item.rules), {...base,limit:0}, {...base,limit:5001}, {...base,match:"bad"}, {...base,sort:"bad"}, {...base,rules:[{field:"plays",op:"atLeast",value:""}]}, {...base,rules:[{field:"genre",op:"contains",value:" "}]}, {...base,rules:Array(13).fill(base.rules[0])}, {...base,rules:[{field:"__proto__",op:"is",value:""}]}, null]) {
+    assert.equal(JSON.stringify(cleanSmartRules(value)), JSON.stringify(backend(value)));
+  }
+});
+test("smart membership is derived without changing the stored rules or cache", () => {
+  const { materializeSmartPlaylists, SMART_PRESETS } = loadSmart();
+  const source = [{id:"smart",name:"smart",createdAt:1,songIds:["cached"],rules:SMART_PRESETS[1].rules}];
+  assert.equal(materializeSmartPlaylists(source, library, null, NOW)[0], source[0]);
+  assert.deepEqual([...materializeSmartPlaylists(source, library, new Map([["recent-fave",{finishes:3,skips:0}]]), NOW)[0].songIds], ["recent-fave"]);
+  assert.deepEqual(source[0].songIds, ["cached"]);
 });
