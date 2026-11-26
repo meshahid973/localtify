@@ -2,6 +2,7 @@ import { isAndroidApp } from "../../app/platform";
 import "../../shared/ui/collection-layout.css";
 import "./albums.css";
 import { Check, FolderInput, FolderTree, Plus, Trash2, X } from "lucide-react";
+import { OpticalButton } from "../../shared/appearance/OpticalButton";
 import { ActionLabel } from "../../shared/ui/ActionLabel";
 import { ArcDropdownMenu } from "../../shared/ui/ArcDropdownMenu";
 import { PageHeader } from "../../shared/ui/PageHeader";
@@ -88,9 +89,9 @@ export default function AlbumsView(props: AlbumsViewProps) {
                 </PageHeader>
 
                                 {isAndroidApp() ? null : <div className="albumsActionBarV318">
-                  <button className="albumAction albumActionPrimary" type="button" onClick={() => openCreateAlbumBuilder(currentSong || songs[0] || null)}><ActionLabel icon={Plus}>add album</ActionLabel></button>
-                  <button className="albumAction" type="button" onClick={() => void scanAlbumFolderImport("single")} disabled={albumFolderImportBusy}><ActionLabel icon={FolderInput}>import album folder</ActionLabel></button>
-                  <button className="albumAction" type="button" onClick={() => void scanAlbumFolderImport("library")} disabled={albumFolderImportBusy}><ActionLabel icon={FolderTree}>import album library</ActionLabel></button>
+                  <OpticalButton className="albumAction albumActionPrimary" type="button" onClick={() => openCreateAlbumBuilder(currentSong || songs[0] || null)}><ActionLabel icon={Plus}>add album</ActionLabel></OpticalButton>
+                  <OpticalButton className="albumAction" type="button" onClick={() => void scanAlbumFolderImport("single")} disabled={albumFolderImportBusy}><ActionLabel icon={FolderInput}>import album folder</ActionLabel></OpticalButton>
+                  <OpticalButton className="albumAction" type="button" onClick={() => void scanAlbumFolderImport("library")} disabled={albumFolderImportBusy}><ActionLabel icon={FolderTree}>import album library</ActionLabel></OpticalButton>
                 </div>}
 
                 {(albumFolderImportBusy || albumFolderImportPreview || albumFolderImportMessage) ? (
@@ -296,7 +297,7 @@ export default function AlbumsView(props: AlbumsViewProps) {
                         </div>
                         <div className="albumBuilderActionsV318">
                           {albumBuilderMode === "edit" ? <button className="heroGhost danger" type="button" onClick={deleteEditingManualAlbum}><ActionLabel icon={Trash2}>delete</ActionLabel></button> : null}
-                          <button className="mainAction" type="button" onClick={saveManualAlbumFromDraft} disabled={!albumDraftSongIds.length}><ActionLabel icon={Check}>{albumBuilderMode === "edit" ? "save album" : "create album"}</ActionLabel></button>
+                          <OpticalButton className="mainAction" type="button" onClick={saveManualAlbumFromDraft} disabled={!albumDraftSongIds.length}><ActionLabel icon={Check}>{albumBuilderMode === "edit" ? "save album" : "create album"}</ActionLabel></OpticalButton>
                         </div>
                       </div>
                     </div>

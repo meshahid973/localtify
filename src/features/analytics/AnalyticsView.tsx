@@ -12,6 +12,9 @@ import type { Song } from "../library/song.types";
 import { LineChart, LineChartPlot, LineChartTooltip, type LineChartSeries } from "../../vendor/charts/line-chart";
 import SegmentedControl from "../../vendor/arc/segmented-control/segmented-control";
 import { AppearanceMenu } from "../../shared/appearance/AppearanceMenu";
+import { OpticalButton } from "../../shared/appearance/OpticalButton";
+import { useAppearance, controlOptics } from "../../shared/appearance/appearance";
+import { GlassButtonGroup, GlassButtonGroupItem } from "../../vendor/liquid-glass/glass-button-group";
 
 export type AnalyticsViewProps = {
   importSongs: () => unknown;
@@ -24,6 +27,7 @@ const RANGE_OPTIONS = [
   { value: "month", label: "Month" },
   { value: "year", label: "Year" }
 ];
+const monthLabel = new Intl.DateTimeFormat("en", { month: "short", timeZone: "UTC" });
 const readableDuration = (ms: number) => formatAnalyticsDuration(ms / 1000);
 const calendarDate = (utc: number, options: Intl.DateTimeFormatOptions) =>
   new Intl.DateTimeFormat("en", { ...options, timeZone: "UTC" }).format(new Date(utc));
@@ -62,6 +66,7 @@ export default function AnalyticsView({
   songs, importSongs, onSelectSong
 }: AnalyticsViewProps) {
   const actions = useAppActions();
+  const { kit } = useAppearance();
   const [range, setRange] = useState<ListeningCalendarRange>("month");
   const [offset, setOffset] = useState(0);
   const [revision, setRevision] = useState(0);
@@ -92,7 +97,7 @@ export default function AnalyticsView({
     const length = Math.max(summary.byBucket.length, summary.comparison.byBucket.length);
     return Array.from({length}, (_, index) =>
       summary.range === "year"
-        ? new Intl.DateTimeFormat("en", { month: "short", timeZone: "UTC" }).format(new Date(Date.UTC(2024,index,1)))
+        ? monthLabel.format(new Date(Date.UTC(2024,index,1)))
         : summary.range === "week" ? ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][index]
           : "Day " + (index + 1));
   }, [summary]);
@@ -127,12 +132,15 @@ export default function AnalyticsView({
   return <section data-page-section="analytics" className="analyticsExperienceV4" aria-label="Listening analytics">
     <PageHeader title="Analytics" />
       <div className="analyticsV4Controls">
-        <SegmentedControl options={RANGE_OPTIONS} value={range} onValueChange={selectRange} label="Listening period" />
-        <div className="analyticsV4PeriodNav" aria-label="Navigate listening periods">
-          <button type="button" aria-label="Previous period" onClick={() => setOffset(value => Math.min(120, value + 1))} disabled={offset === 120}><ChevronLeft size={18} /></button>
+        {kit ? <kit.GlassTabs size="sm" options={RANGE_OPTIONS} value={range} onValueChange={selectRange} aria-label="Listening period"
+          className="ltOpticalTabs" highlightClassName="ltOpticalTabSelection" /> :
+          <SegmentedControl options={RANGE_OPTIONS} value={range} onValueChange={selectRange} label="Listening period" />}
+        <GlassButtonGroup optical={!!kit} size="sm" material="clear" tint={.48} optics={controlOptics} backdrop=".app"
+          className={kit ? "analyticsV4PeriodNav ltOpticalHistory" : "analyticsV4PeriodNav"} aria-label="Navigate listening periods">
+          <GlassButtonGroupItem aria-label="Previous period" onClick={() => setOffset(value => Math.min(120, value + 1))} disabled={offset === 120}><ChevronLeft size={18} aria-hidden="true" /></GlassButtonGroupItem>
           <span>{summary ? listeningPeriodName(summary) : "Selected period"}</span>
-          <button type="button" aria-label="Next period" onClick={() => setOffset(value => Math.max(0, value - 1))} disabled={offset === 0}><ChevronRight size={18} /></button>
-        </div>
+          <GlassButtonGroupItem aria-label="Next period" onClick={() => setOffset(value => Math.max(0, value - 1))} disabled={offset === 0}><ChevronRight size={18} aria-hidden="true" /></GlassButtonGroupItem>
+        </GlassButtonGroup>
         <AppearanceMenu icon={<Ellipsis size={18}/>} iconOnly label="Analytics options" items={[
           { label: "Refresh listening history", onSelect: () => setRevision(value => value + 1) },
           { label: "Copy listening recap", onSelect: copyRecap, disabled: !summary },
@@ -141,13 +149,13 @@ export default function AnalyticsView({
       </div>
     {!songs.length ? <div className="analyticsV4EmptyLibrary" role="status">
       <span>{isAndroidApp() ? "Sync your music library." : "Import music to get started."}</span>
-      {!isAndroidApp() ? <button type="button" onClick={importSongs}>Import music</button> : null}
+      {!isAndroidApp() ? <OpticalButton type="button" onClick={importSongs}>Import music</OpticalButton> : null}
     </div> : null}
 
     {loading ? <div className="analyticsV4Loading" role="status">Loading…</div> :
       failed || !summary ? <div className="analyticsV4Notice" role="status">
         <p>Listening history unavailable.</p>
-        <button type="button" onClick={() => setRevision(value => value + 1)}>Try again</button>
+        <OpticalButton type="button" onClick={() => setRevision(value => value + 1)}>Try again</OpticalButton>
       </div> : <>
         <div className="analyticsV4Overview">
           <div className="analyticsV4Total">

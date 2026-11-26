@@ -95,6 +95,8 @@ export type GlassOptics = {
   magnify?: number
   /** Light on the glass, all of it (default 1). */
   light?: number
+  /** Whether a pointer press lights this surface. */
+  pointerLight?: boolean
   /** × the rim light (default 1) and × its line's thickness (default 1). */
   rim?: number
   rimWidth?: number
@@ -569,7 +571,7 @@ export function GlassLayer({
           surface,
           edgeClear: 0.2,
           cursorLight: o?.cursorLight ?? true,
-          pointerLight: true,
+          pointerLight: o?.pointerLight ?? true,
           // What the rim of clear glass mirrors: the page around it. Tinted glass mirrors nothing.
           reflection: !clear || o?.mirror === 0 ? undefined : {
             height: h,

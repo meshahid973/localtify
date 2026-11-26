@@ -4,7 +4,8 @@ import { ArrowDown, ArrowUp, EyeOff, SlidersHorizontal } from "lucide-react";
 import { navItems, primaryNavigationView } from "./navigation.constants";
 import { ContextMenuLayer } from "../../shared/ui/ContextMenuLayer";
 import { SolidIcon } from "../../shared/ui/SolidIcon";
-import { controlOptics, useAppearance } from "../../shared/appearance/appearance";
+import { useAppearance } from "../../shared/appearance/appearance";
+import { panelOptics } from "../../shared/appearance/OpticalCard";
 import { canMoveSidebarItem, moveSidebarItem, resolveSidebarGroups, sidebarGroupForView, toggleSidebarItemHidden } from "./sidebarLayout";
 import type { SidebarNavOrder } from "./sidebarLayout";
 import type { View } from "./view.types";
@@ -23,6 +24,7 @@ export type SidebarNavProps = {
 
 type SidebarMenuState = { view: View; x: number; y: number };
 const sidebarItems = new Map(navItems.map(item => [item.id, item]));
+const sidebarOptics = { ...panelOptics, pointerLight: false };
 
 export default function SidebarNav({ view, changeView, sidebarNavOrder, sidebarHiddenNav, updateSidebarLayout, openSidebarSettings }: SidebarNavProps) {
   const [menu, setMenu] = useState<SidebarMenuState | null>(null);
@@ -45,39 +47,38 @@ export default function SidebarNav({ view, changeView, sidebarNavOrder, sidebarH
   const menuItem = menu && sidebarItems.get(menu.view);
 
   const renderGroup = (group: (typeof groups)[number], divider = false) => {
-    const items = group.visibleItems.map(itemId => {
-      const item = sidebarItems.get(itemId);
-      if (!item) return null;
-      const active = currentView === item.id;
-      const button = (
-        <button
-          key={item.id}
-          type="button"
-          className={`navItem nav-${item.id}${active ? " active" : ""}`}
-          data-nav-id={item.id}
-          data-nav-group={group.id}
-          onClick={() => changeView(item.id, "nav")}
-          onContextMenu={event => openMenu(event, item.id)}
-          title={item.label}
-          aria-label={`open ${item.label}`}
-          aria-current={active ? "page" : undefined}
-        >
-          <span className={`navIcon navIcon-${item.id}`} aria-hidden="true">
-            <SolidIcon className="navSolidIcon" name={item.icon} size={20} />
-          </span>
-          <span className="navText"><strong>{item.label}</strong></span>
-        </button>
-      );
-      return kit ? <kit.GlassButtonGroupItem key={item.id} asChild>{button}</kit.GlassButtonGroupItem> : button;
-    });
+    const nav = <nav className={`nav navGroupedV467 ${group.id === "app" ? "navUtility" : "navMain"}`}
+      aria-label={`${group.label} navigation`}>
+      {group.visibleItems.map(itemId => {
+        const item = sidebarItems.get(itemId);
+        if (!item) return null;
+        const active = currentView === item.id;
+        return (
+          <button
+            key={item.id}
+            type="button"
+            className={`navItem nav-${item.id}${active ? " active" : ""}`}
+            data-nav-id={item.id}
+            data-nav-group={group.id}
+            onClick={() => changeView(item.id, "nav")}
+            onContextMenu={event => openMenu(event, item.id)}
+            title={item.label}
+            aria-label={`open ${item.label}`}
+            aria-current={active ? "page" : undefined}
+          >
+            <span className={`navIcon navIcon-${item.id}`} aria-hidden="true">
+              <SolidIcon className="navSolidIcon" name={item.icon} size={20} />
+            </span>
+            <span className="navText"><strong>{item.label}</strong></span>
+          </button>
+        );
+      })}
+    </nav>;
     return (
       <div key={group.id} className={`sidebarNavGroupV467 sidebarNavGroup-${group.id}`}>
         <p className="sidebarGroupLabelV467">{group.label}</p>
-        <nav className={`nav navGroupedV467 ${group.id === "app" ? "navUtility" : "navMain"}`}
-          aria-label={`${group.label} navigation`}>
-          {kit ? <kit.GlassButtonGroup orientation="vertical" size="sm" material="clear" tint={.62}
-            optics={controlOptics} backdrop=".app" className="ltOpticalSidebarGroup">{items}</kit.GlassButtonGroup> : items}
-        </nav>
+        {kit ? <kit.GlassCard asChild tint={.72} blur={3} optics={sidebarOptics}
+          className="ltOpticalSidebarGroup rounded-[14px]">{nav}</kit.GlassCard> : nav}
         {divider ? <div className="navDivider" aria-hidden="true" /> : null}
       </div>
     );

@@ -124,9 +124,17 @@
 }
 
 .app[data-liquid-glass="true"] .ltOpticalSidebarGroup {
-  width: 100%;
-  gap: var(--lt-space-1);
   background: var(--lt-fill-subtle);
+}
+
+.app[data-liquid-glass="true"] .ltOpticalSidebarGroup .navIcon {
+  transition: scale var(--lt-control-motion) ease-out;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .app[data-liquid-glass="true"]:not(.reducedMotion) .ltOpticalSidebarGroup .navItem:active .navIcon {
+    scale: .92;
+  }
 }
 
 .app[data-liquid-glass="true"] .ltOpticalSidebarGroup .navItem:focus-visible {
