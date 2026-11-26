@@ -162,7 +162,7 @@ export default function PlaylistsView(props: PlaylistsViewProps) {
 
   const promptDialog = prompting ? (
     <Suspense fallback={null}>
-      <PromptPlaylistDialog songs={songs} currentId={currentId} hidden={hidden} playSongs={props.playSongs}
+      <PromptPlaylistDialog songs={songs} songsById={songsById} currentId={currentId} hidden={hidden} playSongs={props.playSongs}
         selectSong={props.selectSong} savePlaylist={props.savePromptPlaylist}
         openAnalysisSettings={() => { setPrompting(false); props.dailyMixes.openAnalysisSettings(); }} onClose={() => setPrompting(false)} />
     </Suspense>
@@ -276,7 +276,7 @@ export default function PlaylistsView(props: PlaylistsViewProps) {
             onRemoveSong={removePlaylistSongAction}
           />}
           {!detailPlaylist.rules && detailSongs.length > 0 ? (
-            <PlaylistRecommendations playlist={detailPlaylist} songs={songs} playlists={playlists} currentId={currentId} hidden={hidden}
+            <PlaylistRecommendations playlist={detailPlaylist} songs={songs} songsById={songsById} playlists={playlists} currentId={currentId} hidden={hidden}
               addSongToPlaylist={props.addSongToPlaylist} selectSong={props.selectSong} />
           ) : null}
         </section>

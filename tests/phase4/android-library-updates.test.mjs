@@ -112,3 +112,39 @@ test("a failed Android IndexedDB bootstrap can retry without a page reload", asy
   assert.equal(phone.remoteSongs.length, 0);
   assert.equal(phone.pairing, null);
 });
+
+test("smart listening counts are reused during active checkpoints and refreshed on completed plays or sync", () => {
+  const {phone} = library();
+  phone.remoteSongs=[{id:"song",duration:100,file:{size:1,mtimeMs:1,ext:"mp3"},cover:null}];
+  phone.listeningCounts=[["song",1,0]];
+  const event={id:"a",sessionId:"s",songId:"song",startedAt:1,updatedAt:2,msListened:1,outcome:"active"};
+  const before=phone.getListeningCounts();
+  phone.recordPlayEvent(event);
+  assert.equal(phone.getListeningCounts(),before);
+  phone.recordPlayEvent({...event,updatedAt:3,msListened:2});
+  assert.equal(phone.getListeningCounts(),before);
+  phone.recordPlayEvent({...event,updatedAt:4,outcome:"ended"});
+  const after=phone.getListeningCounts();
+  assert.equal(JSON.stringify(after),JSON.stringify([["song",2,0]]));
+  assert.notEqual(before,after);
+  phone.pendingEvents=[];
+  phone.listeningCounts=[["song",2,0]];
+  assert.equal(JSON.stringify(phone.getListeningCounts()),JSON.stringify(after));
+  assert.notEqual(phone.getListeningCounts(),after);
+});
+
+test("archived Android events are indexed once and replacement invalidates the guard", () => {
+  const {phone} = library();
+  let reads=0;
+  const make=id=>({get id(){reads++;return id;},songId:"song",outcome:"active",updatedAt:2});
+  phone.recoveryArchives=[{pendingEvents:Array.from({length:2000},(_,i)=>make(String(i))),batch:{playEvents:[make("sent")]}}];
+  phone.recordPlayEvent(make("1999"));
+  assert.equal(phone.pendingEvents.length,0);
+  reads=0;
+  phone.recordPlayEvent(make("sent"));
+  assert.ok(reads<5);
+  assert.equal(phone.pendingEvents.length,0);
+  phone.recoveryArchives=[];
+  phone.recordPlayEvent(make("sent"));
+  assert.equal(phone.pendingEvents.length,1);
+});

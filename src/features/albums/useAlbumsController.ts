@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import type { Song } from "../library/song.types";
 import type { LocalAlbumEntry, ManualLocalAlbum } from "./album.types";
 import {
@@ -36,6 +36,7 @@ export function useAlbumsController({
   patchSongLocal
 }: AlbumsControllerOptions) {
   const [albumSearch, setAlbumSearch] = useState("");
+  const deferredAlbumSearch = useDeferredValue(albumSearch);
   const [albumSortMode, setAlbumSortMode] = useState("recent");
   const [selectedAlbumId, setSelectedAlbumId] = useState("");
   const [manualAlbums, setManualAlbums] = useState<ManualLocalAlbum[]>(() =>
@@ -50,6 +51,7 @@ export function useAlbumsController({
   const [albumDraftYear, setAlbumDraftYear] = useState("");
   const [albumDraftCoverUrl, setAlbumDraftCoverUrl] = useState("");
   const [albumDraftSearch, setAlbumDraftSearch] = useState("");
+  const deferredAlbumDraftSearch = useDeferredValue(albumDraftSearch);
   const [albumDraftSongIds, setAlbumDraftSongIds] = useState<string[]>([]);
   const [albumFolderImportPreview, setAlbumFolderImportPreview] = useState<any | null>(null);
   const [albumFolderImportBusy, setAlbumFolderImportBusy] = useState(false);
@@ -80,8 +82,8 @@ export function useAlbumsController({
   }, [songs, manualAlbumSongIds]);
   const localAlbums = useMemo(() => [...manualAlbumEntries, ...metadataAlbums], [manualAlbumEntries, metadataAlbums]);
   const visibleAlbums = useMemo(
-    () => filterAndSortAlbums(localAlbums, albumSearch, albumSortMode),
-    [localAlbums, albumSearch, albumSortMode]
+    () => filterAndSortAlbums(localAlbums, deferredAlbumSearch, albumSortMode),
+    [localAlbums, deferredAlbumSearch, albumSortMode]
   );
   const selectedAlbum = useMemo(() => {
     return localAlbums.find((album) => album.id === selectedAlbumId) || visibleAlbums[0] || localAlbums[0] || null;
@@ -96,7 +98,7 @@ export function useAlbumsController({
       : visibleAlbums[0]?.id || localAlbums[0]?.id || "");
   }, [view, selectedAlbumId, localAlbums, visibleAlbums]);
 
-  const selectedAlbumIds = albumTrackIds(selectedAlbum);
+  const selectedAlbumIds = useMemo(() => albumTrackIds(selectedAlbum), [selectedAlbum]);
   const selectedAlbumIsManual = Boolean((selectedAlbum as any)?.source === "manual" && (selectedAlbum as any)?.manualAlbumId);
   const selectedAlbumIsFolder = Boolean(selectedAlbumIsManual && (selectedAlbum as any)?.sourceType === "folder");
   const albumDraftSelectedSongs = useMemo(() => albumDraftSongIds.map((songId) => songsById.get(songId)).filter(isPlayableSong), [albumDraftSongIds, songsById]);
@@ -113,8 +115,8 @@ export function useAlbumsController({
     return seedSong || null;
   }, [albumDraftArtist, albumDraftCoverUrl, albumDraftSelectedSongs, albumDraftTitle]);
   const albumDraftSearchResults = useMemo(() =>
-    albumBuilderOpen ? pickAlbumDraftSearchResults(songs, albumDraftSearch, albumDraftSongIds) : [],
-  [albumBuilderOpen, songs, albumDraftSearch, albumDraftSongIds]);
+    albumBuilderOpen ? pickAlbumDraftSearchResults(songs, deferredAlbumDraftSearch, albumDraftSongIds) : [],
+  [albumBuilderOpen, songs, deferredAlbumDraftSearch, albumDraftSongIds]);
 
   function scrollAlbumBuilderIntoView() {
     window.requestAnimationFrame(() => {

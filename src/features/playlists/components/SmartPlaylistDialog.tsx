@@ -7,7 +7,7 @@ import { ArcDropdownMenu } from "../../../shared/ui/ArcDropdownMenu";
 import type { Song } from "../../library/song.types";
 import type { Playlist } from "../playlist.types";
 import {
-  SMART_FIELDS, SMART_OPS, SMART_PRESETS, SMART_SORTS, cleanSmartRules, defaultSmartRule, describeSmartRules, evaluateSmartRules, needsListeningCounts,
+  SMART_FIELDS, SMART_OPS, SMART_PRESETS, SMART_SORTS, cleanSmartRules, defaultSmartRule, describeSmartRules, countSmartMatches, needsListeningCounts,
   type ListeningCounts, type SmartField, type SmartOp, type SmartRule, type SmartRules, type SmartSort
 } from "../smartPlaylist";
 
@@ -34,7 +34,7 @@ export default function SmartPlaylistDialog({ playlist, songs, listeningCounts, 
   const savingRef = useRef(false);
   const [creationId] = useState(() => makeLocalId("playlist"));
   const saved = useMemo(() => cleanSmartRules(rules), [rules]);
-  const matched = useMemo(() => !saved || (listeningCounts === null && needsListeningCounts(saved)) ? null : evaluateSmartRules(saved, songs, listeningCounts ?? new Map(), now).length, [saved, songs, listeningCounts, now]);
+  const matched = useMemo(() => !saved || (listeningCounts === null && needsListeningCounts(saved)) ? null : countSmartMatches(saved, songs, listeningCounts ?? new Map(), now), [saved, songs, listeningCounts, now]);
   const updateRule = (index: number, patch: Partial<SmartRule>) =>
     setRules((current) => ({ ...current, rules: current.rules.map((rule, at) => at === index ? { ...rule, ...patch } : rule) }));
 

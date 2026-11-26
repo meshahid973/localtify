@@ -1,5 +1,5 @@
 import { Images } from "lucide-react";
-import { useState } from "react";
+import { memo, useState } from "react";
 import { cleanPlaylistArtwork } from "../playlist.utils";
 import type { Song } from "../../library/song.types";
 import { Cover } from "../../covers/Cover";
@@ -11,7 +11,7 @@ type PlaylistCoverCollageProps = {
   coverArtwork?: string;
 };
 
-export default function PlaylistCoverCollage({
+export default memo(function PlaylistCoverCollage({
   songs,
   coverArtwork,
   className = "playlistCoverCollage"
@@ -37,4 +37,4 @@ export default function PlaylistCoverCollage({
       ))}
     </div>
   );
-}
+});

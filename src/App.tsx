@@ -968,9 +968,9 @@ function MainModeApp() {
   const missingSongs = missingSongsForLibrary;
   const effectiveMissingFileCount = missingSongs.length;
 
-  const recentlyAdded = useMemo(() => pickRecentlyAdded(songs, 12), [songs]);
+  const recentlyAdded = useMemo(() => view === "home" ? pickRecentlyAdded(songs, 12) : [], [songs, view]);
 
-  const homeListenNowSongs = useMemo(() => pickListenNow(songs, currentSong?.id ?? null, new Date()), [currentSong?.id, songs]);
+  const homeListenNowSongs = useMemo(() => view === "home" ? pickListenNow(songs, currentSong?.id ?? null, new Date()) : [], [view, currentSong?.id, songs]);
 
   const homeFreshShelfSongs = useMemo(() => {
     const picked: Song[] = [];
@@ -983,7 +983,7 @@ function MainModeApp() {
       if (picked.length === 10) break;
     }
     return picked;
-  }, [recentlyAdded, songs]);
+  }, [recentlyAdded]);
 
   // Keep playback progress hot-path out of React renders as much as possible.
   // The animation loop paints the progress DOM directly; React only uses this snapshot when something else renders.
@@ -4671,7 +4671,7 @@ function MainModeApp() {
       playerError,
       playSongs: homePlaySongs,
       selectSong: homeSelectSong,
-      songs,
+      songs, songsById,
       settings: homeSettings,
       shuffleLibrarySongsAction: homeShuffle,
       toggleHeroExpanded: homeToggleHero,

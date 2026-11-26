@@ -40,6 +40,7 @@ export type HomeViewProps = {
   playSongs: (songIds: string[], label: string) => unknown;
   selectSong: (songId: string, shouldPlay?: boolean) => unknown;
   songs: readonly Song[];
+  songsById: Map<string, Song>;
   settings: Pick<Settings, "heroExpanded" | "volume" | "homeSectionOrder" | "homeHiddenSections">;
   shuffleLibrarySongsAction: () => unknown;
   toggleHeroExpanded: () => unknown;
@@ -92,12 +93,12 @@ export default function HomeView(props: HomeViewProps) {
 
   // Only work out the shelves that are on screen; a hidden shelf costs nothing.
   const showRecent = showing("recentlyPlayed"), showLiked = showing("likedSongs");
-  const showRediscover = showing("rediscover"), showUnplayed = showing("notPlayedYet"), showMixes = showing("dailyMixes");
+  const showRediscover = showing("rediscover"), showUnplayed = showing("notPlayedYet");
   const recentlyPlayedSongs = useMemo(() => (showRecent ? pickRecentlyPlayed(songs) : []), [showRecent, songs]);
   const likedSongs = useMemo(() => (showLiked ? pickLikedSongs(songs) : []), [showLiked, songs]);
   const rediscoverSongs = useMemo(() => showRediscover ? diversifyHomeRecommendations(pickRediscover(songs, new Date(), 32), showingListenNow ? listenNowSongs : []) : [], [showRediscover, songs, day, showingListenNow, listenNowSongs]);
   const notPlayedSongs = useMemo(() => showUnplayed ? diversifyHomeRecommendations(pickNotPlayedYet(songs, new Date(day + "T00:00:00"), 32), [...(showingListenNow ? listenNowSongs : []), ...rediscoverSongs]) : [], [showUnplayed, songs, day, showingListenNow, listenNowSongs, rediscoverSongs]);
-  const songsById = useMemo(() => (showMixes ? new Map(songs.map((song) => [song.id, song])) : new Map<string, Song>()), [showMixes, songs]);
+  const songsById = props.songsById;
 
   const startListening = () => {
     if (currentSong?.id) {

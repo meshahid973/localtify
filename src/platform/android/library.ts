@@ -54,6 +54,23 @@ export class PhoneLibrary {
   private songsById = new Map<string, RemoteSong>();
   private indexedEvents: PlayEvent[] | null = null;
   private eventIndexById = new Map<string, number>();
+  private indexedArchives: RecoveryArchive[] | null = null;
+  private archivedEventIds = new Set<string>();
+  private finalizedEventVersion = 0;
+  private countsCache: { base: PhoneLibrary["listeningCounts"]; events: PlayEvent[]; songs: RemoteSong[]; version: number; result: PhoneLibrary["listeningCounts"] } | null = null;
+
+  private isArchivedEvent(id: string) {
+    if (this.indexedArchives !== this.recoveryArchives) {
+      this.indexedArchives = this.recoveryArchives;
+      const ids = new Set<string>();
+      for (const archive of this.recoveryArchives) {
+        for (const event of archive.pendingEvents) ids.add(event.id);
+        for (const event of archive.batch.playEvents) ids.add(event.id);
+      }
+      this.archivedEventIds = ids;
+    }
+    return this.archivedEventIds.has(id);
+  }
 
   private pendingEventIndex() {
     // The sync acknowledgement replaces pendingEvents with a filtered array.
@@ -244,25 +261,32 @@ export class PhoneLibrary {
   }
 
   getListeningCounts() {
-    return addPendingListeningCounts(this.listeningCounts, this.pendingEvents, id => {
+    const cached = this.countsCache;
+    if (cached && cached.base === this.listeningCounts && cached.events === this.pendingEvents &&
+        cached.songs === this.remoteSongs && cached.version === this.finalizedEventVersion) return cached.result;
+    const result = addPendingListeningCounts(this.listeningCounts, this.pendingEvents, id => {
       const song = this.remoteSong(id);
       return song ? Number(song.durationMs) || (Number(song.duration) || 0) * 1000 : null;
     });
+    this.countsCache = {base:this.listeningCounts,events:this.pendingEvents,songs:this.remoteSongs,version:this.finalizedEventVersion,result};
+    return result;
   }
 
   recordPlayEvent(event: PlayEvent) {
     // A still-running playback session must not replay an archived event on another computer.
-    if (this.recoveryArchives.some(archive => archive.pendingEvents.some(old => old.id === event.id) || archive.batch.playEvents.some(old => old.id === event.id))) return true;
+    if (this.isArchivedEvent(event.id)) return true;
     const indices = this.pendingEventIndex();
     const index = indices.get(event.id);
     if (index !== undefined) {
       const previous = this.pendingEvents[index];
       if (previous.updatedAt > event.updatedAt || (previous.outcome !== "active" && event.outcome === "active")) return true;
+      if (event.outcome !== "active" || previous.outcome !== "active") this.finalizedEventVersion++;
       this.pendingEvents[index] = event;
     }
     else {
       indices.set(event.id, this.pendingEvents.length);
       this.pendingEvents.push(event);
+      if (event.outcome !== "active") this.finalizedEventVersion++;
     }
     this.revision += 1;
     void this.save(["pendingEvents"]).catch(() => undefined);

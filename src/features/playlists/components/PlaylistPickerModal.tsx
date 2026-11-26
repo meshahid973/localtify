@@ -33,7 +33,25 @@ export function PlaylistMembershipDialog({label, title, subtitle, songIds, name,
   const lock = useRef(false);
   const retryAction = useRef<(() => Promise<boolean>) | null>(null);
   const manualPlaylists = useMemo(() => playlists.filter((playlist) => !playlist.rules), [playlists]);
-  const matching = useMemo(() => manualPlaylists.filter(item => item.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())), [manualPlaylists,query]);
+  const matching = useMemo(() => {
+    const needle = query.trim().toLocaleLowerCase();
+    return needle ? manualPlaylists.filter(item => item.name.toLocaleLowerCase().includes(needle)) : manualPlaylists;
+  }, [manualPlaylists,query]);
+  const requestedIds = useMemo(() => new Set(songIds), [songIds]);
+  const visible = useMemo(() => matching.slice(0, visibleCount).map(playlist => {
+    let addedCount = 0;
+    if (requestedIds.size === 1) addedCount = playlist.songIds.includes(requestedIds.values().next().value!) ? 1 : 0;
+    else if (requestedIds.size) {
+      const matched = new Set<string>();
+      for (const id of playlist.songIds) {
+        if (requestedIds.has(id)) matched.add(id);
+        if (matched.size === requestedIds.size) break;
+      }
+      addedCount = matched.size;
+    }
+    const previewSongs = playlist.songIds.slice(0, 4).map(id=>songsById.get(id)).filter((song): song is Song=>Boolean(song));
+    return {playlist, addedCount, previewSongs};
+  }), [matching, visibleCount, requestedIds, songsById]);
   const collision = playlists.some(item => item.rules && item.name.trim().toLocaleLowerCase() === name.trim().toLocaleLowerCase());
   async function save(action: () => Promise<boolean>) {
     if (lock.current || !songIds.length) return;
@@ -55,11 +73,8 @@ export function PlaylistMembershipDialog({label, title, subtitle, songIds, name,
         <label className="playlistPickerSearch"><Search size={15} aria-hidden="true"/><input type="search" aria-label="Search playlists" placeholder="Find a playlist" disabled={busy}
           value={query} onChange={event=>{setQuery(event.currentTarget.value);setVisibleCount(PAGE_SIZE);}} autoFocus /></label>
         <div className="playlistPickerList" aria-busy={busy}>
-          {matching.length ? matching.slice(0,visibleCount).map(playlist => {
-            const members = new Set(playlist.songIds);
-            const addedCount = songIds.filter(id=>members.has(id)).length;
-            const added = songIds.length > 0 && addedCount === songIds.length;
-            const previewSongs = playlist.songIds.slice(0, 4).map(id=>songsById.get(id)).filter((song): song is Song=>Boolean(song));
+          {matching.length ? visible.map(({playlist, addedCount, previewSongs}) => {
+            const added = requestedIds.size > 0 && addedCount === requestedIds.size;
             return <button key={playlist.id} className={`playlistPickerItem ${added ? "active" : ""}`} type="button" disabled={busy || !songIds.length || added}
               onClick={()=>void save(()=>onAdd(playlist.id))}>
               <PlaylistCoverCollage songs={previewSongs} coverArtwork={playlist.coverArtwork} className="playlistPickerCollage playlistCoverCollage"/>
@@ -94,7 +109,8 @@ export type PlaylistPickerModalProps = {
 };
 
 export default function PlaylistPickerModal({song,addSongToPlaylist,createPlaylistWithSong,...props}: PlaylistPickerModalProps) {
+  const songIds = useMemo(() => song ? [song.id] : [], [song?.id]);
   if (!song) return null;
-  return <PlaylistMembershipDialog key={song.id} {...props} label="Add song to playlist" title={displaySongTitleV444(song,9)} subtitle={displaySongPickerSublineV444(song)} songIds={[song.id]}
+  return <PlaylistMembershipDialog key={song.id} {...props} label="Add song to playlist" title={displaySongTitleV444(song,9)} subtitle={displaySongPickerSublineV444(song)} songIds={songIds}
     onAdd={id=>addSongToPlaylist(id,song.id)} onCreate={name=>createPlaylistWithSong(song.id,name)}/>;
 }

@@ -291,10 +291,15 @@ export type PromptSignals = {
 
 /** Picks songs for a parsed prompt: names and history phrases filter, genres filter or boost, sound ranks. */
 export function buildPromptPlaylist(plan: PromptPlan, songs: readonly Song[], { sound, similar, hidden, seed = 1, now = Date.now() }: PromptSignals = {}) {
+  const artistNames = new Map<string, Set<string>>();
+  const normalizedTerms = new Map<readonly string[], string[]>();
   const has = (song: Song, names: readonly string[]) => {
     if (!names.length) return false;
-    const keys = new Set(songArtistKeys(song).map(foldText));
-    return names.some((name) => keys.has(foldText(artistKey(name))));
+    let keys = artistNames.get(song.artist);
+    if (!keys) { keys = new Set(songArtistKeys(song).map(foldText)); artistNames.set(song.artist,keys); }
+    let terms = normalizedTerms.get(names);
+    if (!terms) { terms = names.map(name => foldText(artistKey(name))); normalizedTerms.set(names,terms); }
+    return terms.some(name => keys.has(name));
   };
   let pool = songs.filter((song) => song.fileExists !== false && !hidden?.(song) && !has(song, plan.excludeArtists)
     && !genreMatches(song, plan.excludeGenres));
