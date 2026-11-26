@@ -124,6 +124,7 @@ jobs:
         timeout-minutes: 4
         env:
           LOCALTIFY_QA_LIQUID_GLASS: "1"
+          LOCALTIFY_QA_SOFTWARE_GL: "1"
           LOCALTIFY_QA_OUTPUT: ${{ runner.temp }}/localtify-desktop-qa/glass
         run: npx electron scripts/ci-desktop-regression.cjs
       - name: Preserve desktop screenshots and metrics

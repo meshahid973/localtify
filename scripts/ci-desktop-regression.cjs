@@ -14,6 +14,11 @@ const version=JSON.parse(fs.readFileSync(path.join(root,"package.json"),"utf8"))
 const scrollTracks=Number(process.env.LOCALTIFY_QA_SCROLL_TRACKS||0);
 assert.ok([0,10000,50000,100000].includes(scrollTracks),"Supported scroll fixtures are 10k, 50k, or 100k tracks");
 const glassFallback=process.env.LOCALTIFY_QA_GLASS_FALLBACK==="1";
+// Hosted CI has no guaranteed physical GPU. This override is test-only.
+if(process.env.LOCALTIFY_QA_SOFTWARE_GL==="1"){
+  app.commandLine.appendSwitch("use-angle","swiftshader");
+  app.commandLine.appendSwitch("enable-unsafe-swiftshader");
+}
 const liquidGlassToggle="Array.from(document.querySelectorAll('.toggleRow')).find(row=>row.textContent.includes('Liquid Glass'))?.querySelector('input')";
 function wav(name){
   const samples=48000*20,buf=Buffer.alloc(44+samples*2);
@@ -227,6 +232,23 @@ server.listen(5173,async()=>{
       return;
     }
     if(process.env.LOCALTIFY_QA_LIQUID_GLASS==="1"){
+      if(process.env.LOCALTIFY_QA_SOFTWARE_GL==="1"){
+        win.webContents.debugger.attach("1.3");
+        await win.webContents.debugger.sendCommand("Emulation.setEmulatedMedia",{features:[{name:"prefers-reduced-motion",value:"no-preference"}]});
+      }
+      const capabilities=await win.webContents.executeJavaScript(`(()=>{
+        const canvas=document.createElement("canvas"), context=canvas.getContext("webgl2");
+        const ext=context?.getExtension("WEBGL_debug_renderer_info");
+        const renderer=ext?context.getParameter(ext.UNMASKED_RENDERER_WEBGL):null;
+        const result={webgl2:!!context,reducedMotion:matchMedia("(prefers-reduced-motion: reduce)").matches,hidden:document.hidden,renderer};
+        context?.getExtension("WEBGL_lose_context")?.loseContext();return result;
+      })()`);
+      console.log("[glass-capabilities]",JSON.stringify({capabilities,features:app.getGPUFeatureStatus()}));
+      assert.ok(capabilities.webgl2&&!capabilities.reducedMotion,"optical QA requires WebGL2 and no reduced-motion preference");
+      win.webContents.on("console-message",(_event,details,legacyMessage)=>{
+        const message=typeof details==="object"?details.message:legacyMessage;
+        if(typeof message==="string"&&/liquid glass|webgl|shader|\buncaught\b/i.test(message))console.log("[glass-renderer]",message);
+      });
       const tracks=["Paper Boats","Night Bus","Blue Hour","Soft Focus"].map(title=>({title,artist:"Fixture Artist",url:"https://www.last.fm/music/Fixture+Artist"}));
       ipcMain.removeHandler("discover:get");
       ipcMain.handle("discover:get",(event,payload)=>{
@@ -265,7 +287,14 @@ server.listen(5173,async()=>{
       })()`);
       const switchStarted=performance.now();
       await win.webContents.executeJavaScript(`${toggle}.click()`);
-      await until(()=>win.webContents.executeJavaScript("document.querySelector('.app').dataset.liquidGlass==='true' && Boolean(document.querySelector('[data-glass-ready]'))"),"glass activates without reload",35000,16);
+      await until(()=>win.webContents.executeJavaScript("document.querySelector('.app').dataset.liquidGlass==='true'"),"glass setting activates without reload");
+      try {
+        await until(()=>win.webContents.executeJavaScript("Boolean(document.querySelector('[data-glass-ready]'))"),"glass first optical paint",35000,16);
+      } catch(error) {
+        console.error("[glass-state]",await win.webContents.executeJavaScript("JSON.stringify({app:document.querySelector('.app')?.dataset,visibility:document.visibilityState,reducedMotion:matchMedia('(prefers-reduced-motion: reduce)').matches,hosts:document.querySelectorAll('[data-glass-host]').length,canvas:document.querySelectorAll('[data-glass-host] canvas').length,contexts:[...window.qaGlassContexts].map(c=>({kind:c.canvas.dataset.glassRenderer,lost:c.isContextLost(),width:c.canvas.width,height:c.canvas.height}))})"));
+        await screenshot(win,"glass-activation-failure");
+        throw error;
+      }
       const firstOpticalPaintMs=performance.now()-switchStarted;
       await until(()=>win.webContents.executeJavaScript("window.localitfy.getSettings().then(settings=>settings.liquidGlass===true)"),"glass persists in the settings store");
       for(const mode of ["oled","dark","light"]){
