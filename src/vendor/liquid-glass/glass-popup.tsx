@@ -901,8 +901,11 @@ function createMorph(matchWidth: boolean, opening: GlassPopupOpening, from: Glas
     const s = engine.resolveColor(surfaceColorOf(host.parentElement))
     surface = [s[0], s[1], s[2]]
     let light = 0.2126 * s[0] + 0.7152 * s[1] + 0.0722 * s[2] > 0.5
-    tint = surface
-    cover = .35
+    const material = getComputedStyle(host).getPropertyValue('--glass-tint').trim() || getComputedStyle(host).getPropertyValue('--lt-bg-elevated').trim()
+    const resolved = material ? engine.resolveColor(material) : s
+    tint = [resolved[0], resolved[1], resolved[2]]
+    surface = tint
+    cover = .48
     cardCover = .9
     if ('glassFill' in host.dataset) {
       // A control painted in its own CSS background (`data-glass-fill`, as a tinted

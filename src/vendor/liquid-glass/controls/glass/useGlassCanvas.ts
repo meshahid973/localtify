@@ -21,7 +21,10 @@ export function useGlassCanvas(spec: GlassViewSpec) {
     const lifetime = new AbortController()
     // three.js loads lazily so the page still prerenders on the server.
     import('./runtime')
-      .then(({ getGlassRuntime }) => getGlassRuntime())
+      .then(({ getGlassRuntime }) => {
+        if (lifetime.signal.aborted) throw new Error('Glass view cancelled')
+        return getGlassRuntime()
+      })
       .then((runtime) => runtime.createView(canvas, () => specRef.current, lifetime.signal))
       .then((view) => {
         if (lifetime.signal.aborted) view.dispose()

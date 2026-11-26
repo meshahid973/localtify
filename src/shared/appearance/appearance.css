@@ -119,7 +119,7 @@
 }
 
 .app[data-liquid-glass="true"] :is(.ltOpticalButton, .ltOpticalHistory) {
-  --glass-tint: var(--lt-bg);
+  --glass-tint: var(--lt-bg-elevated);
 }
 
 .app[data-liquid-glass="true"] .ltIconButton.ltOpticalButton {
@@ -233,18 +233,33 @@
 
 /* The transport inherits its material from the player and the current artwork. */
 .app[data-liquid-glass="true"]:not([data-cover-sync="off"]):not([data-ambient="off"]):not([data-player-background="oledBlack"]) :is(.playerBar:not([data-ambient="false"]), .immersivePlayer:not([data-background="oledBlack"]), .phonePlayerSheet:not([data-background="oledBlack"])) .ltOpticalTransport {
-  --glass-tint: color-mix(in srgb, var(--lt-bg-elevated) 65%, var(--cover-average, var(--lt-bg-elevated)));
+  --glass-tint: color-mix(in srgb, var(--lt-bg-elevated) 60%, var(--cover-average, var(--lt-bg-elevated)));
 }
-/* Menu surfaces are not focus targets; keep the items' keyboard highlight. */
+/* Menus are anchored by the UI SDK, not by the optical animation. Keep their content
+   readable at the real menu geometry while the glass travels or falls back. */
 html:has(.app[data-liquid-glass="true"]) [data-glass-popup] {
   outline: none;
-  border-color: transparent;
+  border: 0;
+  background: color-mix(in srgb, var(--lt-bg-elevated) 90%, var(--cover-average, var(--lt-bg-elevated)));
+  color: var(--lt-text);
   --tw-ring-shadow: 0 0 transparent;
   --tw-ring-offset-shadow: 0 0 transparent;
 }
-html:has(.app[data-liquid-glass="true"]) [data-glass-popup][data-glass-off] {
-  background: var(--lt-bg-elevated);
-  color: var(--lt-text);
+html:has(.app[data-liquid-glass="true"]) [data-glass-popup] :is([role="menu"], [role="listbox"], [data-glass-list]) {
+  position: relative;
+  z-index: 1;
+  opacity: 1;
+  translate: none;
+  scale: none;
+  clip-path: none;
+  filter: none;
+}
+html:has(.app[data-liquid-glass="true"]) [data-glass-popup] :is([role="menuitem"], [role="option"], [data-glass-item]) {
+  opacity: 1;
+  translate: none;
+}
+html:has(.app[data-liquid-glass="true"]) [data-glass-popup] :is([data-disabled], [aria-disabled="true"]) {
+  opacity: .45;
 }
 html:has(.app[data-liquid-glass="true"]) [data-glass-popup] :is([role="menuitem"], [role="option"]):focus-visible {
   outline: 1px solid var(--lt-muted);

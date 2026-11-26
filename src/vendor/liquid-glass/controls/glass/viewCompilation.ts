@@ -5,7 +5,10 @@ export async function compileGlassView(compile: () => Promise<unknown>, release:
   try {
     if (signal.aborted) throw new Error('Glass view cancelled')
     await Promise.race([
-      Promise.resolve().then(compile),
+      Promise.resolve().then(() => {
+        if (signal.aborted) throw new Error('Glass view cancelled')
+        return compile()
+      }),
       new Promise<never>((_, reject) => {
         abort = () => reject(new Error('Glass view cancelled'))
         signal.addEventListener('abort', abort, { once: true })

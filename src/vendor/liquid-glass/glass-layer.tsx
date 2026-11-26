@@ -62,6 +62,8 @@ export type GlassDroplet = 'none' | 'apart' | 'merged'
 export type GlassOptics = {
   /** Tint colour, any CSS colour. Default: white on a light page, black on a dark one. */
   tintColor?: string
+  /** Match the base of a restricted backdrop to its explicit tint, e.g. a transparent player over artwork. */
+  backdropTint?: boolean
   /** A line just inside the rim: its colour, opacity (0–1, default 0: none) and width in px (default 1). */
   borderColor?: string
   borderAlpha?: number
@@ -421,6 +423,7 @@ export function GlassLayer({
             if (host.dataset.glassTone !== tone) host.dataset.glassTone = tone
             darkGlass = tone === 'dark'
             color = [tc, tc]
+            if (o?.backdropTint) surface = tc
             // An optional line just inside the rim.
             const line = darkGlass ? { ...o, ...o?.dark } : o
             const bc = line?.borderColor && (line.borderAlpha ?? 0) > 0 ? engine.resolveColor(line.borderColor) : null

@@ -330,16 +330,30 @@ server.listen(5173,async()=>{
             assert.notEqual(palette.warm,palette.cool,"transport tint follows artwork palette");
           }
           await screenshot(win,`glass-${mode}-${view}`);
+          if(mode==="dark"&&view==="library") {
+            const bounds=await win.webContents.executeJavaScript("(()=>{const r=document.querySelector('.ltOpticalTransport').getBoundingClientRect();return {x:Math.round(r.left+40),y:Math.round(r.top+4),width:Math.max(1,Math.round(r.width-80)),height:5}})()");
+            const band=(await win.webContents.capturePage()).crop(bounds).toBitmap();
+            const values=[];
+            for(let i=0;i<band.length;i+=4)values.push((band[i]+band[i+1]+band[i+2])/3);
+            values.sort((a,b)=>a-b);
+            assert.ok(values[Math.floor(values.length/2)]>10,"artwork-aware transport must not render a black capsule");
+          }
           if(view==="downloads") {
-            await win.webContents.executeJavaScript("document.querySelector(\x27.downloadsTools button\x27).click()");
-            await until(()=>win.webContents.executeJavaScript("Boolean(document.querySelector(\x27.ltOpticalMenu [role=menuitem]\x27))"),"download glass menu");
-            await until(()=>win.webContents.executeJavaScript("Number(getComputedStyle(document.querySelector(\x27.ltOpticalMenu [role=menuitem]\x27)).opacity)>.8"),"readable settled menu");
-            const menu=await win.webContents.executeJavaScript("(()=>{const menu=document.querySelector(\x27.ltOpticalMenu\x27);const style=getComputedStyle(menu);const item=menu.querySelector(\x27[role=menuitem]\x27);return {outline:style.outlineStyle,opacity:Number(getComputedStyle(item).opacity),visible:item.getClientRects().length>0}})()");
-            assert.ok(menu.outline==="none" && menu.visible && menu.opacity>.8,"download glass menu remains legible without outline "+JSON.stringify(menu));
-            await screenshot(win,`glass-${mode}-downloads-menu`);
-            win.webContents.sendInputEvent({type:"keyDown",keyCode:"Escape"});
-            win.webContents.sendInputEvent({type:"keyUp",keyCode:"Escape"});
-            await until(()=>win.webContents.executeJavaScript("!Array.from(document.querySelectorAll(\x27.ltOpticalMenu\x27)).some(menu=>menu.getClientRects().length>0)"),"dismiss download glass menu");
+            for(const [menuKind,selector] of [["tools",".downloadsTools button"],["row",".downloadsRowMenu button"]]) {
+              await win.webContents.executeJavaScript(`document.querySelector(${JSON.stringify(selector)}).click()`);
+              await until(()=>win.webContents.executeJavaScript(`(()=>{
+                const menu=document.querySelector('.ltOpticalMenu'),item=menu?.querySelector('[role=menuitem]:not([data-disabled])');
+                if(!menu||!item)return false;
+                const list=menu.querySelector('[data-glass-list]'),r=item.getBoundingClientRect(),at=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);
+                const listStyle=getComputedStyle(list),menuStyle=getComputedStyle(menu);
+                return menuStyle.outlineStyle==='none' && Number(listStyle.opacity)>.95 && listStyle.clipPath==='none' &&
+                  Number(getComputedStyle(item).opacity)>.95 && item.contains(at) && (r.width>0&&r.height>0);
+              })()`),"readable "+menuKind+" menu without decorative outline");
+              await screenshot(win,`glass-${mode}-downloads-${menuKind}-menu`);
+              win.webContents.sendInputEvent({type:"keyDown",keyCode:"Escape"});
+              win.webContents.sendInputEvent({type:"keyUp",keyCode:"Escape"});
+              await until(()=>win.webContents.executeJavaScript("!Array.from(document.querySelectorAll('.ltOpticalMenu')).some(menu=>menu.getClientRects().length>0)"),"dismiss download glass menu");
+            }
           }
         }
       }
