@@ -160,11 +160,19 @@ export function describeSmartRules(rules: SmartRules) {
   return [conditions, rules.sort === "library" ? "" : SMART_SORTS[rules.sort], rules.limit ? `up to ${rules.limit}` : ""].filter(Boolean).join(" · ");
 }
 
-export function materializeSmartPlaylists(playlists: import("./playlist.types").Playlist[], songs: readonly Song[], counts: ListeningCounts | null, now: number) {
+type SmartMaterialization = {rules: string; songs: readonly Song[]; counts: ListeningCounts | null; clock: number; ids: string[]};
+export type SmartMaterializationCache = Map<string, SmartMaterialization>;
+export function materializeSmartPlaylists(playlists: import("./playlist.types").Playlist[], songs: readonly Song[], counts: ListeningCounts | null, now: number, cache?: SmartMaterializationCache) {
+  if(cache){const ids=new Set(playlists.filter(item=>item.rules).map(item=>item.id));for(const id of cache.keys())if(!ids.has(id))cache.delete(id);}
   if (!playlists.some(playlist => playlist.rules)) return playlists;
   return playlists.map(playlist => {
     if (!playlist.rules || (counts === null && needsListeningCounts(playlist.rules))) return playlist;
-    const songIds = evaluateSmartRules(playlist.rules, songs, counts ?? new Map(), now);
+    const rules = JSON.stringify(playlist.rules);
+    const relevantCounts = needsListeningCounts(playlist.rules) ? counts : null;
+    const clock = playlist.rules.rules.some(rule=>SMART_FIELDS[rule.field].kind==="days") ? now : playlist.rules.sort === "random" ? Math.floor(now / DAY_MS) : 0;
+    const prior = cache?.get(playlist.id);
+    const songIds = prior && prior.rules===rules && prior.songs===songs && prior.counts===relevantCounts && prior.clock===clock ? prior.ids : evaluateSmartRules(playlist.rules, songs, counts ?? new Map(), now);
+    cache?.set(playlist.id,{rules,songs,counts:relevantCounts,clock,ids:songIds});
     return songIds.length === playlist.songIds.length && songIds.every((id, index) => id === playlist.songIds[index]) ? playlist : { ...playlist, songIds };
   });
 }

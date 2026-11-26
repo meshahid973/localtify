@@ -1381,7 +1381,7 @@ app.whenReady().then(async () => {
   ipcRouter.handle("listening:record", (_event, payload) => {
     const recorded = databaseRepositories.listening.record(payload);
     if (recorded) { try { scrobbler?.observe(payload); } catch (error) { console.log("[localtify scrobble observation]", error?.message || error); } }
-    return recorded;
+    return recorded ? { status: "stored" } : { status: "discarded", reason: "not-recordable" };
   });
   ipcRouter.handle("song:delete", async (_event, id) => { try { deleteSong(id); return listSongsShaped(); } catch (error) { console.log("[localitfy delete song error]", error?.message); return listSongsShaped(); } });
   ipcRouter.handle("library:clear", async () => { clearLibrary(); return []; });

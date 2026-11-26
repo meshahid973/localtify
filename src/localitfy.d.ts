@@ -1,7 +1,7 @@
 import type { AnalysisStatus, PromptSoundResult, SimilarSongsResult } from "./features/analysis/analysis.types";
 import type { SimilarSongsQuery } from "./features/analysis/similarSeed";
 import type { DuplicateMerge, DuplicateSet } from "./features/library/duplicates/duplicates.types";
-import type { PlayEvent } from "./features/player/listeningHistory";
+import type { PlayEvent, PlayEventReceipt } from "./features/player/listeningHistory";
 import type { Song } from "./features/library/song.types";
 import type { Settings } from "./features/settings/settings.types";
 import type { ArtistBio, CatalogKind, DiscoverResult } from "./features/discover/discover.types";
@@ -555,7 +555,7 @@ declare global {
       getListeningCounts: () => Promise<Array<[string, number, number]> | null>;
       getListeningSummary: (payload: { days: 7 | 30 | 90 }) => Promise<import("./features/analytics/listeningSummary").ListeningSummary | null>;
       getListeningCalendarSummary: (payload: { range: "week" | "month" | "year"; offset: number }) => Promise<import("./features/analytics/listeningSummary").ListeningCalendarSummary | null>;
-      recordPlayEvent: (payload: PlayEvent) => Promise<boolean>;
+      recordPlayEvent: (payload: PlayEvent) => Promise<PlayEventReceipt>;
       getLyrics: (payload: { id: string; refresh?: boolean; requestId?: string; cancel?: boolean }) => Promise<import("./features/lyrics/lyrics.types").LyricsResult>;
       searchLyrics: (payload: { id: string; query: string }) => Promise<import("./features/lyrics/lyrics.types").LyricsSearchHit[]>;
       selectLyricsMatch: (payload: { id: string } & ({ lrclibId: number } | { localLyrics: string })) => Promise<import("./features/lyrics/lyrics.types").LyricsResult>;

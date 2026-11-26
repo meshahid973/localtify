@@ -20,7 +20,9 @@ test("track editing and removal overlays expose labeled, modal dialog roles", ()
 
 test("existing playlist picker dialog keeps the same accessible modal convention", () => {
   const picker = read("src/features/playlists/components/PlaylistPickerModal.tsx");
-  assert.match(picker, /<Dialog\b[\s\S]*?label="Add song to playlist"/);
+  assert.match(picker, /<Dialog\b[\s\S]*?label=\{label\}/);
+  assert.match(picker, /<PlaylistMembershipDialog\b[^>]*label="Add song to playlist"/);
+  assert.match(read("src/features/albums/AlbumPlaylistDialog.tsx"), /<PlaylistMembershipDialog\b[^>]*label="Add album to playlist"/);
   const dialog = read("src/shared/ui/Dialog.tsx");
   assert.match(dialog, /role = "dialog"/);
   assert.match(dialog, /role=\{role\} aria-modal="true" aria-label=\{label\}/);

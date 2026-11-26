@@ -1,7 +1,7 @@
 const songAnalysis = require("./db/song-analysis.cjs");
 const dailyMixes = require("./db/daily-mixes.cjs");
 const playEvents = require("./db/play-events.cjs");
-const { listeningStats } = require("./analysis/listening-signals.cjs");
+const { allTimeListeningCounts } = require("./analysis/listening-signals.cjs");
 const lyricsSelections = require("./db/lyrics-selections.cjs");
 const duplicateMerge = require("./db/duplicate-merge.cjs");
 const phoneSync = require("./db/phone-sync.cjs");
@@ -1197,8 +1197,7 @@ module.exports = {
     return ensureDb().prepare("DELETE FROM play_events").run().changes;
   })(),
   // All-time finished and skipped plays per song, for smart playlist rules.
-  getListeningCounts: () => [...listeningStats(ensureDb(), Date.now(), { days: 0, halfLifeDays: 0 })]
-    .map(([songId, { finishes, skips }]) => [songId, Math.round(finishes), Math.round(skips)]),
+  getListeningCounts: () => allTimeListeningCounts(ensureDb()),
   getListeningSummary: (options) => require("./db/listening-summary.cjs").getRecordedListeningSummary(ensureDb(), options),
   getListeningCalendarSummary: (options) => require("./db/listening-summary.cjs").getRecordedListeningCalendarSummary(ensureDb(), options),
   listPlayEvents: (options) => playEvents.listPlayEvents(ensureDb(), options),

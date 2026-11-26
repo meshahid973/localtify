@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Song } from "../library/song.types";
 import type { Playlist } from "./playlist.types";
-import { materializeSmartPlaylists, needsListeningCounts, usesClock, type ListeningCounts } from "./smartPlaylist";
+import { materializeSmartPlaylists, needsListeningCounts, usesClock, type ListeningCounts, type SmartMaterializationCache } from "./smartPlaylist";
 
 export function useSmartPlaylistView(stored: Playlist[], songs: Song[]) {
   const [listeningCounts, setListeningCounts] = useState<ListeningCounts | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [now, setNow] = useState(Date.now);
+  const [cache] = useState<SmartMaterializationCache>(()=>new Map());
   const requiresCounts = previewOpen || stored.some(item => item.rules && needsListeningCounts(item.rules));
   const requiresClock = previewOpen || stored.some(item => item.rules && usesClock(item.rules));
   useEffect(() => {
@@ -32,12 +33,12 @@ export function useSmartPlaylistView(stored: Playlist[], songs: Song[]) {
   }, [requiresCounts]);
   useEffect(() => {
     if (!requiresClock) return;
-    const refresh = () => setNow(Date.now());
+    const refresh = () => {if(!document.hidden)setNow(Date.now());};
     refresh();
     const timer = window.setInterval(refresh, 60_000);
     document.addEventListener("visibilitychange", refresh);
     return () => { clearInterval(timer); document.removeEventListener("visibilitychange", refresh); };
   }, [requiresClock]);
-  const playlists = useMemo(() => materializeSmartPlaylists(stored, songs, listeningCounts, requiresClock ? now : Date.now()), [stored, songs, listeningCounts, requiresClock, now]);
+  const playlists = useMemo(() => materializeSmartPlaylists(stored, songs, listeningCounts, requiresClock ? now : Date.now(), cache), [stored, songs, listeningCounts, requiresClock, now, cache]);
   return {playlists, listeningCounts, smartNow: now, setSmartPreviewOpen: setPreviewOpen};
 }

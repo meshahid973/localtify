@@ -1,5 +1,5 @@
 import "./pages.css";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Save } from "lucide-react";
 import { CollectionLoading } from "../../shared/ui/CollectionLoading";
 import { LocaltifyStateCard } from "../../shared/ui/LocaltifyViewUi";
@@ -22,13 +22,15 @@ export type MixPageProps = {
   isPlaying: boolean;
   toggleLike: (songId: string) => unknown;
   openPlaylistPicker: (song: Song) => unknown;
-  savePlaylist: (name: string, songIds: string[]) => unknown;
+  savePlaylist: (name: string, songIds: string[]) => Promise<string | null>;
 };
 
 /** One of today's daily mixes as a page. */
 export default function MixPage({ mixId, songs, currentId, isPlaying, toggleLike, openPlaylistPicker, savePlaylist }: MixPageProps) {
   const actions = useAppActions();
   const [query,setQuery]=useState("");
+  const [saving,setSaving]=useState(false);
+  const saveLock=useRef(false);
   const [sort,setSort]=useState<LibrarySortMode>("library");
   useEffect(()=>{setQuery("");setSort("library");},[mixId]);
   const day = useHomeDay();
@@ -82,8 +84,8 @@ export default function MixPage({ mixId, songs, currentId, isPlaying, toggleLike
         sort={{value:sort,onChange:setSort}}
         search={<input type="search" className="pageHeaderSearch" aria-label="Search mix tracks" placeholder="Search tracks" value={query} onChange={event=>setQuery(event.currentTarget.value)} />}
       >
-        <button className="collectionIconButton" type="button" disabled={!playable.length} aria-label={`save ${mix.name} as a playlist`} title="Save as playlist"
-          onClick={() => savePlaylist(mix.name, playable)}>
+        <button className="collectionIconButton" type="button" disabled={!playable.length || saving} aria-busy={saving} aria-label={`save ${mix.name} as a playlist`} title={saving ? "Saving…" : "Save as playlist"}
+          onClick={async () => {if(saveLock.current)return;saveLock.current=true;setSaving(true);try{await savePlaylist(mix.name,playable);}finally{saveLock.current=false;setSaving(false);}}}>
           <Save size={16} strokeWidth={2.2} aria-hidden="true" />
         </button>
       </CollectionHero>

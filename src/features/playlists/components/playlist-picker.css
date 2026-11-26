@@ -89,22 +89,28 @@
   display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px;
   padding-top: 14px; border-top: 1px solid rgba(var(--lt-accent-rgb), .1);
 }
-.playlistPickerCreate input {
+.playlistPickerSearch { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; color: var(--lt-muted); }
+.playlistPickerSearch input { flex: 1; width: 100%; }
+.playlistPickerStatus { margin: 0; color: var(--lt-muted); font-size: 12px; overflow-wrap: anywhere; }
+.playlistPickerSearch input, .playlistPickerCreate input {
   min-width: 0; height: 40px; padding: 0 12px;
   color: var(--lt-text); font: inherit; font-size: 13px;
   border: 1px solid rgba(var(--lt-accent-rgb), .14); border-radius: 10px;
   background: var(--lt-surface-raised); outline: none;
 }
-.playlistPickerCreate input::placeholder { color: var(--lt-faint); }
-.playlistPickerCreate input:focus-visible { border-color: rgba(var(--lt-accent-rgb), .5); box-shadow: 0 0 0 3px rgba(var(--lt-accent-rgb), .14); }
+.playlistPickerSearch input::placeholder, .playlistPickerCreate input::placeholder { color: var(--lt-faint); }
+.playlistPickerSearch input:focus-visible, .playlistPickerCreate input:focus-visible { border-color: rgba(var(--lt-accent-rgb), .5); box-shadow: 0 0 0 3px rgba(var(--lt-accent-rgb), .14); }
 .app .playlistPickerCreate .mainAction {
   min-height: 40px !important; height: 40px; margin: 0; padding: 0 16px !important;
   font-size: 13px !important; font-weight: 700; white-space: nowrap;
-  border-radius: 10px !important; box-shadow: none !important;
+  border-radius: var(--lt-radius-md) !important; box-shadow: none !important; color: var(--button-text-on-accent);
 }
 .app .playlistPickerCreate .mainAction:disabled { cursor: not-allowed; opacity: .45; }
 
 @media (max-width: 520px) {
+  .playlistPickerCreate { grid-template-columns: minmax(0,1fr) auto; }
+}
+@media (max-width: 360px) {
   .playlistPickerCreate { grid-template-columns: 1fr; }
 }
 
@@ -113,6 +119,9 @@
     inset: 0 !important;
     padding: 8px !important;
   }
-  .app .playlistPickerModal { padding: 12px; }
-  .playlistPickerList { flex: 0 0 auto; max-height: 160px; }
+  .app .playlistPickerModal { padding: 12px; gap: 8px; }
+  .app .playlistPickerHead h3 { font-size: 18px !important; }
+  .playlistPickerList { min-height: 60px; flex: 1 1 auto; max-height: 160px; }
+  .playlistPickerSearch input { height: 34px; }
+  .playlistPickerCreate { padding-top: 8px; }
 }

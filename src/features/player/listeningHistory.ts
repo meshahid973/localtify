@@ -95,29 +95,53 @@ export class ListeningHistory {
   }
 }
 
-export function createListeningEventWriter(write: (event: PlayEvent) => Promise<boolean>, journal: (events: PlayEvent[]) => void, recovered: PlayEvent[] = []) {
-  const pending = new Map((Array.isArray(recovered) ? recovered : []).filter(event => event && typeof event.id === "string").map(event => [event.id, event]));
+export type PlayEventReceipt = { status: "stored" } | { status: "discarded"; reason: "not-recordable" };
+
+export function isListeningJournal(value: unknown): value is PlayEvent[] {
+  return Array.isArray(value) && value.every(event => event && ["id","sessionId","songId"].every(key => typeof event[key] === "string" && event[key].length > 0) &&
+    [event.startedAt,event.updatedAt,event.msListened].every(Number.isSafeInteger) &&
+    event.startedAt > 0 && event.updatedAt >= event.startedAt && event.msListened >= 0 &&
+    ["active","ended","replaced","transition","error","interrupted"].includes(event.outcome) &&
+    event.endedAt === (event.outcome === "active" ? null : event.updatedAt) &&
+    (event.contextType === "library" || (event.contextType === "playlist" && typeof event.contextId === "string")));
+}
+
+export function createListeningEventWriter(write: (event: PlayEvent) => Promise<boolean | PlayEventReceipt>, journal: (events: PlayEvent[]) => void, recovered: PlayEvent[] = [], failed: (durable: boolean, saved: boolean) => void = () => {}) {
+  const pending = new Map(recovered.map(event => [event.id, event]));
   let running: Promise<boolean> | null = null;
-  const persist = () => journal([...pending.values()]);
+  const persist = () => {
+    try { journal([...pending.values()]); return true; }
+    catch { return false; }
+  };
+  async function drain() {
+    while (pending.size) {
+      const event = pending.values().next().value as PlayEvent;
+      try {
+        const receipt = await write(event);
+        if (receipt !== true && !(typeof receipt === "object" && receipt !== null &&
+          (receipt.status === "stored" || (receipt.status === "discarded" && receipt.reason === "not-recordable")))) {
+          throw new Error("Listening event was not acknowledged");
+        }
+      } catch { failed(persist(), false); return false; }
+      if (pending.get(event.id) === event) pending.delete(event.id);
+      persist();
+    }
+    if (!persist()) { failed(false, true); return false; }
+    return true;
+  }
   const flush = (): Promise<boolean> => {
     if (running) return running;
-    running = (async () => {
-      while (pending.size) {
-        const event = pending.values().next().value as PlayEvent;
-        try { await write(event); }
-        catch { return false; }
-        if (pending.get(event.id) === event) pending.delete(event.id);
-        persist();
-      }
-      return true;
-    })().finally(() => { running = null; });
+    running = drain().then(ok => {
+      running = null;
+      return ok && pending.size ? flush() : ok;
+    }, error => { running = null; throw error; });
     return running;
   };
   return {flush, enqueue(event: PlayEvent) {
     const prior = pending.get(event.id);
     if (prior && (prior.updatedAt > event.updatedAt || (prior.outcome !== "active" && event.outcome === "active"))) return;
     pending.set(event.id, event);
-    persist();
+    if (!persist()) failed(false, false);
     void flush();
   }};
 }

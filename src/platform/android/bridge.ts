@@ -120,7 +120,7 @@ export function createAndroidBridge(): Bridge {
     },
     liveSend: sendLive,
     onLiveEvent: onLiveEvent as Bridge["onLiveEvent"],
-    recordPlayEvent: async (event: PlayEvent) => { await phoneLibrary.load(); phoneLibrary.recordPlayEvent(event); await phoneLibrary.flushWrites(); return true; },
+    recordPlayEvent: async (event: PlayEvent) => { await phoneLibrary.load(); phoneLibrary.recordPlayEvent(event); await phoneLibrary.flushWrites(); return { status: "stored" }; },
     getListeningCounts: async () => { await phoneLibrary.load(); return phoneLibrary.getListeningCounts(); },
     getListeningSummary: (payload) => fromMacOrKept<Awaited<ReturnType<Bridge["getListeningSummary"]>>>("listening:summary", payload, `mac:listening-summary:${payload.days}`, null, result => isListeningSummary(result, payload.days)),
     getListeningCalendarSummary: (payload) => fromMacOrKept<Awaited<ReturnType<Bridge["getListeningCalendarSummary"]>>>("listening:calendar-summary", payload, `mac:listening-calendar:${payload.range}:${payload.offset}`, null, result => isListeningCalendarSummary(result, payload)),

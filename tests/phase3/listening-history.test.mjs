@@ -113,3 +113,37 @@ test("listening writes retain the newest checkpoint across an unavailable databa
   assert.equal(saved[0].outcome, "ended");
   assert.equal(durable.length, 0);
 });
+
+test("listening writer requires an acknowledgement and reports recovery failures", async () => {
+  let receipt = false, storageDown = true;
+  const failures = [];
+  const {tracker,writes} = setup();
+  tracker.play("song",0);
+  const writer = createListeningEventWriter(async()=>receipt, () => { if(storageDown) throw new Error("quota"); }, [], (...args)=>failures.push(args));
+  writer.enqueue(writes[0]);
+  assert.equal(await writer.flush(),false);
+  assert.deepEqual(failures.at(-1),[false,false]);
+  receipt = {status:"stored"};
+  assert.equal(await writer.flush(),false);
+  assert.deepEqual(failures.at(-1),[false,true]);
+  storageDown = false;
+  assert.equal(await writer.flush(),true);
+});
+
+test("malformed recovery journals are archived verbatim and a failed archive never overwrites the original", async () => {
+  const source=fs.readFileSync(new URL("../../src/shared/storage/recoveryJournal.ts",import.meta.url),"utf8");
+  const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ES2022,target:ts.ScriptTarget.ES2022}}).outputText;
+  const {readRecoveryJournal}=await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
+  const data=new Map([["journal","{invalid"]]);
+  let fail=false;
+  const store={getItem:key=>data.get(key)??null,setItem:(key,value)=>{if(fail)throw new Error("quota");data.set(key,value);},removeItem:key=>data.delete(key)};
+  const result=readRecoveryJournal(()=>store,"journal",Array.isArray);
+  assert.equal(result.archived,true);assert.equal(data.has("journal"),false);
+  assert.equal([...data.values()][0],"{invalid");
+  data.set("journal","bad");fail=true;
+  assert.equal(readRecoveryJournal(()=>store,"journal",Array.isArray).blocked,true);
+  assert.equal(data.get("journal"),"bad");
+  assert.equal(readRecoveryJournal(()=>{throw new Error("blocked")},"journal",Array.isArray).blocked,true);
+  data.set("journal","[]");
+  assert.deepEqual(readRecoveryJournal(()=>store,"journal",Array.isArray).value,[]);
+});

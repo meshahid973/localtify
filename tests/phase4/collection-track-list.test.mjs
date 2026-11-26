@@ -14,7 +14,7 @@ function fixture(count){
  const rowExports={};
  const rowOutput=ts.transpileModule(fs.readFileSync('src/features/library/components/TrackRow.tsx','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,target:ts.ScriptTarget.ES2022}}).outputText;
  const solid={SolidIcon:()=>null};
- const rowDeps={'../../../shared/ui/LikeHeartAnimation':{LikeHeartAnimationV443:()=>null},'../../../shared/ui/LocaltifyViewUi':{PlayingBarsIcon:()=>null},'../../../shared/ui/SolidIcon':solid,'./track-row.css':{}};
+ const rowDeps={'../../../shared/ui/LikeHeartAnimation':{LikeHeartAnimationV443:()=>null},'../../../shared/ui/LocaltifyViewUi':{PlayingBarsIcon:()=>null},'../../../shared/ui/SolidIcon':solid,'./track-row.css':{},'../../../shared/ui/contextMenuPosition':{openContextMenuFromKeyboard:()=>{}}};
  runInNewContext(rowOutput,{exports:rowExports,require:n=>rowDeps[n]??require(n)});
  const dependencies={
   '../library/components/TrackRow':rowExports,

@@ -111,3 +111,10 @@ export function getPlayableUniqueSongIds(ids: string[], songsById: Map<string, S
     return true;
   }).map((song) => song.id);
 }
+
+/** Keep the selected view order without persisting it or retaining removed tracks. */
+export function resolvePlaylistPlaybackIds(playlist: Playlist, order: { id: string; songIds: string[] } | null): string[] {
+  if (order?.id !== playlist.id) return playlist.songIds;
+  const remaining = new Set(playlist.songIds);
+  return [...order.songIds.filter(id => remaining.delete(id)), ...remaining];
+}

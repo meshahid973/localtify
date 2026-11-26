@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import { useStableCallback } from "../../shared/hooks/useStableCallback";
-import { ListeningHistory, createListeningEventWriter, type PlayEvent, type ListeningOutcome } from "./listeningHistory";
+import { ListeningHistory, createListeningEventWriter, isListeningJournal, type ListeningOutcome } from "./listeningHistory";
 import { AudioEffectRuntime } from "./audio/audioEffectRuntime";
 import { PlaybackTransitionCoordinator } from "./engine/playbackTransitionCoordinator";
 import { PlaybackUrlCache } from "./playbackUrlCache";
@@ -11,6 +11,7 @@ import type { PlaybackUrlResult, Song } from "../library/song.types";
 import type { QueueHistoryItem, RepeatMode } from "./player.types";
 import { QUEUE_HISTORY_STORAGE_KEY, QUEUE_STORAGE_KEY, REPEAT_PLAYLIST_STORAGE_KEY, SHUFFLE_STORAGE_KEY, REPEAT_MODE_STORAGE_KEY } from "../library/library.constants";
 import { clamp } from "../../shared/utils/format";
+import { readRecoveryJournal } from "../../shared/storage/recoveryJournal";
 import { readLocalJson, writeLocalJson } from "../../shared/storage/localStorage";
 
 export type UsePlayerRuntimeOptions = {
@@ -22,11 +23,25 @@ export function usePlayerRuntime({ defaultVolume, setAudioElementVolume }: UsePl
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playbackTransition] = useState(() => new PlaybackTransitionCoordinator());
   const playbackTransitionRef = useRef(playbackTransition);
+  const [statusText, setStatusText] = useState("ready to play");
+  const [listeningRecovery] = useState(() => readRecoveryJournal(() => window.localStorage, "localitfy.pending-listening-events-v1", isListeningJournal));
   const [listeningWriter] = useState(() => createListeningEventWriter(
     event => window.localitfy.recordPlayEvent(event),
-    pending => writeLocalJson("localitfy.pending-listening-events-v1", pending),
-    readLocalJson<PlayEvent[]>("localitfy.pending-listening-events-v1", [])
+    pending => {
+      if (listeningRecovery.blocked) {
+        if (pending.length) throw new Error("Unreadable listening journal");
+        return;
+      }
+      if (pending.length) window.localStorage.setItem("localitfy.pending-listening-events-v1", JSON.stringify(pending));
+      else window.localStorage.removeItem("localitfy.pending-listening-events-v1");
+    },
+    listeningRecovery.value ?? [],
+    (durable, saved) => setStatusText(saved ? "Listening history saved, but recovery cleanup failed." :
+      durable ? "Listening history pending; recovery copy saved." : "Listening history could not be saved to recovery storage.")
   ));
+  useEffect(() => {
+    if (listeningRecovery.archived || listeningRecovery.blocked) setStatusText("Listening recovery data preserved. Copy recovery data in Advanced settings.");
+  }, [listeningRecovery]);
   const listeningHistoryRef = useRef<ListeningHistory | null>(null);
   if (!listeningHistoryRef.current) {
     listeningHistoryRef.current = new ListeningHistory((event) => {
@@ -123,7 +138,6 @@ export function usePlayerRuntime({ defaultVolume, setAudioElementVolume }: UsePl
   const progressTimeLabelRefs = useRef<Array<HTMLSpanElement | null>>([]);
   const progressDurationLabelRefs = useRef<Array<HTMLSpanElement | null>>([]);
   const lastProgressUiPaintRef = useRef(0);
-  const [statusText, setStatusText] = useState("ready to play");
   const [playerError, setPlayerError] = useState("");
   const [crossfadePreviewSongId, setCrossfadePreviewSongId] = useState("");
   const [nowPlayingTransitionKey, setNowPlayingTransitionKey] = useState("empty:0");

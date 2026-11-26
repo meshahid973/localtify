@@ -141,10 +141,11 @@ server.listen(5173,async()=>{
     const originalMinSize=win.getMinimumSize();
     await win.webContents.executeJavaScript("document.querySelector('.sidebar [data-nav-id=library]').click()");
     await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.libraryPage .songRow[data-library-song-id=qa-0]')"),"playlist picker fixture");
-    await win.webContents.executeJavaScript(`(()=>{const row=document.querySelector('.libraryPage .songRow[data-library-song-id=qa-0]');const r=row.getBoundingClientRect();row.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,clientX:r.x+12,clientY:r.y+12}));})()`);
+    await win.webContents.executeJavaScript(`(()=>{const row=document.querySelector('.libraryPage .songRow[data-library-song-id=qa-0]');row.focus();row.dispatchEvent(new KeyboardEvent('keydown',{key:'F10',shiftKey:true,bubbles:true,cancelable:true}));})()`);
     await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.songContextMenu')"),"playlist picker context menu");
     await win.webContents.executeJavaScript(`[...document.querySelectorAll('.songContextMenu [role=menuitem]')].find(e=>e.textContent.trim()==='add to playlist').click()`);
     await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.playlistPickerModal .playlistPickerItem')"),"playlist picker visible");
+    assert.equal(await win.webContents.executeJavaScript("document.querySelector('.playlistPickerModal').getAttribute('aria-label')"),"Add song to playlist");
     win.setMinimumSize(320,320);
     for(const [width,height] of [[480,320],[390,844],[1280,800]]) {
       win.setSize(width,height);
@@ -157,6 +158,8 @@ server.listen(5173,async()=>{
       })()`);
       assert.ok(geometry.listHeight>=60&&geometry.reachable&&geometry.artwork<=50,"playlist picker geometry "+JSON.stringify(geometry));
     }
+    await win.webContents.executeJavaScript(`(()=>{const input=document.querySelector('.playlistPickerModal input[type=search]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(input,"no matching qa playlist 123");input.dispatchEvent(new Event("input",{bubbles:true}));})()`);
+    await until(()=>win.webContents.executeJavaScript("document.querySelector('.playlistPickerModal').textContent.includes('No matching playlists')"),"playlist picker search");
     await win.webContents.executeJavaScript("document.querySelector('.playlistPickerModal').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");
     await until(()=>win.webContents.executeJavaScript("!document.querySelector('.playlistPickerModal')"),"playlist picker Escape");
     win.setMinimumSize(...originalMinSize);
@@ -177,8 +180,11 @@ server.listen(5173,async()=>{
     await win.webContents.executeJavaScript("document.querySelector('.smartPlaylistComposer button[type=submit]').click()");
     await until(()=>win.webContents.executeJavaScript("!document.querySelector('.smartPlaylistComposer')"),"smart playlist rule edit committed");
     assert.equal(await win.webContents.executeJavaScript("window.localitfy.getPlaylists().then(items=>items.find(item=>item.name==='qa smart playlist').rules.limit)"),1);
+    await win.webContents.executeJavaScript("(()=>{const original=window.confirm;window.confirm=()=>false;try{document.querySelector('.playlistDetailPage .playlistManageActions button.danger').click()}finally{window.confirm=original}})()");
+    assert.equal(await win.webContents.executeJavaScript("!!document.querySelector('.playlistDetailPage .collectionHero')"),true,"cancelled playlist deletion keeps page open");
     await win.webContents.executeJavaScript("(()=>{const original=window.confirm;window.confirm=()=>true;try{document.querySelector('.playlistDetailPage .playlistManageActions button.danger').click()}finally{window.confirm=original}})()");
     await until(()=>win.webContents.executeJavaScript("window.localitfy.getPlaylists().then(items=>!items.some(item=>item.name==='qa smart playlist'))"),"remove fixture smart playlist");
+    await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.playlistToolbar')"),"committed removal returns to playlists");
     await win.webContents.executeJavaScript("document.querySelector('.sidebar [data-nav-id=home]').click()");
     await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.homeStartButton')"),"return home after picker");
     async function assertShellChrome() {

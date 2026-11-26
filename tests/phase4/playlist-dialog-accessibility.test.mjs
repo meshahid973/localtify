@@ -7,6 +7,9 @@ const read = (file) => fs.readFileSync(file, "utf8");
 test("playlist picker preserves keyboard focus and Escape semantics", () => {
   const picker = read("src/features/playlists/components/PlaylistPickerModal.tsx");
   assert.match(picker, /<Dialog open/);
+  assert.match(picker, /dismissible=\{!busy\}/);
+  assert.match(picker, /aria-label="Search playlists"/);
+  assert.match(read("src/features/albums/AlbumPlaylistDialog.tsx"), /<PlaylistMembershipDialog/);
   assert.match(picker, /aria-label="New playlist name"/);
   const dialog = read("src/shared/ui/Dialog.tsx");
   assert.match(dialog, /useModalFocus<HTMLDivElement>\(open\)/);

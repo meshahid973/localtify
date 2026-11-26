@@ -63,7 +63,7 @@ export default function CollectionContextMenu({
         </button>
         {album ? <>
           <div className="songContextMenuDivider" aria-hidden="true" />
-          {addAlbumToPlaylist ? <button type="button" role="menuitem" onClick={run(() => addAlbumToPlaylist(album))}>
+          {addAlbumToPlaylist ? <button type="button" role="menuitem" disabled={!ids.length} onClick={run(() => addAlbumToPlaylist(album))}>
             <span className="songContextMenuIcon"><ListPlus size={13}/></span> add album to playlist
           </button> : null}
           {artists.map(name => <button key={name} type="button" role="menuitem" onClick={run(() => goToArtist?.(name))}>

@@ -14,7 +14,6 @@ const ARTISTS_SHOWN = 4;
 
 export type DailyMixesShelfProps = {
   songs: Song[];
-  savePlaylist: (name: string, ids: string[]) => string | null;
   openAnalysisSettings: () => void;
 };
 function day() { const date = new Date(); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`; }

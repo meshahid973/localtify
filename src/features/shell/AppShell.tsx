@@ -272,7 +272,7 @@ export default function AppShell(props: AppShellProps) {
                   ? <GenrePage key={detail.id} id={detail.id} {...pageProps} openSimilar={openSimilarSongs} />
                   : <GenresView {...genres} />) : null}
                 {view === "playlists" ? (detail?.kind === "mix"
-                  ? <MixPage key={detail.id} mixId={detail.id} {...pageProps} savePlaylist={playlists.dailyMixes.savePlaylist} />
+                  ? <MixPage key={detail.id} mixId={detail.id} {...pageProps} savePlaylist={playlists.savePromptPlaylist} />
                   : <PlaylistsView {...playlists} detailPlaylistId={detail?.kind === "playlist" ? detail.id : null} />) : null}
                 {view === "analytics" ? <AnalyticsView {...analytics} /> : null}
                 {view === "discover" ? <DiscoverView {...discover} /> : null}
@@ -331,7 +331,7 @@ function ShellDialogs({ modals, menu, actions, albums, collections, downloads, t
           : openSimilarSongs(playableIds(target.songs), `${target.kind}:${target.id}`, target.title)} />
       {tagSearchSong ? <Suspense fallback={null}><TagSearchDialog key={tagSearchSong.id} song={tagSearchSong} onClose={() => setTagSearchSong(null)} /></Suspense> : null}
       {albumTag ? <Suspense fallback={null}><AlbumTagSearchDialog key={albumTag.id} album={albumTag} onClose={() => setAlbumTag(null)} /></Suspense> : null}
-      {albumPlaylist ? <Suspense fallback={null}><AlbumPlaylistDialog key={albumPlaylist.id} album={albumPlaylist} playlists={collections.playlists}
+      {albumPlaylist ? <Suspense fallback={null}><AlbumPlaylistDialog key={albumPlaylist.id} album={albumPlaylist} playlists={collections.playlists} songsById={modals.playlistPicker.songsById}
         onAdd={collections.addAlbumToPlaylist} onCreate={collections.createPlaylistFromAlbum} onClose={() => setAlbumPlaylist(null)} /></Suspense> : null}
       {albumCompletion ? <Suspense fallback={null}><AlbumTracksDialog key={albumCompletion.id}
         request={{ songIds: albumCompletion.songs.map(song => song.id), title: albumCompletion.title, artist: albumCompletion.artist, label: albumCompletion.title }}

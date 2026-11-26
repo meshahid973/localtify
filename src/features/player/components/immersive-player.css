@@ -313,3 +313,14 @@
 .immersivePlayer[data-lyrics-open="true"] .immersiveStage[data-lyrics-only="true"] > .immersiveArtwork {
   display: none;
 }
+
+.immersivePlayer .immersiveNotice {position:absolute;top:64px;left:50%;transform:translateX(-50%);z-index:2;max-width:calc(100% - 32px);padding:8px 12px;background:var(--lt-surface-raised);border-radius:var(--lt-radius-sm);color:var(--lt-text);}
+@media (max-height:520px) and (min-width:700px) {
+  .immersivePlayer:not([data-lyrics-open="true"]) {grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);}
+  .immersivePlayer:not([data-lyrics-open="true"]) .immersiveTop {grid-column:1/-1;}
+  .immersivePlayer:not([data-lyrics-open="true"]) .immersiveBottom {align-self:center;}
+}
+@media (pointer:coarse) {
+  .immersivePlayer input[type="range"]::-webkit-slider-thumb {opacity:1;}
+  .immersivePlayer .immersiveIcon {min-width:44px;min-height:44px;}
+}

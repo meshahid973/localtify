@@ -100,7 +100,7 @@ export function ContextMenuLayer({
     const current = enabled.indexOf(document.activeElement as HTMLButtonElement);
     if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
       const index = typeahead(event, enabled.map(item => item.textContent || ""), current);
-      if (index >= 0) enabled[index].focus({ preventScroll: true });
+      if (index >= 0) {enabled[index].focus({ preventScroll: true });enabled[index].scrollIntoView({block:"nearest"});}
       return;
     }
     event.preventDefault();
@@ -108,6 +108,7 @@ export function ContextMenuLayer({
       : current < 0 ? (event.key === "ArrowDown" ? 0 : enabled.length - 1)
       : (current + (event.key === "ArrowDown" ? 1 : -1) + enabled.length) % enabled.length;
     enabled[next].focus({ preventScroll: true });
+    enabled[next].scrollIntoView({block:"nearest"});
   };
 
   if (!anchor) return null;
