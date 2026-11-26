@@ -1,3 +1,4 @@
+import { localtifyOptics } from './localtify-optics'
 'use client'
 
 // GlassLayer — turns any positioned element (a button, a link, a pill) into liquid glass.
@@ -230,8 +231,8 @@ export function GlassLayer({
   const dropletRef = useRef(droplet)
   dropletRef.current = droplet
   // Tint, frost and optics are read on every frame: changing them redraws, never rebuilds.
-  const tuneRef = useRef({ tint, blur, optics })
-  tuneRef.current = { tint, blur, optics }
+  const tuneRef = useRef({ tint, blur, optics: { ...localtifyOptics, ...optics } as GlassOptics })
+  tuneRef.current = { tint, blur, optics: { ...localtifyOptics, ...optics } }
   const pokeRef = useRef<(() => void) | null>(null)
   useEffect(() => pokeRef.current?.(), [droplet, tint, blur, optics])
   // A pulse plays when the value changes, never for the one the glass was mounted with.

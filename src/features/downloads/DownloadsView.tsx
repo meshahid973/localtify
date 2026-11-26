@@ -194,7 +194,7 @@ export default function DownloadsView(props: DownloadsViewProps) {
 
     <section className="downloadsImporter" aria-label="Import music">
       <Tabs value={downloadsTab} onValueChange={value => setDownloadsTab(value as DownloadsTab)} variant="pill" className="downloadsTabs">
-        {kit ? <kit.GlassTabs aria-label="Download source" size="sm" value={downloadsTab} onValueChange={setDownloadsTab}
+        {kit ? <kit.GlassTabs<DownloadsTab> aria-label="Download source" size="sm" value={downloadsTab} onValueChange={setDownloadsTab}
           options={[{value:"youtube",label:"YouTube"},{value:"spotify",label:catalogSelection?"Catalog":"Spotify"}]} className="downloadsTabList ltOpticalTabs" highlightClassName="ltOpticalTabSelection"/> : <TabsList className="downloadsTabList">
           <TabsTrigger value="youtube">YouTube</TabsTrigger>
           <TabsTrigger value="spotify">{catalogSelection ? "Catalog" : "Spotify"}</TabsTrigger>
@@ -302,7 +302,7 @@ export default function DownloadsView(props: DownloadsViewProps) {
             {counts.attention ? " · " + counts.attention + " need attention" : ""}
             {counts.done ? " · " + counts.done + " completed" : ""}</p>
         </div>
-        {kit ? <kit.GlassTabs aria-label="Filter download activity" value={queueFilter} options={FILTERS} size="sm"
+        {kit ? <kit.GlassTabs<QueueFilter> aria-label="Filter download activity" value={queueFilter} options={FILTERS} size="sm"
           onValueChange={setQueueFilter} className="downloadsFilters ltOpticalTabs" highlightClassName="ltOpticalTabSelection"/> : <SegmentedControl label="Filter download activity" value={queueFilter} options={FILTERS}
           onValueChange={value => setQueueFilter(value as QueueFilter)} className="downloadsFilters" />}
       </div>

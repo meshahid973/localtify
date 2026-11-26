@@ -15,7 +15,7 @@
 
 import { useEffect, useRef } from 'react'
 
-import { drawAround, drawDom } from './dom-snapshot'
+import { drawDom } from './dom-snapshot'
 import { GlassStyles } from './glass-layer'
 import { getGlassEngine, rgbCss, surfaceColorOf, type GlassView, type Rgb } from './engine'
 
@@ -181,22 +181,9 @@ export function GlassBadge({ children, dotColor, speed = 0.4, tint = 0.82, class
             blurEdge: 2.2,
             frost: 0,
           },
-          cursorLight: true,
-          pointerLight: true,
-          // What the rim of a clear badge mirrors: the page around it. A badge in its own
-          // colour (`tint` above a clear button's 0.6) mirrors nothing.
-          reflection:
-            tint > 0.6
-              ? undefined
-              : {
-                  height: h,
-                  paint: (around, reach) => {
-                    drawAround(around, document.body, { left: box.left - padX, top: box.top - padTop, width: w + 2 * padX, height: h + padTop + padBottom }, reach, {
-                      skip: (el) => el === host || el.hasAttribute('data-glass-skip'),
-                      onStale: dirty,
-                    })
-                  },
-                },
+          cursorLight: false,
+          pointerLight: false,
+          tune: { rim: .16, fresnel: .18, mirror: 0, reflection: .12 },
           screenX: box.left + w / 2,
           screenY: box.top + h / 2,
         }

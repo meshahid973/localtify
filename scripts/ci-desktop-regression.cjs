@@ -280,11 +280,31 @@ server.listen(5173,async()=>{
         for(const view of ["settings","home","library","liked","albums","artists","genres","playlists","discover","downloads","analytics"]){
           await openView(view);
           if(view==="discover") await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('section[aria-labelledby=discover-recommended] li').length===4"),"populated Discover recommendations");
+          if(mode==="dark"&&view==="library") {
+            const palette=await win.webContents.executeJavaScript(`(()=>{
+              const app=document.querySelector(".app"), player=document.querySelector(".playerBar"), group=player.querySelector(".ltOpticalTransport");
+              const probe=document.createElement("span");probe.style.color="var(--glass-tint)";probe.hidden=true;group.append(probe);
+              const attributes=[["data-cover-sync","strong"],["data-ambient","strong"],["data-player-background","coverBlur"]];
+              const prior=attributes.map(([name])=>[name,app.getAttribute(name)]);
+              const ambient=player.getAttribute("data-ambient"), previous=player.style.getPropertyValue("--cover-average");
+              try {
+                attributes.forEach(([name,value])=>app.setAttribute(name,value));player.setAttribute("data-ambient","true");
+                player.style.setProperty("--cover-average","#b16d36");const warm=getComputedStyle(probe).color;
+                player.style.setProperty("--cover-average","#3678b1");const cool=getComputedStyle(probe).color;
+                return {warm,cool};
+              } finally {
+                probe.remove();prior.forEach(([name,value])=>value===null?app.removeAttribute(name):app.setAttribute(name,value));
+                ambient===null?player.removeAttribute("data-ambient"):player.setAttribute("data-ambient",ambient);
+                previous?player.style.setProperty("--cover-average",previous):player.style.removeProperty("--cover-average");
+              }
+            })()`);
+            assert.notEqual(palette.warm,palette.cool,"transport tint follows artwork palette");
+          }
           await screenshot(win,`glass-${mode}-${view}`);
           if(view==="downloads") {
             await win.webContents.executeJavaScript("document.querySelector(\x27.downloadsTools button\x27).click()");
             await until(()=>win.webContents.executeJavaScript("Boolean(document.querySelector(\x27.ltOpticalMenu [role=menuitem]\x27))"),"download glass menu");
-            await sleep(450);
+            await until(()=>win.webContents.executeJavaScript("Number(getComputedStyle(document.querySelector(\x27.ltOpticalMenu [role=menuitem]\x27)).opacity)>.8"),"readable settled menu");
             const menu=await win.webContents.executeJavaScript("(()=>{const menu=document.querySelector(\x27.ltOpticalMenu\x27);const style=getComputedStyle(menu);const item=menu.querySelector(\x27[role=menuitem]\x27);return {outline:style.outlineStyle,opacity:Number(getComputedStyle(item).opacity),visible:item.getClientRects().length>0}})()");
             assert.ok(menu.outline==="none" && menu.visible && menu.opacity>.8,"download glass menu remains legible without outline "+JSON.stringify(menu));
             await screenshot(win,`glass-${mode}-downloads-menu`);
@@ -399,6 +419,12 @@ server.listen(5173,async()=>{
         window.qaDialogInput.dispatchEvent(new Event('input',{bubbles:true}));
         window.qaDialogInput.focus();
       })()`);
+      try {
+        win.hide();
+        await until(()=>win.webContents.executeJavaScript("!window.qaDialog.hasAttribute(\x27data-glass-host\x27)"),"hidden dialog suspends optics");
+      } finally {win.show();win.focus();}
+      await until(()=>win.webContents.executeJavaScript("window.qaDialog===document.querySelector(\x27.playlistPickerModal\x27) && window.qaDialogInput.value===\x27retained draft\x27 && window.qaDialog.hasAttribute(\x27data-glass-ready\x27)"),"dialog survives hide and restore");
+      await win.webContents.executeJavaScript("window.qaDialogInput.focus()");
       const canLose=await lose("core");
       if(canLose) {
         await until(()=>win.webContents.executeJavaScript("Boolean(document.querySelector('.playlistPickerModal[data-glass-ready]'))"),"core renderer recovers while dialog stays open");

@@ -2674,7 +2674,7 @@ function createEngine(): GlassEngine | null {
     attributeFilter: ['class', 'data-theme', 'style'],
   })
   const themeObserver = new MutationObserver(invalidateAll)
-  themeObserver.observe(document.body, { attributes: true, attributeFilter: ['data-theme'], subtree: true })
+  themeObserver.observe(document.body, { attributes: true, attributeFilter: ['data-theme', 'data-ambient', 'data-cover-sync', 'data-player-background', 'data-background'], subtree: true })
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', invalidateAll, { signal: lifetime.signal })
   // A radial bend scales with the viewport.
   listen('resize', invalidateAll, { passive: true })

@@ -324,6 +324,11 @@ async function createRuntime(onLost: () => void) {
   renderer.toneMapping = THREE.NoToneMapping
   renderer.setClearColor(0x000000, 0)
   const context = glCanvas.getContext('webgl2')
+  if (!context || context.isContextLost()) {
+    try { renderer.dispose() } catch {}
+    glCanvas.width = glCanvas.height = 1
+    throw new Error('Glass WebGL2 context unavailable')
+  }
   let glW = 0
   let glH = 0
 

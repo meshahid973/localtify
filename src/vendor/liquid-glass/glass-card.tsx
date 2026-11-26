@@ -15,7 +15,8 @@
 
 import { Children, cloneElement, useMemo, type CSSProperties, type ComponentPropsWithRef, type ReactElement, type ReactNode } from 'react'
 
-import { GlassLayer, type GlassMaterial, type GlassOptics } from './glass-layer'
+import type { GlassMaterial, GlassOptics } from './glass-layer'
+import { GlassLayerSlot as GlassLayer } from './glass-layer-slot'
 
 export type GlassCardProps = {
   children?: ReactNode
@@ -65,7 +66,7 @@ const BLUR = 5
 const fallback: Record<GlassMaterial, string> = {
   // Text follows the glass's own tone once it draws, so it reads on any backdrop.
   clear:
-    'border border-white/60 bg-white/(--glass-card-tint) text-neutral-900 backdrop-blur-(--glass-card-blur) dark:border-white/25 dark:bg-black/(--glass-card-tint) dark:text-white data-[glass-tone=dark]:text-white data-[glass-tone=light]:text-neutral-900',
+    'border border-transparent bg-white/(--glass-card-tint) text-neutral-900 backdrop-blur-(--glass-card-blur) dark:border-transparent dark:bg-black/(--glass-card-tint) dark:text-white data-[glass-tone=dark]:text-white data-[glass-tone=light]:text-neutral-900',
   tinted: '',
 }
 

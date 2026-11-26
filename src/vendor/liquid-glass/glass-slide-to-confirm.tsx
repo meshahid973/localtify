@@ -682,8 +682,9 @@ export function GlassSlideToConfirm({
             blurEdge: lerp(2.2, 4, frost),
             frost,
           },
-          cursorLight: true,
+          cursorLight: false,
           pointerLight: true,
+          tune: { rim: .16, fresnel: .18, mirror: 0, reflection: .12 },
           // With `mirror`, what the thumb's rim mirrors while it is held (clear): the page around the track.
           reflection: live.current.mirror
             ? {

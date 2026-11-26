@@ -57,25 +57,27 @@ export function AppearanceProvider({ enabled, tone, reducedMotion, backgrounded,
   const controlModule = useRef<GlassControls | null>(null);
   useEffect(() => {
     if (!renderControls || !kit?.getGlassEngine()) return;
-    let active = true, attempts = 0;
+    let active = true, attempts = 0, generation = 0;
     let retry: number | undefined;
     let unsubscribe: (() => void) | undefined;
     const start = async () => {
+      const attempt = ++generation;
       try {
         const module = await import("./glassControls");
-        if (!active) return;
+        if (!active || attempt !== generation) return;
         controlModule.current = module;
         unsubscribe ??= module.onGlassControlsLoss(failed);
         const runtime = await module.prepareGlassControls();
-        if (!active) { runtime.trim(); return; }
+        if (!active || attempt !== generation) { runtime.trim(); return; }
         trimControls.current = runtime.trim;
         setControls(module);
       } catch (error) {
-        if (active) { console.warn("Liquid Glass range controls could not load", error); failed(); }
+        if (active && attempt === generation) { console.warn("Liquid Glass range controls could not load", error); failed(); }
       }
     };
     function failed() {
       if (!active) return;
+      generation++;
       setControls(null);
       trimControls.current = null;
       if (attempts++ === 0) retry = window.setTimeout(() => void start(), 250);

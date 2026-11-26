@@ -11,4 +11,4 @@ export const AppearanceContext = createContext<{
 
 export const useAppearance = () => useContext(AppearanceContext);
 
-export const controlOptics = { cursorLight: false, mirror: 0, light: .52, rim: .16, inner: .32, reflection: .12, shadow: .22, borderAlpha: 0, borderWidth: 0 };
+export { localtifyOptics as controlOptics } from "../../vendor/liquid-glass/localtify-optics";

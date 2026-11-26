@@ -57,7 +57,7 @@
 // Without WebGL2 the surface is a plain frosted panel and the anchor keeps its CSS look.
 // COPY VERBATIM. MIT — https://github.com/bilalgursen/liquid-glass
 
-import { Children, createContext, useEffect, useMemo, useRef, type CSSProperties, type ReactNode } from 'react'
+import { Children, useEffect, useMemo, useRef, type CSSProperties, type ReactNode } from 'react'
 
 import { drawDom } from './dom-snapshot'
 import { GLOW, GLOW_SMALL, GOOEY, HANDED_ON, MENU, MORPH, MORPH_GLOW, MORPH_GLOW_SMALL, SPRINGS, clamp, getGlassEngine, lerp, rgbCss, smooth, stepSpring, surfaceColorOf, type GlassEngine, type GlassLens, type GlassView, type Rgb, type Spring } from './engine'
@@ -102,7 +102,7 @@ const SETTLE = 0.16
 /** A morphing control lights up as it takes its surface back: this much of a press, at its middle. */
 const SETTLE_GLOW = 0.7
 /** What a morphing popup's light does to the content on it: how much it brightens it (× the light there), and the soft white bloom it leaves around it (px, alpha). */
-const CONTENT_GLOW = { lift: 0.55, bloom: 7, alpha: 0.65 }
+const CONTENT_GLOW = { lift: 0.08, bloom: 1.5, alpha: 0.08 }
 /** Each letter of it: how long it takes (seconds), how long after the one before it starts, how soft it starts (CSS px). */
 const LETTER = { duration: 0.4, gap: 0.01, blur: 10 }
 /** A morphing surface's content follows each side of the glass, at most this much (×) off its even size: past it, text would look stretched. */
@@ -258,6 +258,7 @@ function createMorph(matchWidth: boolean, opening: GlassPopupOpening, from: Glas
     if (glowSmall >= 1) return smallSet
     const mixed = { ...wideSet }
     for (const key of Object.keys(mixed) as (keyof typeof GLOW)[]) mixed[key] = lerp(wideSet[key], smallSet[key], glowSmall)
+    mixed.amount *= .2
     return mixed
   }
   /** How many presses' worth of light is asked for: each adds to what is still lit (a choice in the list adds GLOW.select of one). */
@@ -1536,7 +1537,7 @@ export const OVER_CENTER =
  */
 export const OVER_EDGE = 'data-[side=bottom]:[transform:translateY(calc(var(--anchor-height)*-1))] data-[side=top]:[transform:translateY(var(--anchor-height))]'
 
-export const GlassPopupContext = createContext<GlassPopup | null>(null)
+export { GlassPopupContext } from './glass-popup-context'
 
 const canvasStyle = { position: 'absolute', zIndex: -1, maxWidth: 'none', pointerEvents: 'none', width: 0, height: 0 } as const
 

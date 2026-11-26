@@ -27,6 +27,8 @@ import {
   cloneElement,
   createContext,
   isValidElement,
+  lazy,
+  Suspense,
   useContext,
   type ButtonHTMLAttributes,
   type HTMLAttributes,
@@ -34,8 +36,11 @@ import {
   type ReactNode,
 } from 'react'
 
-import { GlassLayer, type GlassMaterial, type GlassOptics } from './glass-layer'
-import { GlassPopupAnchor, GlassPopupContext } from './glass-popup'
+import type { GlassMaterial, GlassOptics } from './glass-layer'
+import { GlassLayerSlot as GlassLayer } from './glass-layer-slot'
+import { GlassPopupContext } from './glass-popup-context'
+
+const GlassPopupAnchor = lazy(() => import('./glass-popup').then(module => ({ default: module.GlassPopupAnchor })))
 
 export type GlassButtonGroupSize = 'sm' | 'md' | 'lg'
 export type GlassButtonGroupOrientation = 'horizontal' | 'vertical'
@@ -133,7 +138,7 @@ export function GlassButtonGroup({
       {...rest}
     >
       {/* The glass layer must be the host's first child. */}
-      {optical && (popup ? <GlassPopupAnchor popup={popup} /> : <GlassLayer material={material} tint={tint}
+      {optical && (popup ? <Suspense fallback={null}><GlassPopupAnchor popup={popup} /></Suspense> : <GlassLayer material={material} tint={tint}
         optics={vertical ? { ...STACKED, ...optics } : optics} backdrop={backdrop} />)}
       <GroupContext.Provider value={{ size, vertical, optical }}>{children}</GroupContext.Provider>
     </div>
