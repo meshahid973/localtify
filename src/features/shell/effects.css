@@ -466,8 +466,8 @@
 }
 
 .app[data-platform="linux"] :is(button, input, textarea, select, [role="button"]):not([data-embedded-field]):focus-visible{
-  outline: 2px solid rgba(var(--accent-rgb), .72) !important;
-  outline-offset: 2px !important;
+  outline: var(--lt-control-focus-outline, 2px solid rgba(var(--accent-rgb), .72)) !important;
+  outline-offset: var(--lt-control-focus-offset, 2px) !important;
 }
 
 .app[data-platform="linux"] .search{
