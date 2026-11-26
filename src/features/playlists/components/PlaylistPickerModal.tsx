@@ -10,6 +10,7 @@ import PlaylistCoverCollage from "./PlaylistCoverCollage";
 import "./playlist-picker.css";
 
 type MembershipProps = {
+  label: string;
   title: string;
   subtitle: string;
   songIds: readonly string[];
@@ -24,7 +25,7 @@ type MembershipProps = {
 
 const PAGE_SIZE = 60;
 
-export function PlaylistMembershipDialog({title, subtitle, songIds, name, setName, onClose, playlists, songsById, onAdd, onCreate}: MembershipProps) {
+export function PlaylistMembershipDialog({label, title, subtitle, songIds, name, setName, onClose, playlists, songsById, onAdd, onCreate}: MembershipProps) {
   const [query,setQuery] = useState("");
   const [visibleCount,setVisibleCount] = useState(PAGE_SIZE);
   const [busy,setBusy] = useState(false);
@@ -46,7 +47,7 @@ export function PlaylistMembershipDialog({title, subtitle, songIds, name, setNam
   }
   return (
     <Dialog open onClose={onClose} dismissible={!busy} portal={false} animated={false} backdropClassName="modalWrap playlistPickerWrap"
-      className="playlistPickerModal" label="Add to playlist">
+      className="playlistPickerModal" label={label}>
         <div className="modalHead playlistPickerHead">
           <div><p className="eyebrow">add to playlist</p><h3>{title}</h3><span className="editorHeadSub">{subtitle}</span></div>
           <button className="closeModalButton" type="button" disabled={busy} onClick={onClose} aria-label="close"><X size={18} strokeWidth={2.4} /></button>
@@ -94,6 +95,6 @@ export type PlaylistPickerModalProps = {
 
 export default function PlaylistPickerModal({song,addSongToPlaylist,createPlaylistWithSong,...props}: PlaylistPickerModalProps) {
   if (!song) return null;
-  return <PlaylistMembershipDialog key={song.id} {...props} title={displaySongTitleV444(song,9)} subtitle={displaySongPickerSublineV444(song)} songIds={[song.id]}
+  return <PlaylistMembershipDialog key={song.id} {...props} label="Add song to playlist" title={displaySongTitleV444(song,9)} subtitle={displaySongPickerSublineV444(song)} songIds={[song.id]}
     onAdd={id=>addSongToPlaylist(id,song.id)} onCreate={name=>createPlaylistWithSong(song.id,name)}/>;
 }

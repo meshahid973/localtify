@@ -255,7 +255,7 @@ export default function PlaylistsView(props: PlaylistsViewProps) {
             <div className="playlistManageActions">
               <button className="settingsTinyButton" type="button" disabled={renamingBusy} onClick={() => startRenamePlaylist(detailPlaylist)}><ActionLabel icon={Pencil}>rename</ActionLabel></button>
               <button className="settingsTinyButton" type="button" onClick={() => duplicatePlaylist(detailPlaylist.id)}><ActionLabel icon={Copy}>duplicate</ActionLabel></button>
-              <button className="settingsTinyButton danger" type="button" disabled={removing} onClick={async () => { if(removalLock.current)return;removalLock.current=true;setRemoving(true);setPendingRemovalId(detailPlaylist.id);try{if(await removePlaylist(detailPlaylist.id)){setPendingRemovalId(null);actions.nav.go("playlists");}}finally{removalLock.current=false;setRemoving(false);} }}><ActionLabel icon={Trash2}>remove</ActionLabel></button>
+              <button className="settingsTinyButton danger" type="button" disabled={removing} onClick={async () => { if(removalLock.current)return;removalLock.current=true;setRemoving(true);setPendingRemovalId(detailPlaylist.id);try{const result=await removePlaylist(detailPlaylist.id);if(result!==false)setPendingRemovalId(null);if(result)actions.nav.go("playlists");}finally{removalLock.current=false;setRemoving(false);} }}><ActionLabel icon={Trash2}>remove</ActionLabel></button>
             </div>
           </div>
 

@@ -15,7 +15,7 @@ type Props = {
 export default function AlbumPlaylistDialog({album,playlists,songsById,onAdd,onCreate,onClose}: Props) {
   const [name,setName] = useState("");
   const ids = useMemo(()=>album.songs.filter(song=>song.fileExists !== false).map(song=>song.id),[album]);
-  return <PlaylistMembershipDialog title={album.title} subtitle={`${ids.length} tracks · ${album.artist}`} songIds={ids}
+  return <PlaylistMembershipDialog label="Add album to playlist" title={album.title} subtitle={`${ids.length} tracks · ${album.artist}`} songIds={ids}
     name={name} setName={setName} onClose={onClose} playlists={playlists} songsById={songsById}
     onAdd={id=>onAdd(id,ids)} onCreate={name=>onCreate(name,ids)}/>;
 }

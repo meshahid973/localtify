@@ -267,7 +267,7 @@ export function usePlaylistsController({
   const removePlaylist = useCallback(async (playlistId: string) => {
     const playlist = persistence.current().find((item) => item.id === playlistId);
     if (!playlist) return confirmSaved("Playlist removed", items => !items.some(item => item.id === playlistId));
-    if (!window.confirm(`Delete "${playlist.name}"? Songs stay in your library.`)) return false;
+    if (!window.confirm(`Delete "${playlist.name}"? Songs stay in your library.`)) return null;
 
     setPlaylists((items) => items.filter((item) => item.id !== playlistId));
     if (!await confirmSaved(`Removed ${playlist.name}`, items => !items.some(item => item.id === playlistId))) return false;
