@@ -119,8 +119,24 @@
   border-color: transparent;
 }
 
-.app[data-liquid-glass="true"] :is(.ltOpticalButton, .ltOpticalHistory) {
+.app[data-liquid-glass="true"] :is(.ltOpticalButton, .ltOpticalHistory, .ltOpticalSidebarGroup, .ltOpticalQueueActions) {
   --glass-tint: var(--lt-bg-elevated);
+}
+
+.app[data-liquid-glass="true"] .ltOpticalSidebarGroup {
+  width: 100%;
+  gap: var(--lt-space-1);
+  background: var(--lt-fill-subtle);
+}
+
+.app[data-liquid-glass="true"] .ltOpticalSidebarGroup .navItem:focus-visible {
+  outline: 1px solid var(--lt-optical-focus);
+  outline-offset: -2px;
+  --tw-ring-shadow: 0 0 transparent;
+}
+
+.app[data-liquid-glass="true"] .ltOpticalQueueActions > .queuePanelIconButton {
+  padding-inline: 0;
 }
 
 .app[data-liquid-glass="true"] .ltIconButton.ltOpticalButton {

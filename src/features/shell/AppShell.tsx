@@ -27,6 +27,7 @@ import type { Song } from "../library/song.types";
 import type { LocalAlbumEntry } from "../albums/album.types";
 import { useDownloadTagPrompt } from "../tagging/useDownloadTagPrompt";
 import SidebarNav from "./SidebarNav";
+import { OpticalButton } from "../../shared/appearance/OpticalButton";
 import { libraryViews } from "./navigation.constants";
 import { LibrarySectionNavigation } from "./LibrarySectionNavigation";
 import "./library-navigation.css";
@@ -233,10 +234,10 @@ export default function AppShell(props: AppShellProps) {
             />
 
             <div className="sidebarBottom">
-              <button className="mainAction importMainAction iconTextButton" onClick={importSongs} aria-label="Import music">
+              <OpticalButton type="button" className="mainAction importMainAction iconTextButton" onClick={importSongs} aria-label="Import music">
                 <FolderPlus className="buttonInlineIcon" size={17} strokeWidth={2.1} aria-hidden="true" />
                 <span className="buttonLabel">import music</span>
-              </button>
+              </OpticalButton>
             </div>
 
             <button

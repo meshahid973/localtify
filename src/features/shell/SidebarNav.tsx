@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { ArrowDown, ArrowUp, EyeOff, SlidersHorizontal } from "lucide-react";
 import { navItems, primaryNavigationView } from "./navigation.constants";
 import { ContextMenuLayer } from "../../shared/ui/ContextMenuLayer";
 import { SolidIcon } from "../../shared/ui/SolidIcon";
+import { controlOptics, useAppearance } from "../../shared/appearance/appearance";
 import { canMoveSidebarItem, moveSidebarItem, resolveSidebarGroups, sidebarGroupForView, toggleSidebarItemHidden } from "./sidebarLayout";
 import type { SidebarNavOrder } from "./sidebarLayout";
 import type { View } from "./view.types";
@@ -21,10 +22,14 @@ export type SidebarNavProps = {
 };
 
 type SidebarMenuState = { view: View; x: number; y: number };
+const sidebarItems = new Map(navItems.map(item => [item.id, item]));
 
 export default function SidebarNav({ view, changeView, sidebarNavOrder, sidebarHiddenNav, updateSidebarLayout, openSidebarSettings }: SidebarNavProps) {
   const [menu, setMenu] = useState<SidebarMenuState | null>(null);
-  const groups = resolveSidebarGroups(sidebarNavOrder, sidebarHiddenNav).filter((group) => group.visibleItems.length);
+  const { kit } = useAppearance();
+  const groups = useMemo(() => resolveSidebarGroups(sidebarNavOrder, sidebarHiddenNav).filter(group => group.visibleItems.length),
+    [sidebarNavOrder, sidebarHiddenNav]);
+  const currentView = primaryNavigationView(view);
 
   function openMenu(event: ReactMouseEvent<HTMLElement>, itemId: View) {
     if (!sidebarGroupForView(itemId)) return;
@@ -37,48 +42,46 @@ export default function SidebarNav({ view, changeView, sidebarNavOrder, sidebarH
     updateSidebarLayout({ sidebarNavOrder: moveSidebarItem(sidebarNavOrder, sidebarHiddenNav, itemId, delta) });
   }
 
-  const menuItem = menu ? navItems.find((item) => item.id === menu.view) : null;
+  const menuItem = menu && sidebarItems.get(menu.view);
 
-  const renderGroup = (group: (typeof groups)[number], divider = false) => (
-          <div key={group.id} className={`sidebarNavGroupV467 sidebarNavGroup-${group.id}`}>
-            <p className="sidebarGroupLabelV467">{group.label}</p>
-
-            <nav
-              className={`nav navGroupedV467 ${group.id === "app" ? "navUtility" : "navMain"}`}
-              aria-label={`${group.label} navigation`}
-            >
-              {group.visibleItems.map((itemId) => {
-                const item = navItems.find((entry) => entry.id === itemId);
-                if (!item) return null;
-                return (
-                  <button
-                    key={item.id}
-                    className={`navItem navItemAnimatedV468 nav-${item.id} ${primaryNavigationView(view) === item.id ? "active" : ""}`}
-                    data-nav-id={item.id}
-                    data-nav-group={group.id}
-                    onClick={() => changeView(item.id, "nav")}
-                    onContextMenu={(event) => openMenu(event, item.id)}
-                    title={item.label}
-                    aria-label={`open ${item.label}`}
-                    aria-current={primaryNavigationView(view) === item.id ? "page" : undefined}
-                  >
-                    <span className="navDiscordPillV468" aria-hidden="true" />
-                    <span className={`navIcon navIcon-${item.id}`} aria-hidden="true">
-                      <span className="navIconMotionV468">
-                        <SolidIcon className="navSolidIcon" name={item.icon} size={20} />
-                      </span>
-                    </span>
-                    <span className="navText">
-                      <strong>{item.label}</strong>
-                    </span>
-                  </button>
-                );
-              })}
-            </nav>
-
-            {divider ? <div className="navDivider" aria-hidden="true" /> : null}
-          </div>
-  );
+  const renderGroup = (group: (typeof groups)[number], divider = false) => {
+    const items = group.visibleItems.map(itemId => {
+      const item = sidebarItems.get(itemId);
+      if (!item) return null;
+      const active = currentView === item.id;
+      const button = (
+        <button
+          key={item.id}
+          type="button"
+          className={`navItem nav-${item.id}${active ? " active" : ""}`}
+          data-nav-id={item.id}
+          data-nav-group={group.id}
+          onClick={() => changeView(item.id, "nav")}
+          onContextMenu={event => openMenu(event, item.id)}
+          title={item.label}
+          aria-label={`open ${item.label}`}
+          aria-current={active ? "page" : undefined}
+        >
+          <span className={`navIcon navIcon-${item.id}`} aria-hidden="true">
+            <SolidIcon className="navSolidIcon" name={item.icon} size={20} />
+          </span>
+          <span className="navText"><strong>{item.label}</strong></span>
+        </button>
+      );
+      return kit ? <kit.GlassButtonGroupItem key={item.id} asChild>{button}</kit.GlassButtonGroupItem> : button;
+    });
+    return (
+      <div key={group.id} className={`sidebarNavGroupV467 sidebarNavGroup-${group.id}`}>
+        <p className="sidebarGroupLabelV467">{group.label}</p>
+        <nav className={`nav navGroupedV467 ${group.id === "app" ? "navUtility" : "navMain"}`}
+          aria-label={`${group.label} navigation`}>
+          {kit ? <kit.GlassButtonGroup orientation="vertical" size="sm" material="clear" tint={.62}
+            optics={controlOptics} backdrop=".app" className="ltOpticalSidebarGroup">{items}</kit.GlassButtonGroup> : items}
+        </nav>
+        {divider ? <div className="navDivider" aria-hidden="true" /> : null}
+      </div>
+    );
+  };
   const scrollGroups = groups.filter(group => group.id !== "app");
   return (
     <>

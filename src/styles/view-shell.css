@@ -169,8 +169,7 @@ main.app.app > .appShell > .sidebar .navItem::after {
   content: none !important;
   display: none !important;
 }
-.navDiscordPillV468 { display: none !important; }
-main.app.app > .appShell > .sidebar :is(.navIcon, .navIconMotionV468) {
+main.app.app > .appShell > .sidebar .navIcon {
   display: grid !important;
   place-items: center !important;
   width: 28px !important;
