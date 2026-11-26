@@ -14,7 +14,12 @@ export function prepareGeneratedPlaylist(name: string, ids: string[], songsById:
   if (exact) return {name:exact.name,songIds,existingId:exact.id};
   // A failed save can leave a suffixed name even if another playlist was removed since then.
   const prefix = base.toLowerCase() + " (";
-  const retry = playlists.find(item=>item.name.toLowerCase().startsWith(prefix) && /^[2-9]\\d*\\)$|^1\\d+\\)$/.test(item.name.slice(prefix.length)) && matches(item));
+  const retry = playlists.find(item => {
+    if (!item.name.toLowerCase().startsWith(prefix) || !item.name.endsWith(")")) return false;
+    const suffix = item.name.slice(prefix.length, -1);
+    const number = Number(suffix);
+    return Number.isSafeInteger(number) && number >= 2 && String(number) === suffix && matches(item);
+  });
   if (retry) return {name:retry.name,songIds,existingId:retry.id};
   let uniqueName = base, suffix = 2;
   for (;;) {

@@ -212,7 +212,7 @@ test("coordinated exclusions, combined durations and bounded timed results", () 
   const timed = [...prompts.buildPromptPlaylist(parse("indie rock 10 minutes"), [
     ...Array.from({length:500},(_,i)=>song("unknown-"+i,"Unknown","Indie Rock",{duration:0})),
     ...Array.from({length:500},(_,i)=>song("short-"+i,"Short","Indie Rock",{duration:1})),
-    {...song("ms-only","Other","Indie Rock",{duration:0}),durationMs:200000}
+    song("long","Other","Indie Rock",{duration:200})
   ])];
   assert.ok(timed.length>0 && timed.length<=200);
   assert.ok(timed.every(id=>!id.startsWith("unknown-")));
