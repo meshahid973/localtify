@@ -79,7 +79,7 @@ test("sidebar navigation retains keyboard focus and theme contrast", () => {
   const nav = read("src/features/shell/SidebarNav.tsx");
   const effects = read("src/features/shell/effects.css");
   assert.ok(nav.includes('aria-current={primaryNavigationView(view) === item.id ? "page" : undefined}'));
-  assert.match(read("src/styles/view-shell.css"), /\.navItem:focus-visible \.navIcon\s*\{\s*outline: var\(--lt-control-focus-outline, 2px solid var\(--lt-accent\)\) !important/);
+  assert.match(read("src/styles/view-shell.css"), /\.navItem:focus-visible \.navIcon\s*\{\s*outline: 2px solid var\(--lt-accent\) !important/);
   assert.match(read("src/styles/view-shell.css"), /\.navItem\.active \{[^}]*color: var\(--lt-text\) !important/);
 });
 
@@ -141,7 +141,7 @@ test("Discover, similar tracks and tagging respect the active accent and UI bord
   const queue = read("src/features/player/components/queue-panel.css");
 
   assert.match(discover, /\.discoverPick\.active\s*\{[^}]*color: var\(--button-text-on-accent\)/);
-  assert.match(discover, /\.app \.discoverPage :is\(\.discoverName, \.discoverPick\):focus-visible\s*\{\s*outline: 2px solid var\(--lt-accent\) !important/);
+  assert.match(discover, /\.app \.discoverPage :is\(\.discoverName, \.discoverPick\):focus-visible\s*\{\s*outline: var\(--lt-control-focus-outline, 2px solid var\(--lt-accent\)\) !important/);
   assert.doesNotMatch(discover, /\.discoverKey\s+input|\.discoverLink\b/);
   assert.match(similar, /\.similarSongsRow\[data-current="true"\]\s*\{\s*background: rgba\(var\(--lt-accent-rgb\), \.08\)/);
   assert.match(similar, /\.similarSongsHeader h2\s*\{[^}]*overflow-wrap: anywhere/);
@@ -165,7 +165,7 @@ test("shared focus remains visible and component insets override the app and Lin
   const dropdown = read("src/shared/ui/ArcDropdownMenu.css");
 
   assert.doesNotMatch(globals, /button:focus-visible\s*\{\s*outline: 0 !important/);
-  assert.match(read("src/shared/ui/controls.css"), /\.app :is\(button, a, input, textarea, select, \[role="button"\]\):not\(\[data-embedded-field\]\):focus-visible\s*\{\s*outline: 2px solid var\(--lt-accent\) !important/);
+  assert.match(read("src/shared/ui/controls.css"), /\.app :is\(button, a, input, textarea, select, \[role="button"\]\):not\(\[data-embedded-field\]\):focus-visible\s*\{\s*outline: var\(--lt-control-focus-outline, 2px solid var\(--lt-accent\)\) !important/);
   const appearance = read("src/shared/appearance/appearance.css");
   assert.match(appearance, /--lt-control-focus-outline: none;/);
   assert.match(appearance, /:focus-visible::after\s*\{[^}]*background: currentColor;/);
