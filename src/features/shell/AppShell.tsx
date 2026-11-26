@@ -272,7 +272,7 @@ export default function AppShell(props: AppShellProps) {
                   ? <GenrePage key={detail.id} id={detail.id} {...pageProps} openSimilar={openSimilarSongs} />
                   : <GenresView {...genres} />) : null}
                 {view === "playlists" ? (detail?.kind === "mix"
-                  ? <MixPage key={detail.id} mixId={detail.id} {...pageProps} savePlaylist={playlists.dailyMixes.savePlaylist} />
+                  ? <MixPage key={detail.id} mixId={detail.id} {...pageProps} savePlaylist={playlists.savePromptPlaylist} />
                   : <PlaylistsView {...playlists} detailPlaylistId={detail?.kind === "playlist" ? detail.id : null} />) : null}
                 {view === "analytics" ? <AnalyticsView {...analytics} /> : null}
                 {view === "discover" ? <DiscoverView {...discover} /> : null}
