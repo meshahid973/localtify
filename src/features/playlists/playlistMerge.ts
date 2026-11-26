@@ -5,22 +5,56 @@ function samePlaylist(a: SyncPlaylist, b: SyncPlaylist) {
     a.songIds.length === b.songIds.length && a.songIds.every((id, index) => id === b.songIds[index]);
 }
 
-/** Keeps the Mac's order, drops songs the phone removed and inserts songs the phone added after their phone neighbours. */
+// Keep unchanged relative order from the receiving device. Apply the incoming device's
+// moved tracks and additions at their incoming anchors; removals win on either side.
 export function mergeSongIds(base: string[], mac: string[], phone: string[]) {
-  const phoneSet = new Set(phone);
   const baseSet = new Set(base);
-  const removed = new Set(base.filter((id) => !phoneSet.has(id)));
-  const result = [...new Set(mac.filter((id) => !removed.has(id)))];
-  const present = new Set(result);
-  phone.forEach((id, index) => {
-    if (baseSet.has(id) || present.has(id)) return;
-    // After the nearest earlier phone song that is still in the list (its direct neighbour may be gone).
-    let previous = -1;
-    for (let back = index - 1; back >= 0 && previous === -1; back -= 1) previous = result.indexOf(phone[back]);
-    result.splice(previous + 1, 0, id);
-    present.add(id);
-  });
-  return result;
+  const phoneSet = new Set(phone);
+  const result = [...new Set(mac.filter(id => !baseSet.has(id) || phoneSet.has(id)))];
+  const remoteSet = new Set(result);
+  const basePositions = new Map(base.map((id, index) => [id, index]));
+  const common = [...new Set(phone.filter(id => baseSet.has(id) && remoteSet.has(id)))];
+  // The longest increasing subsequence identifies tracks the incoming device did not move.
+  const tails: number[] = [], previous: number[] = [];
+  for (let i = 0; i < common.length; i++) {
+    const position = basePositions.get(common[i])!;
+    let lo = 0, hi = tails.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1;
+      if (basePositions.get(common[tails[mid]])! < position) lo = mid + 1;
+      else hi = mid;
+    }
+    previous[i] = lo ? tails[lo - 1] : -1;
+    tails[lo] = i;
+  }
+  const stationary = new Set<string>();
+  for (let i = tails.at(-1) ?? -1; i >= 0; i = previous[i]) stationary.add(common[i]);
+  const moved = new Set(common.filter(id => !stationary.has(id)));
+
+  type Link = { id: string; next: Link | null };
+  const head: Link = { id: "", next: null };
+  const links = new Map<string, Link>();
+  let last = head;
+  for (const id of result) {
+    if (moved.has(id)) continue;
+    const link: Link = { id, next: null };
+    last.next = link;
+    last = link;
+    links.set(id, link);
+  }
+  let anchor = head;
+  for (const id of phone) {
+    const present = links.get(id);
+    if (present) { anchor = present; continue; }
+    if (baseSet.has(id) && !moved.has(id)) continue;
+    const link: Link = { id, next: anchor.next };
+    anchor.next = link;
+    links.set(id, link);
+    anchor = link;
+  }
+  const merged: string[] = [];
+  for (let link = head.next; link; link = link.next) merged.push(link.id);
+  return merged;
 }
 
 export function phonePlaylistChanges(base: SyncPlaylist[], mac: SyncPlaylist[], phone: SyncPlaylist[]) {

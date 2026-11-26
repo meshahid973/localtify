@@ -8,16 +8,25 @@ export function createPlaylistPersistence({ read, save, publish, journal, failed
   save: (next: Playlist[], expected: Playlist[]) => Promise<Playlist[]>;
   publish: (next: Playlist[]) => void;
   journal: (base: Playlist[], draft: Playlist[]) => void;
-  failed: (error: unknown) => void;
+  failed: (error: unknown, recoveryDurable: boolean, databaseSaved: boolean) => void;
 }) {
   let base: Playlist[] = [], draft: Playlist[] = [], initialized = false, remoteChanged = false;
   let pending: Promise<boolean> | null = null;
-  const persistDraft = () => journal(base, draft);
+  let journalError: unknown;
+  const persistDraft = () => {
+    try { journal(base, draft); journalError = undefined; return true; }
+    catch (error) { journalError = error; return false; }
+  };
   const adopt = (remote: Playlist[]) => {
     draft = rebasePlaylists(base, draft, remote).playlists;
     base = remote;
     persistDraft();
     publish(draft);
+  };
+  const finish = () => {
+    if (persistDraft()) return true;
+    failed(journalError, false, true);
+    return false;
   };
   async function drain() {
     try {
@@ -27,8 +36,7 @@ export function createPlaylistPersistence({ read, save, publish, journal, failed
         if (!samePlaylists(base, remote)) adopt(remote);
         if (samePlaylists(base, draft)) {
           if (remoteChanged) continue;
-          persistDraft();
-          return true;
+          return finish();
         }
         const sent = draft;
         let saved: Playlist[];
@@ -41,19 +49,23 @@ export function createPlaylistPersistence({ read, save, publish, journal, failed
         base = saved;
         persistDraft();
         publish(draft);
-        if (!remoteChanged && samePlaylists(base, draft)) return true;
+        if (!remoteChanged && samePlaylists(base, draft)) return finish();
       }
       throw new Error("Playlist changes are still pending. Retry to save.");
     } catch (error) {
-      persistDraft();
-      failed(error);
+      const durable = persistDraft();
+      failed(error, durable, false);
       return false;
     }
   }
-  function flush() {
+  function flush(): Promise<boolean> {
     if (!initialized) return Promise.resolve(true);
     if (pending) return pending;
-    pending = drain().finally(() => { pending = null; });
+    pending = drain().then(ok => {
+      pending = null;
+      // An edit or remote notification can arrive after drain's final check.
+      return ok && (remoteChanged || !samePlaylists(base, draft)) ? flush() : ok;
+    }, error => { pending = null; throw error; });
     return pending;
   }
   return {
@@ -65,6 +77,7 @@ export function createPlaylistPersistence({ read, save, publish, journal, failed
       publish(draft);
     },
     current: () => draft,
+    committed: () => base,
     set(next: Playlist[]) {
       if (samePlaylists(draft, next)) return;
       draft = next;
@@ -76,7 +89,7 @@ export function createPlaylistPersistence({ read, save, publish, journal, failed
       if (!initialized) return;
       if (pending) { remoteChanged = true; return; }
       adopt(next);
-      if (!samePlaylists(base, draft)) void flush();
+      if (!samePlaylists(base, draft) || journalError !== undefined) void flush();
     },
     flush
   };

@@ -233,3 +233,54 @@ test("playlist persistence rebases a conflicting database write and retains both
   assert.deepEqual([...shown[0].songIds].sort(),["1","2","3"]);
   assert.deepEqual(journal[0],journal[1]);
 });
+
+
+test("playlist concurrent independent reorder and additions retain both changes", () => {
+  assert.deepEqual(plain(merge.mergeSongIds(["a","b","c","d"], ["a","b","d","c","x"], ["b","a","c","d","y"])), ["b","a","d","y","c","x"]);
+  assert.deepEqual(plain(merge.mergeSongIds(["a","b","c"], ["a","b","c","x"], ["c","a","b"])), ["c","a","b","x"]);
+});
+
+test("playlist persistence reports journal failure accurately and retries without losing draft", async () => {
+  const {createPlaylistPersistence} = compile("src/features/playlists/playlistPersistence.ts", {"./playlistMerge":playlistMerge});
+  let remote = [playlist("p", ["1"])];
+  let storageDown = true, databaseDown = true;
+  const failures = [];
+  const controller = createPlaylistPersistence({
+    read: async () => plain(remote),
+    save: async next => { if (databaseDown) throw Error("disk"); remote = plain(next); return remote; },
+    publish: () => {},
+    journal: () => { if (storageDown) throw Error("quota"); },
+    failed: (_error, durable, saved) => failures.push([durable,saved])
+  });
+  controller.initialize(remote);
+  controller.set([playlist("p", ["1","2"])]);
+  assert.equal(await controller.flush(), false);
+  assert.deepEqual(failures.at(-1), [false,false]);
+  assert.deepEqual(plain(controller.current()[0].songIds), ["1","2"]);
+  databaseDown = false;
+  assert.equal(await controller.flush(), false);
+  assert.deepEqual(failures.at(-1), [false,true]);
+  assert.deepEqual(remote[0].songIds, ["1","2"]);
+  storageDown = false;
+  assert.equal(await controller.flush(), true);
+});
+
+
+test("playlist persistence does not acknowledge edits until committed", async () => {
+  const {createPlaylistPersistence} = compile("src/features/playlists/playlistPersistence.ts", {"./playlistMerge":playlistMerge});
+  let remote = [playlist("p", ["1"])];
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  const controller = createPlaylistPersistence({
+    read: async () => plain(remote),
+    save: async next => { await gate; remote = plain(next); return remote; },
+    publish: () => {}, journal: () => {}, failed: error => { throw error; }
+  });
+  controller.initialize(remote);
+  controller.set([playlist("p", ["1","2"])]);
+  assert.deepEqual(plain(controller.committed()[0].songIds), ["1"]);
+  controller.set([playlist("p", ["1","2","3"])]);
+  release();
+  assert.equal(await controller.flush(), true);
+  assert.deepEqual(plain(controller.committed()[0].songIds), ["1","2","3"]);
+});
