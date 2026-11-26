@@ -14,7 +14,7 @@
   display: flex;
   flex-direction: column;
   width: min(620px, 100%);
-  max-height: min(740px, 100%);
+  max-height: min(680px, 100%);
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -24,6 +24,8 @@
   border-radius: var(--lt-radius-panel);
   box-shadow: var(--lt-shadow-menu);
   text-align: left;
+  font-weight: 500;
+  letter-spacing: normal;
 }
 
 .releaseNotesHead,
@@ -153,6 +155,7 @@
 .releaseNotesMissing {
   color: var(--lt-muted);
   font-size: var(--lt-text-label);
+  font-weight: 500;
   line-height: 1.65;
   overflow-wrap: anywhere;
 }

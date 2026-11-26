@@ -724,6 +724,8 @@ server.listen(5173,async()=>{
       select.value=installed.value;select.dispatchEvent(new Event('change',{bubbles:true}));
     })()`);
     await until(()=>win.webContents.executeJavaScript("document.querySelector('.releaseNotesMeta')?.textContent.includes('Installed') && document.querySelector('.releaseNotesMarkdown')?.textContent.includes('Smart playlists')"),"installed notes from bundled release");
+    const releaseTypography=await win.webContents.executeJavaScript("({body:Number(getComputedStyle(document.querySelector('.releaseNotesMarkdown p')).fontWeight),strong:Number(getComputedStyle(document.querySelector('.releaseNotesMarkdown strong')).fontWeight)})");
+    assert.ok(releaseTypography.body<=500&&releaseTypography.strong>releaseTypography.body,"release notes use distinct body and emphasis weights");
     win.setSize(480,320);
     await until(()=>win.webContents.executeJavaScript("innerWidth===480 && innerHeight===320"),"compact installed release");
     const longLayout=await win.webContents.executeJavaScript(`(()=>{
