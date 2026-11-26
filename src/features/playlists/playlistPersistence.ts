@@ -61,7 +61,11 @@ export function createPlaylistPersistence({ read, save, publish, journal, failed
   function flush() {
     if (!initialized) return Promise.resolve(true);
     if (pending) return pending;
-    pending = drain().finally(() => { pending = null; });
+    pending = drain().then(ok => {
+      pending = null;
+      // An edit or remote notification can arrive after drain's final check.
+      return ok && (remoteChanged || !samePlaylists(base, draft)) ? flush() : ok;
+    }, error => { pending = null; throw error; });
     return pending;
   }
   return {
@@ -73,6 +77,7 @@ export function createPlaylistPersistence({ read, save, publish, journal, failed
       publish(draft);
     },
     current: () => draft,
+    committed: () => base,
     set(next: Playlist[]) {
       if (samePlaylists(draft, next)) return;
       draft = next;

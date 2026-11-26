@@ -264,3 +264,23 @@ test("playlist persistence reports journal failure accurately and retries withou
   storageDown = false;
   assert.equal(await controller.flush(), true);
 });
+
+
+test("playlist persistence does not acknowledge edits until committed", async () => {
+  const {createPlaylistPersistence} = compile("src/features/playlists/playlistPersistence.ts", {"./playlistMerge":playlistMerge});
+  let remote = [playlist("p", ["1"])];
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  const controller = createPlaylistPersistence({
+    read: async () => plain(remote),
+    save: async next => { await gate; remote = plain(next); return remote; },
+    publish: () => {}, journal: () => {}, failed: error => { throw error; }
+  });
+  controller.initialize(remote);
+  controller.set([playlist("p", ["1","2"])]);
+  assert.deepEqual(plain(controller.committed()[0].songIds), ["1"]);
+  controller.set([playlist("p", ["1","2","3"])]);
+  release();
+  assert.equal(await controller.flush(), true);
+  assert.deepEqual(plain(controller.committed()[0].songIds), ["1","2","3"]);
+});
