@@ -182,7 +182,8 @@ export async function syncFixture({ liveOptions } = {}) {
   let phone;
   let sync;
   async function restartPhone() {
-    const library = compile("src/platform/android/library.ts", { "./native": { LocaltifyNative: native }, "./store": store });
+    const smart = compile("src/features/playlists/smartPlaylist.ts", { "../search/search.utils": { normalizeSearchText: value => String(value ?? "").toLowerCase() } });
+    const library = compile("src/platform/android/library.ts", { "./native": { LocaltifyNative: native }, "./store": store, "../../features/playlists/smartPlaylist": smart });
     phone = library.phoneLibrary;
     await phone.load();
     const playlistMerge = compile("src/features/playlists/playlistMerge.ts");
@@ -191,6 +192,7 @@ export async function syncFixture({ liveOptions } = {}) {
     sync = compile("src/platform/android/sync.ts", {
       "./native": { LocaltifyNative: native }, "./library": library, "./syncMerge": merge, "./syncExchange": exchange,
       "./macFeatures": { markMacReachable: () => {}, fromMacOrKept: async () => null },
+      "../../features/playlists/smartPlaylist": smart,
       "../../app/platform": { computerName: () => "Mac", setPairedComputerPlatform: () => {} }
     }, { performance: { now: () => hooks.monotonicNow?.() ?? performance.now() } });
   }
