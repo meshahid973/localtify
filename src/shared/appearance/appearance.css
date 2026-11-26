@@ -144,8 +144,9 @@
 }
 
 .app[data-liquid-glass="true"] .ltOpticalTransport {
-  --glass-tint: var(--lt-bg-elevated);
-  background-color: color-mix(in srgb, var(--glass-tint) 72%, transparent);
+  --lt-transport-base: color-mix(in srgb, var(--lt-bg-elevated) 92%, var(--lt-text));
+  --glass-tint: var(--lt-transport-base);
+  background-color: color-mix(in srgb, var(--glass-tint) 82%, transparent);
   color: var(--lt-text);
   border-radius: 999px;
   width: max-content;
@@ -231,9 +232,26 @@
   outline-color: var(--lt-optical-focus);
 }
 
-/* The transport inherits its material from the player and the current artwork. */
-.app[data-liquid-glass="true"]:not([data-cover-sync="off"]):not([data-ambient="off"]):not([data-player-background="oledBlack"]) :is(.playerBar:not([data-ambient="false"]), .immersivePlayer:not([data-background="oledBlack"]), .phonePlayerSheet:not([data-background="oledBlack"])) .ltOpticalTransport {
-  --glass-tint: color-mix(in srgb, var(--lt-bg-elevated) 60%, var(--cover-average, var(--lt-bg-elevated)));
+/* Use the same palette and appearance preference as the player, not a black capsule.
+   Keep the base theme dominant for readable controls even with very bright artwork. */
+.app[data-liquid-glass="true"] {
+  --lt-transport-artwork-share: 30%;
+}
+.app[data-liquid-glass="true"][data-cover-sync="subtle"] {
+  --lt-transport-artwork-share: 20%;
+}
+.app[data-liquid-glass="true"][data-cover-sync="strong"] {
+  --lt-transport-artwork-share: 42%;
+}
+.app[data-liquid-glass="true"]:not([data-cover-sync="off"]):not([data-ambient="off"]) :is(
+  .playerBar[data-ambient="true"],
+  .immersivePlayer[data-background="coverBlur"],
+  .phonePlayerSheet[data-background="coverBlur"]
+) .ltOpticalTransport {
+  --glass-tint: color-mix(in srgb, var(--lt-transport-base), var(--cover-average, var(--lt-transport-base)) var(--lt-transport-artwork-share));
+}
+.app[data-liquid-glass="true"]:is([data-player-background="flat"], [data-player-background="oledBlack"]) .playerBar .ltOpticalTransport {
+  --glass-tint: var(--lt-transport-base);
 }
 /* Menus are anchored by the UI SDK, not by the optical animation. Keep their content
    readable at the real menu geometry while the glass travels or falls back. */
@@ -244,6 +262,10 @@ html:has(.app[data-liquid-glass="true"]) [data-glass-popup] {
   color: var(--lt-text);
   --tw-ring-shadow: 0 0 transparent;
   --tw-ring-offset-shadow: 0 0 transparent;
+  box-shadow: var(--lt-shadow-menu);
+}
+html:has(.app[data-liquid-glass="true"]) [data-glass-popup]:is(:focus, :focus-visible) {
+  outline: none;
 }
 html:has(.app[data-liquid-glass="true"]) [data-glass-popup] :is([role="menu"], [role="listbox"], [data-glass-list]) {
   position: relative;

@@ -264,7 +264,9 @@ server.listen(5173,async()=>{
       };
       const toggle=liquidGlassToggle;
       await openView("settings");
+      await until(()=>win.webContents.executeJavaScript("Boolean(document.querySelector('[data-preview-mode=light]')?.closest('button'))"),"initial appearance theme picker");
       await win.webContents.executeJavaScript("document.querySelector('[data-preview-mode=light]').closest('button').click()");
+      await until(()=>win.webContents.executeJavaScript("document.querySelector('[data-preview-mode=light]')?.closest('button')?.getAttribute('aria-pressed')==='true'"),"initial light theme");
       await openView("library");
       await win.webContents.executeJavaScript("document.querySelector('.songButton').click()");
       await until(()=>win.webContents.executeJavaScript("[...document.querySelectorAll('audio')].some(audio=>!audio.paused&&audio.currentTime>0)"),"fixture playback");
@@ -301,7 +303,7 @@ server.listen(5173,async()=>{
         await openView("settings");
         await until(()=>win.webContents.executeJavaScript(`Boolean(document.querySelector('[data-preview-mode="${mode}"]'))`),"glass theme picker");
         await win.webContents.executeJavaScript(`document.querySelector('[data-preview-mode="${mode}"]').closest('button').click()`);
-        await until(()=>win.webContents.executeJavaScript(`document.querySelector('[data-preview-mode="${mode}"]').closest('button').getAttribute('aria-pressed')==='true'`),"glass theme "+mode);
+        await until(()=>win.webContents.executeJavaScript(`document.querySelector('[data-preview-mode="${mode}"]')?.closest('button')?.getAttribute('aria-pressed')==='true'`),"glass theme "+mode);
         if(mode==="oled") {
           assert.equal(await win.webContents.executeJavaScript("getComputedStyle(document.querySelector('.app')).backgroundColor"),"rgb(0, 0, 0)","OLED is pure black");
           assert.equal(await win.webContents.executeJavaScript("document.querySelector('.workspaceArtworkBackdrop')"),null,"OLED keeps artwork out of its workspace foundation");
@@ -345,6 +347,7 @@ server.listen(5173,async()=>{
                 const menu=document.querySelector('.ltOpticalMenu'),item=menu?.querySelector('[role=menuitem]:not([data-disabled])');
                 if(!menu||!item)return false;
                 const list=menu.querySelector('[data-glass-list]'),r=item.getBoundingClientRect(),at=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);
+                if(!list)return false;
                 const listStyle=getComputedStyle(list),menuStyle=getComputedStyle(menu);
                 return menuStyle.outlineStyle==='none' && Number(listStyle.opacity)>.95 && listStyle.clipPath==='none' &&
                   Number(getComputedStyle(item).opacity)>.95 && item.contains(at) && (r.width>0&&r.height>0);

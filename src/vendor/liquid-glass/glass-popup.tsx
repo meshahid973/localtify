@@ -254,11 +254,12 @@ function createMorph(matchWidth: boolean, opening: GlassPopupOpening, from: Glas
   const glowTune = (): typeof GLOW => {
     const wideSet = morphs ? MORPH_GLOW : GLOW
     const smallSet = morphs ? MORPH_GLOW_SMALL : GLOW_SMALL
-    if (glowSmall <= 0) return wideSet
-    if (glowSmall >= 1) return smallSet
     const mixed = { ...wideSet }
-    for (const key of Object.keys(mixed) as (keyof typeof GLOW)[]) mixed[key] = lerp(wideSet[key], smallSet[key], glowSmall)
-    mixed.amount *= .2
+    for (const key of Object.keys(mixed) as (keyof typeof GLOW)[]) mixed[key] = lerp(wideSet[key], smallSet[key], clamp(glowSmall))
+    // Localtify uses restrained interior feedback for every trigger size.
+    // An exterior halo looks like a detached white outline during the morph.
+    mixed.amount *= .15
+    mixed.halo = 0
     return mixed
   }
   /** How many presses' worth of light is asked for: each adds to what is still lit (a choice in the list adds GLOW.select of one). */
@@ -800,7 +801,8 @@ function createMorph(matchWidth: boolean, opening: GlassPopupOpening, from: Glas
       shadowSoftness: 34 * lerp(0.6, 1, s.t),
       shadowOffset: 22 * lerp(0.5, 1, s.t),
       strength: 1 - card,
-      tune: { bendCurve: lerp(1.6, CARD.bendCurve, card), bendDepth: lerp(1, CARD.bendDepth, card), fresnel: 0.18 * (1 - card), rim: 0.14 },
+      tune: { bendCurve: lerp(1.6, CARD.bendCurve, card), bendDepth: lerp(1, CARD.bendDepth, card),
+        fresnel: 0, rim: 0, rimWidth: .6, inner: .12, reflection: .08, caustic: 0 },
       color: tint,
       border: undefined,
       borderAlpha: card > 0 ? card * (tint[0] > 0.5 ? LINE.alpha : LINE.darkAlpha) : undefined,
@@ -808,8 +810,8 @@ function createMorph(matchWidth: boolean, opening: GlassPopupOpening, from: Glas
       surface,
       edgeClear: 0.2,
       cursorLight: false,
-      // The light may spill past the surface's edge, never past the control's.
-      glow: s.lit && (s.blob && !s.parted && s.lit.blob ? { ...s.lit, halo: { around: 'blob' as const, amount: s.out * s.lit.spill } } : s.lit),
+      pointerLight: false,
+      glow: s.lit,
       refraction: {
         paint: (back) => {
           const fill = rgbCss(surface)
@@ -1416,7 +1418,7 @@ function createMorph(matchWidth: boolean, opening: GlassPopupOpening, from: Glas
                 blob: undefined,
                 // The same light, seen from the surface's own centre.
                 // (A light kept to the control never reaches it.)
-                glow: s.lit && s.lit.blob ? { ...s.lit, x: s.lit.x - s.blob.x, y: s.lit.y - s.blob.y, halo: { around: 'body' as const, amount: s.out * s.lit.spill } } : undefined,
+                glow: s.lit && s.lit.blob ? { ...s.lit, x: s.lit.x - s.blob.x, y: s.lit.y - s.blob.y } : undefined,
                 // Where this lens is on screen: the engine's light of a press (LIGHT) is measured from here.
                 screenX: s.body.cx + s.blob.x,
                 screenY: s.body.cy + s.blob.y,
