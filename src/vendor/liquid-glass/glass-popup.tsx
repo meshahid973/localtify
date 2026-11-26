@@ -59,7 +59,7 @@
 
 import { Children, useEffect, useMemo, useRef, type CSSProperties, type ReactNode } from 'react'
 
-import { drawDom } from './dom-snapshot'
+import { drawDom, releaseGlassSnapshotSubscriber } from './dom-snapshot'
 import { GLOW, GLOW_SMALL, GOOEY, HANDED_ON, MENU, MORPH, MORPH_GLOW, MORPH_GLOW_SMALL, SPRINGS, clamp, getGlassEngine, lerp, rgbCss, smooth, stepSpring, surfaceColorOf, type GlassEngine, type GlassLens, type GlassView, type Rgb, type Spring } from './engine'
 import { GlassStyles } from './glass-layer'
 
@@ -1342,7 +1342,12 @@ function createMorph(matchWidth: boolean, opening: GlassPopupOpening, from: Glas
       removeEventListener('scroll', onScroll, { capture: true })
       delete el.dataset.glassReady
       delete el.dataset.glassTone
-      for (const picture of pages) picture.canvas.width = picture.canvas.height = 1
+      for (const picture of pages) {
+        const callback = staleCallbacks.get(picture)
+        if (callback) releaseGlassSnapshotSubscriber(callback)
+        staleCallbacks.delete(picture)
+        picture.canvas.width = picture.canvas.height = 1
+      }
       canvas.width = canvas.height = 1
       triggerView = null
       host = null
@@ -1499,6 +1504,9 @@ function createMorph(matchWidth: boolean, opening: GlassPopupOpening, from: Glas
       ro.disconnect()
       io.disconnect()
       delete el.dataset.glassTone
+      const callback = staleCallbacks.get(page)
+      if (callback) releaseGlassSnapshotSubscriber(callback)
+      staleCallbacks.delete(page)
       page.canvas.width = page.canvas.height = 1
       canvas.width = canvas.height = 1
       panelView = null

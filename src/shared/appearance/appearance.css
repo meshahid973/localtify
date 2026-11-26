@@ -132,6 +132,11 @@
   button[data-glass-host], .ltOpticalToggle button) {
   --lt-control-focus-outline: none;
   --lt-control-focus-offset: 0px;
+}
+/* Do not override the positioning of floating/absolute controls. The optical
+   host has its own positioning rule; group items only need a default anchor. */
+:where(.app[data-liquid-glass="true"] :is(.ltOpticalTabs [role="radio"], .ltOpticalTransport > button,
+  .ltOpticalHistory > button, .ltOpticalToggle button)) {
   position: relative;
 }
 .app[data-liquid-glass="true"] :is(.ltOpticalTabs [role="radio"], .ltOpticalTransport > button, .ltOpticalHistory > button,
