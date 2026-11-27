@@ -349,7 +349,7 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
     }
   });
   const flush=()=>{lookupArtwork.flush();artworkResponses.flush();catalogResponses.flush();};
-  return {flush,close(){closed=true;flush();}};
+  return {flush,close(){closed=true;lookupArtwork.close();artworkResponses.close();catalogResponses.close();}};
 }
 
 module.exports = { registerDiscoverIpc };

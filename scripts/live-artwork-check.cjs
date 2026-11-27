@@ -110,7 +110,7 @@ async function controlledCache(root){
     const setup=()=>{
       const handlers=new Map();
       const lifecycle=registerDiscoverIpc({handle:(name,handler)=>handlers.set(name,handler)},{
-        cacheFile:path.join(dir,"metadata.json"),getSongs:()=>[],getSettings:()=>({discoverEnabled:true}),
+        cacheFile:path.join(dir,"metadata.json"),getSongs:()=>[],getSettings:()=>({discoverEnabled:true}),fetch:async()=>({ok:true,json:async()=>({error:6})}),
         searchYouTubeArtwork:async(kind,query)=>{calls++;await delay(40);return query==="One More Time Daft Punk"&&kind==="recording"?[{title:"One More Time",artist:"Daft Punk",coverUrl}]:[];}
       });
       return {get:(title)=>handlers.get("discover:get")({},{artwork:{title,artist:"Daft Punk"}}),close:()=>lifecycle.close()};
@@ -133,7 +133,17 @@ async function controlledCache(root){
     }});
     const first=await audio("First","Artist"),second=await audio("Second","Artist");
     if(!first.coverUrl||first.coverUrl!==second.coverUrl||!cold.resolved||!warm.resolved||!restart.resolved||missing.resolved||repeatMissing.resolved||restartMissing.resolved)throw Error("cache fixture returned invalid identity");
-    return {cold,warm,missing,repeatMissing,restart,restartMissing,album:{tracks,albums}};
+    const {createRemoteArtworkCache}=require(path.resolve(root,"electron/runtime/remote-artwork-cache.cjs"));
+    const bytes=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/zGQAAAAASUVORK5CYII=","base64");
+    let imageCalls=0;
+    const imageOptions={dir:path.join(dir,"images"),fetchImpl:async()=>{imageCalls++;await delay(40);return new Response(bytes,{headers:{"content-type":"image/png","cache-control":"public,max-age=3600"}});}};
+    let images=createRemoteArtworkCache(imageOptions);
+    const measureImage=async work=>{const before=imageCalls,start=performance.now();const result=await work();if(!result)throw Error("image fixture did not decode");return {ms:Number((performance.now()-start).toFixed(3)),requests:imageCalls-before};};
+    const imageCold=await measureImage(async()=>{const [a,b]=await Promise.all([images.resolve(coverUrl),images.resolve(coverUrl)]);if(a!==b)throw Error("image coalescing diverged");return a;});
+    const imageWarm=await measureImage(()=>images.resolve(coverUrl));
+    await images.close();images=createRemoteArtworkCache(imageOptions);
+    const imageRestart=await measureImage(()=>images.resolve(coverUrl));await images.close();
+    return {cold,warm,missing,repeatMissing,restart,restartMissing,album:{tracks,albums},image:{cold:imageCold,warm:imageWarm,restart:imageRestart}};
   }finally{fs.rmSync(dir,{recursive:true,force:true});}
 }
 async function liveResolution(){

@@ -39,21 +39,36 @@ function createAudioDbArtwork({apiKey, fetchImpl=globalThis.fetch, now=Date.now}
     const key="album:audiodb:"+createHash("sha256").update(JSON.stringify([ids[0],norm(exact[0].strAlbum),norm(artist)])).digest("hex");
     const cached=albumCache.get(key);
     if(albumImage(cached?.coverUrl)&&!excluded.includes(cached.coverUrl))return cached;
-    // An already started shared album request is independent of any one consumer.
-    let pending=pendingAlbums.get(key);
-    if(!pending){
+    // Shared album work is cancelled only when no requesting consumer remains.
+    let entry=pendingAlbums.get(key);
+    if(!entry){
       if(pendingAlbums.size>=4)throw unavailable();
-      pending=request("album.php",{m:ids[0]}).then(album=>{
+      const controller=new AbortController();
+      entry={controller,users:0,promise:null};
+      const job=entry;
+      entry.promise=request("album.php",{m:ids[0]},controller.signal).then(album=>{
         const match=(Array.isArray(album?.album)?album.album:[]).find(item=>item && String(item.idAlbum)===ids[0]&&norm(item.strAlbum)===norm(exact[0].strAlbum)&&(norm(item.strArtist)===norm(artist)||norm(item.strArtistAlternate)===norm(artist)));
         const coverUrl=albumImage(match?.strAlbumThumb);
         return coverUrl?{coverUrl}:{};
-      }).finally(()=>pendingAlbums.delete(key));
-      pendingAlbums.set(key,pending);
+      }).finally(()=>{if(pendingAlbums.get(key)===job)pendingAlbums.delete(key);});
+      pendingAlbums.set(key,entry);
     }
-    const result=await pending;
-    if(signal?.aborted)throw unavailable();
-    if(result.coverUrl&&!excluded.includes(result.coverUrl)){albumCache.set(key,result,86400000);return result;}
-    return {};
+    entry.users++;
+    let abort;
+    try{
+      const result=signal?await Promise.race([entry.promise,new Promise((_,reject)=>{
+        abort=()=>reject(unavailable());
+        if(signal.aborted)abort();else signal.addEventListener("abort",abort,{once:true});
+      })]):await entry.promise;
+      if(signal?.aborted)throw unavailable();
+      if(result.coverUrl&&!excluded.includes(result.coverUrl)){albumCache.set(key,result,86400000);return result;}
+      return {};
+    }finally{
+      if(abort)signal.removeEventListener("abort",abort);
+      if(--entry.users===0&&pendingAlbums.get(key)===entry){
+        pendingAlbums.delete(key);entry.controller.abort();
+      }
+    }
   };
   const lookup=(...args)=>resolve(...args).catch(()=>({}));
   lookup.resolve=resolve;

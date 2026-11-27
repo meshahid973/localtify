@@ -230,6 +230,7 @@ function createArtworkLookup(client,now=Date.now,trackInfo,lookupAudioDb,lookupM
   };
   lookup.resolve=resolve;
   lookup.flush=cache.flush;
+  lookup.close=cache.close;
   return lookup;
 }
 module.exports={catalogArtwork,createArtworkLookup,lastfmArtwork,matchMusicArtwork,matchArtistArtwork,firstArtwork,withoutFailedArtwork};

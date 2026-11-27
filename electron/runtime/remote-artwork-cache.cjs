@@ -32,7 +32,7 @@ function createRemoteArtworkCache({ dir, maxBytes = 128 * 1024 * 1024, maxEntrie
   maxEntries = Math.max(1, Math.min(4096, Number(maxEntries) || 2048));
   const index = path.join(dir, "index.json"), rows = new Map(), pending = new Map(), verified = new Map(), retryAt = new Map();
   const shutdown = new AbortController();
-  let ready, serial = Promise.resolve(), closed = false, dirty=false, indexTimer=null;
+  let ready, serial = Promise.resolve(), closed = false, dirty=false, indexTimer=null, indexFailures=0;
   const withLock = work => {
     const result = serial.then(work);
     serial = result.catch(() => {});
@@ -43,18 +43,20 @@ function createRemoteArtworkCache({ dir, maxBytes = 128 * 1024 * 1024, maxEntrie
     try {
       await fs.writeFile(temporary, JSON.stringify([...rows]), { flag: "wx", mode: 0o600 });
       await fs.rename(temporary, index);
-      dirty=false;
+      dirty=false;indexFailures=0;
     } finally { await fs.rm(temporary, { force: true }).catch(() => {}); }
   }
-  function markDirty(){
-    dirty=true;
-    if(closed||indexTimer!==null)return;
+  function scheduleIndex(delay=250){
+    if(closed||indexTimer!==null||!dirty)return;
     indexTimer=setTimeout(()=>{
       indexTimer=null;
-      void withLock(async()=>{if(dirty&&!closed)await save();}).catch(()=>{});
-    },250);
+      void withLock(async()=>{if(dirty&&!closed)await save();}).catch(()=>{
+        if(++indexFailures<4)scheduleIndex(500*2**(indexFailures-1));
+      });
+    },delay);
     indexTimer.unref?.();
   }
+  function markDirty(){dirty=true;indexFailures=0;scheduleIndex();}
   // Retain validators briefly after expiry without ever displaying stale bytes
   // outside the provider-authorized stale-while-revalidate window.
   const retainUntil = row => Math.max(row.staleUntil, (row.etag || row.lastModified) ? row.expiresAt + MAX_STALE : row.expiresAt);
