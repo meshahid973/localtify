@@ -256,8 +256,13 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
         if((row[field]===undefined||row[field]===""||(Array.isArray(row[field])&&!row[field].length))&&old[field]!==undefined)row[field]=old[field];
       }
     }
+    // A cached answer is not a fresh verification. Avoid rewriting unchanged
+    // records, while still merging genuinely new provider metadata.
+    const {identity:_incoming,...incomingFields}=row;
+    if(old){const {identity:_old,...oldFields}=old;
+      if(Object.keys(incomingFields).length===Object.keys(oldFields).length&&Object.keys(incomingFields).every(field=>JSON.stringify(incomingFields[field])===JSON.stringify(oldFields[field])))return old;
+    }
     row.identity=canonicalIdentity(row,{now:now()});
-    if(old&&old.identity?.verifiedAt&&item.identity?.verifiedAt===old.identity.verifiedAt)return old;
     persistent.set(recordKey(key),{record:row},14*86400000);
     return row;
   }
@@ -269,6 +274,13 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
   const limit=Math.max(1,Math.min(6,maxPending));
   const backgroundLimit=Math.max(1,limit-2);
   let blockedUntil=0,hardBlockedUntil=0,running=0,backgroundRunning=0;
+  let hardReason="unavailable",softReason="unavailable";
+  function blocked(background){
+    const hard=now()<hardBlockedUntil,soft=background&&now()<blockedUntil;
+    if(!hard&&!soft)return false;
+    trace("catalog-blocked",{state:hard?hardReason:softReason,ms:Math.max(0,(hard?hardBlockedUntil:blockedUntil)-now())});
+    return true;
+  }
   function pump(){
     while(running<limit&&waiting.length){
       const foreground=waiting.findIndex(job=>!job.background);
@@ -277,7 +289,7 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
       const [job]=waiting.splice(index,1);
       clearTimeout(job.timer);job.detach?.();
       if(job.signal?.aborted){job.reject(capacity());continue;}
-      if(now()<hardBlockedUntil||(job.background&&now()<blockedUntil)){job.reject(unavailable());continue;}
+      if(blocked(job.background)){job.reject(unavailable());continue;}
       trace("catalog-queue",{ms:Math.round(performance.now()-job.queuedAt)});
       running++;const wasBackground=job.background;if(wasBackground)backgroundRunning++;
       void job.run().then(job.resolve,job.reject).finally(()=>{
@@ -297,7 +309,7 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
       else if(prior.signal!==options.signal){prior.detach?.();prior.signal=undefined;}
       return prior.promise.then(select);
     }
-    if(now()<hardBlockedUntil||(background&&now()<blockedUntil))throw unavailable();
+    if(blocked(background))throw unavailable();
     if((waiting.length>=32&&background)||waiting.length>=48)throw capacity();
     let resolve,reject;
     const result=new Promise((yes,no)=>{resolve=yes;reject=no;});
@@ -309,8 +321,10 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
         while(cache.size>128)cache.delete(cache.keys().next().value);
         return items;
       }catch(error){
-        if([401,403,429].includes(error?.status))hardBlockedUntil=Math.max(hardBlockedUntil,now()+providerCooldown(error));
-        if(job.background)blockedUntil=Math.max(blockedUntil,now()+providerCooldown(error));
+        const status=Number.isInteger(error?.status)&&error.status>=400&&error.status<=599?"http-"+error.status:error?.name==="TimeoutError"?"timeout":"transport-or-response";
+        trace("catalog-failure",{state:status});
+        if([401,403,429].includes(error?.status)){hardReason=status;hardBlockedUntil=Math.max(hardBlockedUntil,now()+providerCooldown(error));}
+        if(job.background){softReason=status;blockedUntil=Math.max(blockedUntil,now()+providerCooldown(error));}
         throw error;
       }
     }};
@@ -327,9 +341,9 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
     return job.promise.then(select);
   };
   function remember(items){
-    const byArtist=new Map();
+    const byArtist=new Map(),normalized=[];
     for(const raw of items){
-      const item=storeRecord(raw);if(!item)continue;
+      const item=storeRecord(raw);normalized.push(item||raw);if(!item)continue;
       for(const name of [item.artist,...(item.artistCredits||[]).map(c=>c.name)]){
         const key=artistKey(name);if(!key)continue;
         const group=byArtist.get(key)||new Map();group.set(item.id,item);byArtist.set(key,group);
@@ -341,8 +355,10 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
       if(entry?.items)for(const row of old)storeRecord(row);
       const merged=new Set(old.map(item=>recordingKey(item.id)));
       for(const item of group.values()){const id=recordingKey(item.id);merged.delete(id);merged.add(id);}
-      persistent.set(key,{ids:[...merged].slice(-100)},14*86400000);
+      const ids=[...merged].slice(-100);
+      if(!entry?.ids||JSON.stringify(entry.ids)!==JSON.stringify(ids))persistent.set(key,{ids},14*86400000);
     }
+    return normalized;
   }
   const search=async(kind,query,options={})=>{
     if(!Object.hasOwn(filters,kind)||typeof query!=="string"||query.trim().length<2||query.length>160)return [];
@@ -352,8 +368,7 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
     return scheduled(key,options,async()=>{
       const body=await requestCatalog(fetchImpl,"search",{query:query.trim(),params:filters[kind]});
       const items=mapSearchResponse(body,kind,query,false,100,false);
-      if(kind!=="artist")remember(items);
-      return items;
+      return kind!=="artist"?remember(items):items;
     },select);
   };
   search.cachedArtist=name=>{
@@ -363,7 +378,7 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
     return items;
   };
   search.cachedRecording=id=>{const key=recordingKey(id);const row=key?persistent.get(recordKey(key))?.record:undefined;trace("recording-identity-cache",{state:row?"hit":"miss"});return row;};
-  search.rememberCatalog=async items=>{await persistent.hydrate();remember(items);return items.map(item=>search.cachedRecording(item.id)||item);};
+  search.rememberCatalog=async items=>{await persistent.hydrate();return remember(items);};
   search.hydrate=()=>persistent.hydrate();
   search.close=()=>persistent.close();
   search.flush=()=>persistent.flush();

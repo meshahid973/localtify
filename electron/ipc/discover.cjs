@@ -219,6 +219,7 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
       if(albumId!==undefined&&(kind!=="recording"||artistId!==undefined||radioSeed!==undefined||!/^ytmusic:MPREb_[A-Za-z0-9_-]{1,80}$/.test(albumId||"")||!searchYouTubeMusic?.getAlbum))return {status:"error",error:"Album catalog unavailable."};
       if(artistId!==undefined&&(kind!=="recording"||radioSeed!==undefined||!/^ytmusic:UC[A-Za-z0-9_-]{22}$/.test(artistId||"")||!searchYouTubeMusic?.getArtist))return {status:"error",error:"Artist catalog unavailable."};
       if (radioSeed !== undefined && (kind !== "recording" || typeof radioSeed !== "string" || !/^[A-Za-z0-9_-]{11}$/.test(radioSeed) || !searchYouTubeMusicRadio)) return { status: "error", error: "Related songs unavailable." };
+      const searchStarted=performance.now();
       const key = JSON.stringify([kind, term.toLowerCase(), radioSeed || "",artistId||"",albumId||""]);
       if (!catalogRunning.has(key) && catalogRunning.size>=4)
         return { status: "error", error: "Catalog searches are busy. Try again shortly." };
@@ -230,7 +231,7 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
           if(albumId){const page=await searchYouTubeMusic.getAlbum(albumId);return page?.tracks||[];}
           // Search YouTube Music only for explicit user queries, never library seeds.
           if (searchYouTubeMusic) {
-            const direct = await searchYouTubeMusic(kind, term).catch(() => []);
+            const direct = await timed("foreground-youtube-catalog",()=>searchYouTubeMusic(kind, term)).catch(() => []);
             if (getSettings().discoverEnabled !== true) return [];
             if (Array.isArray(direct) && direct.length) {
               const normalize = value => String(value || "").normalize("NFKC").toLowerCase()
@@ -262,26 +263,39 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
           const settings = getSettings();
           const apiKey = apiKeyFor(settings);
           const lastfm = /^[0-9a-f]{32}$/i.test(apiKey) ? createLastfmClient({ apiKey, cacheFile, responseCache:catalogResponses, fetch, now }) : null;
-          const jobs = [musicBrainzClient.searchCatalog(kind, title), searchStore(terms[0]), lastfm ? lastfm.searchTracks(title) : Promise.resolve([])];
+          const jobs = [timed("foreground-musicbrainz",()=>musicBrainzClient.searchCatalog(kind, title)), timed("foreground-store",()=>searchStore(terms[0])), lastfm ? timed("foreground-lastfm",()=>lastfm.searchTracks(title)) : Promise.resolve([])];
           if (terms.length > 1) jobs.push(searchStore(title));
           const settled = await Promise.allSettled(jobs);
           const items = index => settled[index]?.status === "fulfilled" ? settled[index].value : [];
           const mb=normalizeCatalog(kind,items(0)),store=[...items(1),...items(3)];
-          await searchYouTubeMusic?.rememberCatalog?.([...mb,...store]);
           const ranked=rankCatalog(term,mb,store,items(2));
           if(ranked.length)return ranked;
           const specialist=await specialistFallback();if(specialist.length)return specialist;
           if(settled.slice(0,2).every(result=>result.status==="rejected")&&settled.slice(2).every(result=>result.status==="rejected"||!result.value?.length))throw Error("Catalog unavailable");
           return [];
+        }).then(async items=>{
+          if(kind==="recording"&&getSettings().discoverEnabled===true&&searchYouTubeMusic?.rememberCatalog){
+            // The YouTube search path already persisted normalized results. Only
+            // persist records from other providers that have not been normalized.
+            const unresolved=items.filter(item=>!item.identity);
+            if(unresolved.length){
+              const start=performance.now(),rows=await searchYouTubeMusic.rememberCatalog(unresolved);
+              const byId=new Map(rows.map(row=>[row.id,row]));
+              items=items.map(item=>item.identity?item:byId.get(item.id)||item);
+              trace("foreground-catalog-persistence",{ms:Math.round(performance.now()-start),count:unresolved.length});
+            }
+          }
+          return items;
         })
           .finally(() => { if (catalogRunning.get(key) === promise) catalogRunning.delete(key); });
         catalogRunning.set(key,promise);
       }
       try {
-        let items = await catalogRunning.get(key);
-        if(kind==="recording"&&getSettings().discoverEnabled===true&&searchYouTubeMusic?.rememberCatalog)items=await searchYouTubeMusic.rememberCatalog(items);
+        const items = await catalogRunning.get(key);
+        trace("foreground-catalog-complete",{ms:Math.round(performance.now()-searchStarted),count:items.length});
         return getSettings().discoverEnabled === true ? { status: "catalog", kind, items } : { status: "off" };
       } catch {
+        trace("foreground-catalog-complete",{ms:Math.round(performance.now()-searchStarted),state:"error"});
         return getSettings().discoverEnabled === true
           ? { status: "error", error: "Could not search the music catalog. Check your connection and try again." }
           : { status: "off" };
