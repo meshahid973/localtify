@@ -772,6 +772,27 @@ server.listen(5173,async()=>{
     await win.webContents.executeJavaScript("document.querySelector('.sidebar [data-nav-id=settings]').click()");
     await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('.settingsModeButton').length===2 && document.querySelector('.app').dataset.workspaceArtwork==='on'").catch(()=>false),"appearance controls");
     assert.equal(await win.webContents.executeJavaScript("document.querySelector('.workspaceArtworkBackdrop .artworkBackdropLayer[data-visible=true] img')?.src"),playingArtwork,"navigation preserves active cover");
+    const discoverTracks=["Paper Boats","Night Bus","Blue Hour","Soft Focus","Rain Garden","Silver Line"].map(title=>({title,artist:"Fixture Artist",url:"https://www.last.fm/music/Fixture+Artist"}));
+    const artworkCalls=new Map();
+    const fixtureImage=nativeImage.createFromPath(songs[0].coverPath).toDataURL();
+    ipcMain.removeHandler("discover:get");
+    ipcMain.handle("discover:get",async(event,payload)=>{
+      assert.equal(event.sender,win.webContents);
+      if(payload?.configuration)return {status:"configuration",lastfmSource:"missing"};
+      if(payload?.artwork){
+        const query=payload.artwork,key=query.title+":"+Boolean(query.fallback);
+        artworkCalls.set(key,(artworkCalls.get(key)||0)+1);
+        if(query.title==="Paper Boats"&&!query.fallback){await sleep(120);return {status:"artwork"};}
+        if(query.fallback)await sleep(160);
+        return {status:"artwork",coverUrl:"https://lh3.googleusercontent.com/qa"+query.title.replace(/[^a-zA-Z0-9]/g,"")+"=w256-h256-l90-rj"};
+      }
+      return {status:"ready",generatedAt:Date.now(),seeds:["Test Artist"],tracks:[],artists:[{name:"Fixture Artist",url:discoverTracks[0].url,because:["Test Artist"],seedCount:1,topTracks:discoverTracks}]};
+    });
+    ipcMain.removeHandler("covers:resolve-remote");
+    ipcMain.handle("covers:resolve-remote",(event)=>{
+      assert.equal(event.sender,win.webContents);
+      return {url:fixtureImage,cacheTtlMs:30000};
+    });
     for(const mode of ["light","dark"]){
       await win.webContents.executeJavaScript(`document.querySelector('.settingsModeButton:has([data-preview-mode="${mode}"])').click()`);
       // Compare the actual resolved color, not the spelling of a minified CSS token
@@ -842,8 +863,13 @@ server.listen(5173,async()=>{
       await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.homeStartButton')").catch(()=>false),"Home "+mode);
       await assertShellChrome();
       await screenshot(win,"home-"+mode);
+      const discoverStarted=performance.now();
       await win.webContents.executeJavaScript("document.querySelector('.sidebar [data-nav-id=discover]').click()");
       await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.discoverPage') && !document.querySelector('.appCrashBoundary') && document.querySelector('.app').dataset.workspaceArtwork==='on'").catch(()=>false),"Discover "+mode);
+      await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('section[aria-labelledby=discover-recommended] img[data-ready=true]').length===6"),"six decoded fixture Discover covers "+mode,10000,50);
+      assert.equal(artworkCalls.get("Paper Boats:false"),1,"primary lookup must be coalesced and cached");
+      assert.equal(artworkCalls.get("Paper Boats:true"),1,"missing primary must resolve via independent fallback");
+      console.log("[discover-rendered]",JSON.stringify({mode,elapsedMs:Math.round(performance.now()-discoverStarted),metadataRequests:[...artworkCalls.values()].reduce((a,b)=>a+b,0)}));
       await screenshot(win,"discover-"+mode);
        // Discover's configuration lives in Settings, never an inline provider form.
        assert.equal(await win.webContents.executeJavaScript("document.querySelectorAll('.discoverSetup, .discoverKey').length"),0,"Provider form must not clutter Discover");
