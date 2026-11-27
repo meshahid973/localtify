@@ -225,3 +225,33 @@ test("stopping during pending listen settles the old start and allows a clean re
   runtime.stop();
   assert.equal(runtime.getPort(), 0);
 });
+
+test("abandoned loopback transfers close their source file streams", async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "localtify-abort-"));
+  const music = path.join(dir, "large.mp3");
+  const descriptor = fs.openSync(music, "w");
+  fs.ftruncateSync(descriptor, 64 * 1024 * 1024);
+  fs.closeSync(descriptor);
+  const { runtime } = makeRuntime();
+  t.after(() => { runtime.stop(); fs.rmSync(dir, {recursive:true,force:true}); });
+  const original = fs.createReadStream;
+  let stream;
+  let resolveClosed;
+  const closed = new Promise(resolve => { resolveClosed = resolve; });
+  t.mock.method(fs, "createReadStream", (...args) => {
+    stream = original(...args);
+    stream.once("close", resolveClosed);
+    return stream;
+  });
+  assert.equal(await runtime.start(), true);
+  const response = await fetch(runtime.safeMediaUrl(music), {headers:{Range:"bytes=0-"}});
+  assert.equal(response.status,206);
+  const reader=response.body.getReader();
+  assert.equal((await reader.read()).done,false);
+  await reader.cancel();
+  let timeout;
+  try { await Promise.race([closed,new Promise((_,reject)=>{timeout=setTimeout(()=>reject(new Error("abandoned stream remained open")),3000);})]); }
+  finally {clearTimeout(timeout);}
+  assert.ok(stream.destroyed);
+  assert.ok(stream.bytesRead < 64 * 1024 * 1024);
+});

@@ -37,6 +37,9 @@ export function useGenreTaggedSongs(songs: Song[]) {
     return () => { active = false; };
   }, []);
 
-  const tagged = useMemo(() => (tags ? songs.map((song) => ({ ...song, genre: tags.get(song.id) ?? song.genre })) : songs), [songs, tags]);
+  const tagged = useMemo(() => tags ? songs.map(song => {
+    const genre = tags.get(song.id) ?? song.genre;
+    return genre === song.genre ? song : { ...song, genre };
+  }) : songs, [songs, tags]);
   return { songs: tagged, loading };
 }

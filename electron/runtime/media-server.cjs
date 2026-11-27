@@ -173,6 +173,15 @@ function createMediaServerRuntime({ protocol, net, getFileInfoCached, fileExists
     return entry.filePath;
   }
 
+  function streamMediaFile(res, filePath, range) {
+    const stream = fs.createReadStream(filePath, range);
+    const cancel = () => stream.destroy();
+    res.once("close", cancel);
+    stream.once("close", () => res.removeListener("close", cancel));
+    stream.on("error", () => res.destroy());
+    stream.pipe(res);
+  }
+
   function sendMediaFile(req, res, filePath) {
     addCorsHeaders(res);
     if (!filePath || !path.isAbsolute(filePath) || !fileExists(filePath)) {
@@ -217,7 +226,7 @@ function createMediaServerRuntime({ protocol, net, getFileInfoCached, fileExists
         res.end();
         return;
       }
-      fs.createReadStream(filePath, range).on("error", () => res.destroy()).pipe(res);
+      streamMediaFile(res, filePath, range);
       return;
     }
 
@@ -226,7 +235,7 @@ function createMediaServerRuntime({ protocol, net, getFileInfoCached, fileExists
       res.end();
       return;
     }
-    fs.createReadStream(filePath).on("error", () => res.destroy()).pipe(res);
+    streamMediaFile(res, filePath);
   }
 
   let startGeneration = 0;

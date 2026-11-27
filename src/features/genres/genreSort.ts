@@ -60,8 +60,13 @@ export function buildGenres(songs: Song[]): GenreEntry[] {
 
 /** How many genres each minimum-track option keeps. */
 export function countGenresByMinTracks(genres: GenreEntry[]): Record<GenreMinTracks, number> {
-  const counts = {} as Record<GenreMinTracks, number>;
-  for (const min of GENRE_MIN_TRACKS) counts[min] = genres.filter((genre) => genre.songs.length >= Number(min)).length;
+  const counts = Object.fromEntries(GENRE_MIN_TRACKS.map(min => [min, 0])) as Record<GenreMinTracks, number>;
+  for (const genre of genres) {
+    for (const min of GENRE_MIN_TRACKS) {
+      if (genre.songs.length < Number(min)) break;
+      counts[min]++;
+    }
+  }
   return counts;
 }
 

@@ -48,8 +48,13 @@ const playable = (song: Song | undefined): song is Song => !!song && song.fileEx
  * Library-only relatedness to a group of seed songs, for when there is no audio analysis: shared artists, genre
  * tags, albums, and other playlists the seeds appear in. Returns positive scores only; seeds are left out.
  */
-export function relatedSongScores(seeds: readonly Song[], songs: readonly Song[], playlists: readonly Playlist[] = []) {
-  const seedIds = new Set(seeds.map((song) => song.id));
+function* relatedScoreSteps(seeds: readonly Song[], songs: readonly Song[], playlists: readonly Playlist[]): Generator<void, Map<string, number>> {
+  const seedIds = new Set<string>();
+  let work = 0;
+  for (const song of seeds) {
+    seedIds.add(song.id);
+    if (++work % 256 === 0) yield;
+  }
   const artistKeysByName = new Map<string, string[]>();
   const artistKeysFor = (song: Song) => {
     let keys = artistKeysByName.get(song.artist);
@@ -62,33 +67,51 @@ export function relatedSongScores(seeds: readonly Song[], songs: readonly Song[]
   const artists = new Map<string, number>();
   const albums = new Map<string, number>();
   const genre = new Map<string, number>();
+  const genresByName = new Map<string, Map<string, number>>();
+  const genreTokensFor = (value: unknown) => {
+    const key = String(value || "");
+    let tokens = genresByName.get(key);
+    if (!tokens) { tokens = genreTokens(key); genresByName.set(key,tokens); }
+    return tokens;
+  };
   for (const song of seeds) {
+    if (++work % 256 === 0) yield;
     const keys = artistKeysFor(song);
     for (const key of keys) artists.set(key, (artists.get(key) || 0) + 1 / keys.length);
     const album = `${artistKey(song.album || "")}\u0000${keys[0] || ""}`;
     albums.set(album, (albums.get(album) || 0) + 1);
-    for (const [token, weight] of genreTokens(song.genre)) genre.set(token, (genre.get(token) || 0) + weight);
+    for (const [token, weight] of genreTokensFor(song.genre)) genre.set(token, (genre.get(token) || 0) + weight);
   }
   // Songs that share a playlist with the seeds; a large playlist says less about each of its songs.
   const together = new Map<string, number>();
   for (const playlist of playlists) {
     if (playlist.rules || !playlist.songIds.length) continue;
-    const overlap = playlist.songIds.filter((id) => seedIds.has(id)).length;
+    let overlap = 0;
+    for (const id of playlist.songIds) {
+      if (++work % 256 === 0) yield;
+      if (seedIds.has(id)) overlap++;
+    }
     if (!overlap || overlap === playlist.songIds.length) continue;
     const weight = overlap / playlist.songIds.length;
-    for (const id of playlist.songIds) if (!seedIds.has(id)) together.set(id, (together.get(id) || 0) + weight);
+    for (const id of playlist.songIds) {
+      if (++work % 256 === 0) yield;
+      if (!seedIds.has(id)) together.set(id, (together.get(id) || 0) + weight);
+    }
   }
   const count = Math.max(1, seeds.length);
   const scores = new Map<string, number>();
   const genreMatches = new Map<string, number>();
   for (const song of songs) {
+    if (++work % 256 === 0) yield;
     if (seedIds.has(song.id) || !playable(song)) continue;
     const keys = artistKeysFor(song);
-    const artist = Math.min(1, Math.max(0, ...keys.map((key) => (artists.get(key) || 0) / count)) * 3);
+    let affinity = 0;
+    for (const key of keys) affinity = Math.max(affinity, (artists.get(key) || 0) / count);
+    const artist = Math.min(1, affinity * 3);
     const genreKey = String(song.genre || "");
     let genreMatch = genreMatches.get(genreKey);
     if (genreMatch === undefined) {
-      genreMatch = cosine(genre, genreTokens(genreKey));
+      genreMatch = cosine(genre, genreTokensFor(genreKey));
       genreMatches.set(genreKey, genreMatch);
     }
     const album = (albums.get(`${artistKey(song.album || "")}\u0000${keys[0] || ""}`) || 0) / count;
@@ -99,6 +122,29 @@ export function relatedSongScores(seeds: readonly Song[], songs: readonly Song[]
     scores.set(song.id, score);
   }
   return scores;
+}
+
+export function relatedSongScores(seeds: readonly Song[], songs: readonly Song[], playlists: readonly Playlist[] = []) {
+  const steps = relatedScoreSteps(seeds, songs, playlists);
+  for (;;) {
+    const next = steps.next();
+    if (next.done) return next.value;
+  }
+}
+
+/** Keep large-library fallback recommendations off the input-critical path. */
+export async function relatedSongScoresAsync(seeds: readonly Song[], songs: readonly Song[], playlists: readonly Playlist[], cancelled: () => boolean) {
+  const steps = relatedScoreSteps(seeds, songs, playlists);
+  let deadline = performance.now() + 8;
+  while (!cancelled()) {
+    const next = steps.next();
+    if (next.done) return next.value;
+    if (performance.now() >= deadline) {
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
+      deadline = performance.now() + 8;
+    }
+  }
+  return null;
 }
 
 /** Ranked song IDs from scores, best first, with ties broken by ID so the order is stable. */
