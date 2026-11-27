@@ -18,4 +18,9 @@ function unavailable() {
   error.code = "ARTWORK_UNAVAILABLE";
   return error;
 }
-module.exports = { retryAfterMs, providerCooldown, unavailable };
+function capacity() {
+  const error = new Error("Artwork request queue is busy");
+  error.code = "ARTWORK_CAPACITY";
+  return error;
+}
+module.exports = { retryAfterMs, providerCooldown, unavailable, capacity };

@@ -4,7 +4,7 @@
 // src/shared/youtube/innertube/{innertubeClient,innertubeTrackMapper,
 // innertubeThumbnail,innertubeSearchRanking}.ts. Localtify adaptation:
 // catalog metadata only; no accounts, tokens, playback endpoints or Liner services.
-const { retryAfterMs, providerCooldown, unavailable } = require("./provider-health.cjs");
+const { retryAfterMs, providerCooldown, unavailable, capacity } = require("./provider-health.cjs");
 const origin = "https://music.youtube.com/youtubei/v1/";
 const clientVersion = "1.20260911.08.00";
 const filters = { video: "EgWKAQIQAWoKEAkQBRAKEAMQBA%3D%3D", recording: "EgWKAQIIAWoKEAkQBRAKEAMQBA%3D%3D", artist: "EgWKAQIgAWoKEAkQBRAKEAMQBA%3D%3D" };
@@ -122,7 +122,8 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
     const hit=cache.get(key);
     if(hit&&now()-hit.at<300000){cache.delete(key);cache.set(key,hit);return hit.items;}
     if(pending.has(key))return pending.get(key);
-    if(pending.size>=maxPending||(options.artwork===true&&now()<blockedUntil))throw unavailable();
+    if(options.artwork===true&&now()<blockedUntil)throw unavailable();
+    if(pending.size>=maxPending)throw capacity();
     const task=Promise.resolve().then(async()=>{
       const body=await requestCatalog(fetchImpl,"search",{query:query.trim(),params:filters[kind]});
       const items=mapSearchResponse(body,kind,query,options.artwork!==true);

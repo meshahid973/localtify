@@ -112,14 +112,18 @@ function createMusicBrainzClient({ userAgent, fetchImpl = fetch, minIntervalMs =
       });
     },
     searchRecordingBatch: (artist,tracks,options) => {
-      const unique=[...new Set((Array.isArray(tracks)?tracks:[]).slice(0,4).flatMap(track=>{
+      const selected=(Array.isArray(tracks)?tracks:[]).slice(0,4);
+      const unique=[...new Set(selected.flatMap(track=>{
         const id=track?.recordingId,title=typeof track==="string"?track:track?.title;
         if(typeof id==="string"&&/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(id))return ["rid:"+phrase(id)];
         return typeof title==="string"&&title.trim()&&title.length<=300?["recording:"+phrase(title)]:[];
       }))].sort();
       if(typeof artist!=="string"||!artist.trim()||artist.length>300||!unique.length)return Promise.resolve([]);
-      const identified=unique.every(term=>term.startsWith("rid:"));
-      return request("recording",{query:identified?`(${unique.join(" OR ")})`:`artist:${phrase(artist)} AND (${unique.join(" OR ")})`,limit:identified?"10":"100"},options).then(body=>Array.isArray(body.recordings)?body.recordings:[]);
+      const ids=unique.filter(term=>term.startsWith("rid:"));
+      const titles=unique.filter(term=>!term.startsWith("rid:"));
+      const clauses=[...ids,...(titles.length?[`(artist:${phrase(artist)} AND (${titles.join(" OR ")}))`]:[])];
+      const query=ids.length?`(${clauses.join(" OR ")})`:`artist:${phrase(artist)} AND (${titles.join(" OR ")})`;
+      return request("recording",{query,limit:titles.length?"100":"10"},options).then(body=>Array.isArray(body.recordings)?body.recordings:[]);
     },
     searchRecordings: (title, artist, options) => request("recording", { query: `recording:${phrase(title)}${artist ? ` AND artist:${phrase(artist)}` : ""}`, limit: "25" }, options).then((body) => body.recordings || []),
     getRecording: (id, options) => request(`recording/${encodeURIComponent(id)}`, { inc: "artist-credits+releases+release-groups" }, options),

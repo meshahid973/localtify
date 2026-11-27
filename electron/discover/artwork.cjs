@@ -7,7 +7,7 @@ const url = (kind, id) => validId(id) ? "https://coverartarchive.org/" + kind + 
 function catalogArtwork(kind, item) {
   if (kind === "album") return {coverUrl:url("release-group",item.id)};
   if (kind !== "recording") return {};
-  const releases = (Array.isArray(item?.releases) ? item.releases : []).filter(r => validId(r?.id) && (!r.status || r.status === "Official"));
+  const releases = (Array.isArray(item?.releases) ? item.releases : []).filter(r => validId(r?.id) && (!r.status || r.status === "Official") && r["cover-art-archive"]?.front !== false);
   releases.sort((a,b) => Number(b["cover-art-archive"]?.front === true) - Number(a["cover-art-archive"]?.front === true) || String(a.date || "9999").localeCompare(String(b.date || "9999")));
   const release = releases[0];
   const alternatives = [...new Set(releases.flatMap(r => [url("release",r.id),url("release-group",r["release-group"]?.id)]).filter(Boolean))].slice(0,6);
@@ -108,7 +108,7 @@ function matchArtistArtwork(items,name,providerId = "") {
 // Race verified candidates, with a short head start for the preferred source.
 // Stop unstarted hedges and follow-up searches, not shared provider HTTP requests.
 const { validArtworkResult } = require("../runtime/remote-cover.cjs");
-const { unavailable } = require("./provider-health.cjs");
+const { unavailable, capacity } = require("./provider-health.cjs");
 const { createResourceCache } = require("../runtime/resource-cache.cjs");
 const { createHash } = require("node:crypto");
 const artworkDigest = value => createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -124,7 +124,7 @@ function firstArtwork(jobs, { active = () => true, staggerMs = 350, excluded = [
   const providers = jobs.filter(Boolean);
   if (!providers.length) return Promise.resolve({});
   return new Promise((resolve, reject) => {
-    let next = 0, running = 0, failed = false, settled = false, timer, deadline;
+    let next = 0, running = 0, failed = false, busy = false, settled = false, timer, deadline;
     const controller = new AbortController();
     const finish = (value, error) => {
       if (settled) return;
@@ -139,7 +139,7 @@ function firstArtwork(jobs, { active = () => true, staggerMs = 350, excluded = [
       if (settled) return;
       if (!active()) { finish({}); return; }
       if (next === providers.length) {
-        if (!running) finish({}, failed ? unavailable() : undefined);
+        if (!running) finish({}, failed ? unavailable() : busy ? capacity() : undefined);
         return;
       }
       const work = providers[next++];
@@ -149,7 +149,7 @@ function firstArtwork(jobs, { active = () => true, staggerMs = 350, excluded = [
         if (!active()) { finish({}); return; }
         const candidate=withoutFailedArtwork(value,excluded);
         if (candidate.coverUrl || candidate.fallbackCoverUrl) finish(candidate);
-      }, () => { failed = true; }).finally(() => {
+      }, error => { if(error?.code === "ARTWORK_CAPACITY") busy = true; else failed = true; }).finally(() => {
         running--;
         if (!settled) advance();
       });
@@ -165,7 +165,7 @@ function boundedProvider(work, limit) {
   if (!work) return undefined;
   let running = 0;
   return async (...args) => {
-    if (running >= limit) throw unavailable();
+    if (running >= limit) throw capacity();
     running++;
     try { return await work(...args); } finally { running--; }
   };
@@ -192,7 +192,7 @@ function createArtworkLookup(client,now=Date.now,trackInfo,lookupAudioDb,lookupM
     if(negative?.outcome==="missing")return {};
     if(negative?.outcome==="unavailable")throw unavailable();
     if(pending.has(requestKey))return pending.get(requestKey);
-    if(fallback ? fallbackRunning>=2 : primaryRunning>=4) throw unavailable();
+    if(fallback ? fallbackRunning>=2 : primaryRunning>=4) throw capacity();
     if(fallback)fallbackRunning++;else primaryRunning++;
     const task=Promise.resolve().then(()=>active()?work():{}).then(value=>{
       if(!active())return {};
@@ -201,7 +201,7 @@ function createArtworkLookup(client,now=Date.now,trackInfo,lookupAudioDb,lookupM
       else cache.set(requestKey,{outcome:"missing"},300000);
       return result;
     },error=>{
-      if(active())cache.set(requestKey,{outcome:"unavailable"},15000);
+      if(active() && error?.code !== "ARTWORK_CAPACITY")cache.set(requestKey,{outcome:"unavailable"},15000);
       throw error;
     }).finally(()=>{pending.delete(requestKey);if(fallback)fallbackRunning--;else primaryRunning--;});
     pending.set(requestKey,task);
@@ -211,10 +211,10 @@ function createArtworkLookup(client,now=Date.now,trackInfo,lookupAudioDb,lookupM
     const {fallback=false,primaryOnly=false,active=()=>true,excluded=[],retryPrimary=false}=options;
     const key=options.cacheKey||JSON.stringify(["recording",norm(title),norm(artist),"","",0,fallback]);
     return resolve(key,options,async()=>{
-      let track, knownRelease, failed=false;
+      let track, knownRelease, failed=false, busy=false;
       const run = async jobs => {
         try { return await firstArtwork(jobs,{active,excluded,timeoutMs:primaryOnly?5000:0}); }
-        catch { failed=true; return {}; }
+        catch(error) { if(error?.code === "ARTWORK_CAPACITY") busy=true; else failed=true; return {}; }
       };
       const lastfmJob = lastfm && (async () => {
         track = await lastfm(title,artist);
@@ -238,6 +238,7 @@ function createArtworkLookup(client,now=Date.now,trackInfo,lookupAudioDb,lookupM
           const known=withoutFailedArtwork(knownRelease?{coverUrl:knownRelease}:{},excluded);
           if(known.coverUrl)return known;
           if (failed) throw unavailable();
+          if (busy) throw capacity();
           return {};
         }
       }
@@ -269,6 +270,7 @@ function createArtworkLookup(client,now=Date.now,trackInfo,lookupAudioDb,lookupM
       const known=withoutFailedArtwork(knownRelease?{coverUrl:knownRelease}:{},excluded);
       if(known.coverUrl)return known;
       if (failed && active()) throw unavailable();
+      if (busy && active()) throw capacity();
       return {};
     });
   };

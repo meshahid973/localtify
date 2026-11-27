@@ -3,23 +3,35 @@ import { observeArtwork, getResolvedRemoteArtwork, invalidateResolvedRemoteArtwo
 import { Disc3, UserRound } from "lucide-react";
 import type { DiscoverArtwork, DiscoverResult } from "./discover.types";
 const cache = new Map<string, {at:number; value:DiscoverArtwork}>();
-type ArtworkJob = { users: number; started: boolean; promise: Promise<DiscoverResult | null>; run: () => Promise<void>; cancel: () => void };
+type ArtworkJob = { priority: number; queuedAt: number; person: boolean; users: number; started: boolean; promise: Promise<DiscoverResult | null>; run: () => Promise<void>; cancel: () => void };
 const primaryQueue: ArtworkJob[] = [], fallbackQueue: ArtworkJob[] = [];
 const sharedLookups = new Map<string, ArtworkJob>();
-let primaryRunning = 0, fallbackRunning = 0;
+let primaryRunning = 0, fallbackRunning = 0, portraitsRunning = 0;
+function takeArtwork(queue: ArtworkJob[]) {
+  const now=performance.now();
+  const rank=(job:ArtworkJob)=>job.priority-Math.floor((now-job.queuedAt)/5000);
+  let best=-1;
+  for(let i=0;i<queue.length;i++) {
+    if(queue[i].person&&portraitsRunning>=1)continue;
+    if(best<0||rank(queue[i])<rank(queue[best]))best=i;
+  }
+  return best<0?undefined:queue.splice(best,1)[0];
+}
 function pumpArtwork() {
   while (primaryRunning < 4 && primaryQueue.length) {
-    const job = primaryQueue.shift()!;
-    primaryRunning++;
-    void job.run().catch(() => undefined).finally(() => { primaryRunning--; pumpArtwork(); });
+    const job = takeArtwork(primaryQueue);
+    if(!job)break;
+    primaryRunning++;if(job.person)portraitsRunning++;
+    void job.run().catch(() => undefined).finally(() => { primaryRunning--;if(job.person)portraitsRunning--; pumpArtwork(); });
   }
   while (fallbackRunning < 2 && fallbackQueue.length) {
-    const job = fallbackQueue.shift()!;
-    fallbackRunning++;
-    void job.run().catch(() => undefined).finally(() => { fallbackRunning--; pumpArtwork(); });
+    const job = takeArtwork(fallbackQueue);
+    if(!job)break;
+    fallbackRunning++;if(job.person)portraitsRunning++;
+    void job.run().catch(() => undefined).finally(() => { fallbackRunning--;if(job.person)portraitsRunning--; pumpArtwork(); });
   }
 }
-function enqueueArtwork(key: string, fallback: boolean, work: () => Promise<DiscoverResult>) {
+function enqueueArtwork(key: string, fallback: boolean, priority: number, person: boolean, work: () => Promise<DiscoverResult>) {
   let job=sharedLookups.get(key);
   if(!job){
     if (primaryQueue.length + fallbackQueue.length >= 128) return undefined;
@@ -27,7 +39,7 @@ function enqueueArtwork(key: string, fallback: boolean, work: () => Promise<Disc
     const promise=new Promise<DiscoverResult | null>(resolve=>{settle=resolve;});
     const waiting=fallback?fallbackQueue:primaryQueue;
     const entry: ArtworkJob = {
-      users:0,started:false,promise,
+      priority,person,queuedAt:performance.now(),users:0,started:false,promise,
       run:async()=>{
         entry.started=true;
         try { settle(await work()); }
@@ -45,6 +57,7 @@ function enqueueArtwork(key: string, fallback: boolean, work: () => Promise<Disc
     job=entry;sharedLookups.set(key,entry);
     waiting.push(entry);
   }
+  job.priority=Math.min(job.priority,priority);
   job.users++;
   const entry=job;
   let released=false;
@@ -78,8 +91,8 @@ const deezerCover = /^https:\/\/(?:e-cdns-images|cdns-images|cdn-images)\.dzcdn\
 const fanartCover = /^https:\/\/assets\.fanart\.tv\/fanart\/music\/[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}\/(?:albumcover|artistthumb)\/[-a-z0-9_.%]+\.(?:jpg|jpeg|png)\/preview$/i;
 export const isDisplayOnlyCover = (value?: string) => Boolean(value && (deezerCover.test(value) || fanartCover.test(value)));
 const safeCover = (value?: string) => value && (deezerCover.test(value) || fanartCover.test(value) || youtubeCover.test(value) || audioDbCover.test(value) || /^https:\/\/coverartarchive\.org\/(release|release-group)\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/front-250$/i.test(value) || (/^https:\/\/(?:lastfm\.freetls\.fastly\.net|lastfm-img2\.akamaized\.net)\/i\/u\/(?:[0-9]+x[0-9]+|[0-9]+s)\/[a-f0-9]{32}\.(?:png|jpe?g|webp)$/i.test(value) && !/2a96cbd8b46e442fc41c2b86b821562f|4128a6eb29f94943c9d206c08e625904/i.test(value))) ? value : undefined;
-export function DiscoverCover({ title, artist, artwork, lookup = false, person = false, providerId = "", priority = false }: {
-  title: string; artist: string; artwork?: DiscoverArtwork & { album?: string }; lookup?: boolean; person?: boolean; providerId?: string; priority?: boolean;
+export function DiscoverCover({ title, artist, artwork, lookup = false, person = false, providerId = "", priority = false, lookupPriority = person ? 3 : 2 }: {
+  title: string; artist: string; artwork?: DiscoverArtwork & { album?: string }; lookup?: boolean; person?: boolean; providerId?: string; priority?: boolean; lookupPriority?: number;
 }) {
   const ref = useRef<HTMLSpanElement>(null);
   const [near, setNear] = useState(false);
@@ -154,7 +167,7 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
       if (!live) return;
       const cached = cachedArtwork(requestKey);
       if (cached && hasCandidate(cached)) { setResolved({ key, value: cached, fallback: exhausted }); return; }
-      const request=enqueueArtwork(requestKey+excludedKey+String(retryPrimary),exhausted,()=>window.localitfy.getDiscoveries({
+      const request=enqueueArtwork(requestKey+excludedKey+String(retryPrimary),exhausted,lookupPriority,person,()=>window.localitfy.getDiscoveries({
         artwork: {title,artist,kind:person?"artist":"recording",fallback:exhausted,primaryOnly:!exhausted&&!providerId,providerId,album,durationMs,failedUrls:excluded,retryPrimary}
       }));
       attempts++;
@@ -169,7 +182,11 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
         if(answer?.status!=="artwork"){
           // A temporary provider failure is already subject to a shared backend cooldown.
           // At most one delayed retry per visible consumer, never continuous polling.
-          if(attempts<2&&answer?.status!=="off")retryTimer=window.setTimeout(start,answer?.status==="error"?15000:900);
+          if(attempts<4&&answer?.status!=="off")retryTimer=window.setTimeout(start,answer?.status==="error"?15000*attempts:900*attempts);
+          return;
+        }
+        if(answer.outcome==="busy" || (exhausted&&answer.outcome==="unavailable")){
+          if(attempts<4)retryTimer=window.setTimeout(start,answer.outcome==="busy"?750*attempts:15000*attempts);
           return;
         }
         if(hasCandidate(answer)){
@@ -181,7 +198,7 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
     };
     start();
     return () => { live = false; releaseRequest?.(); if (retryTimer !== undefined) window.clearTimeout(retryTimer); };
-  }, [key, title, artist, needsLookup, near, person, exhausted, requestKey, providerId, album, durationMs, excludedKey, retryPrimary, finishedMissing, tooManyFailures]);
+  }, [key, title, artist, needsLookup, near, person, exhausted, requestKey, providerId, album, durationMs, excludedKey, retryPrimary, finishedMissing, tooManyFailures, lookupPriority]);
   return <span ref={ref} className="discoverCover" aria-hidden="true">
     {!imageReady ? (person ? <UserRound size={24} /> : <Disc3 size={24} />) : null}
     {(near || imageReady) && src && displaySrc ? <img key={displaySrc} ref={imageRef} src={displaySrc} alt="" loading={priority ? "eager" : "lazy"} decoding="async" fetchPriority={priority ? "high" : "auto"} referrerPolicy="no-referrer" data-ready={imageReady}

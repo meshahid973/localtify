@@ -81,11 +81,8 @@ export default function DiscoverView({ settings, updateSetting, sendToDownloads,
         // Keep an existing complete shelf visible during refresh; cold opening publishes early.
         setResult(current=>{
           if(current?.status!=="ready"||current.partial)return next;
-          const newArtists=new Map(next.artists.map(artist=>[artist.name,artist]));
-          const incoming=new Set(next.tracks.map(trackId));
-          return {...next,
-            artists:[...current.artists.map(artist=>newArtists.get(artist.name)||artist),...next.artists.filter(artist=>!current.artists.some(old=>old.name===artist.name))],
-            tracks:[...current.tracks.filter(track=>!incoming.has(trackId(track))),...next.tracks]};
+          // A partial refresh must not reorder the existing shelves twice.
+          return current;
         });
         const complete=await window.localitfy.getDiscoveries();
         if(requestVersion===requestVersionRef.current)setResult(current=>complete.status==="error"&&current?.status==="ready"?current:complete);
@@ -255,7 +252,7 @@ export default function DiscoverView({ settings, updateSetting, sendToDownloads,
       <div className="discoverSectionHead"><h2 id="discover-recommended" className="discoverHeading">Recommended songs</h2>{recommendedTracks.length > 10 ? <button type="button" className="discoverName discoverMore" aria-expanded={showAllRecommended} onClick={() => setShowAllRecommended(value => !value)}>{showAllRecommended ? "Show less" : "See all"}</button> : null}</div>
       <ul className="discoverSongList">
         {(showAllRecommended ? recommendedTracks : recommendedTracks.slice(0, 10)).map((track,index) => <li key={trackId(track)}>
-          <DiscoverCover priority={index<4} title={track.title} artist={track.artist} artwork={track} providerId={track.providerId} lookup />
+          <DiscoverCover priority={index<4} lookupPriority={0} title={track.title} artist={track.artist} artwork={track} providerId={track.providerId} lookup />
           <span className="discoverSongText"><button type="button" className="discoverName" onClick={() => openLink(track.url)} title={track.title}>{track.title}</button><small>{track.artist}</small></span>
           {pickButton(track)}
         </li>)}
@@ -268,7 +265,7 @@ export default function DiscoverView({ settings, updateSetting, sendToDownloads,
         {popularTracks.map(track => <li key={trackId(track)}>
           <div className="discoverShelfArt">
             <button type="button" className="discoverArtLink" onClick={() => openLink(track.url)} aria-label={`Open ${track.title}`}>
-              <DiscoverCover title={track.title} artist={track.artist} artwork={track} providerId={track.providerId} lookup />
+              <DiscoverCover lookupPriority={1} title={track.title} artist={track.artist} artwork={track} providerId={track.providerId} lookup />
             </button>
             <div className="discoverShelfActions">{pickButton(track)}</div>
           </div>

@@ -172,3 +172,14 @@ test("primary stage deadlines cancel unstarted hedges and distinguish timeouts f
   assert.equal(signal.aborted,true);assert.equal(hedges,0);
   release({});
 });
+
+test("capacity exhaustion is not negatively cached as provider outage",async()=>{
+  const {createArtworkLookup}=require("../../electron/discover/artwork.cjs");
+  const {capacity}=require("../../electron/discover/provider-health.cjs");
+  let busy=true,calls=0;
+  const lookup=createArtworkLookup(null,Date.now,undefined,undefined,async()=>{calls++;if(busy)throw capacity();return [{title:"Song",artist:"Artist",coverUrl:"https://lh3.googleusercontent.com/abc=w256-h256-l90-rj"}];});
+  await assert.rejects(lookup("Song","Artist",{primaryOnly:true}),{code:"ARTWORK_CAPACITY"});
+  busy=false;
+  assert.ok((await lookup("Song","Artist",{primaryOnly:true})).coverUrl);
+  assert.equal(calls,2);
+});

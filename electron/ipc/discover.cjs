@@ -91,7 +91,7 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
       try {
         const result=await firstArtwork(primary,{active,excluded,timeoutMs:primaryOnly?5000:0});
         if(result.coverUrl||primaryOnly||!active())return result;
-      } catch(error) { if(primaryOnly)throw error; failed=true; }
+      } catch(error) { if(primaryOnly || error?.code === "ARTWORK_CAPACITY")throw error; failed=true; }
     }
     const fanart=lookupFanart&&musicBrainzClient?.searchCatalog&&(async signal=>{
       const items=await musicBrainzClient.searchCatalog("artist",cleaned,{background:true});
@@ -180,7 +180,7 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
             : lookupArtistArtwork(title.trim(),options.fallback,options.primaryOnly,excluded,options.retryPrimary))
           : await lookupArtwork(title.trim(),artist.trim(),options);
         return requestActive() ? {status:"artwork",...artwork} : {status:"off"};
-      } catch { return !requestActive() ? {status:"off"} : primaryOnly === true && !providerId ? {status:"artwork",outcome:"unavailable"} : { status: "error", error: "Artwork unavailable." }; }
+      } catch(error) { return !requestActive() ? {status:"off"} : error?.code === "ARTWORK_CAPACITY" ? {status:"artwork",outcome:"busy"} : primaryOnly === true && !providerId ? {status:"artwork",outcome:"unavailable"} : { status: "error", error: "Artwork unavailable." }; }
     }
     if (payload?.catalog !== undefined) {
       const query = payload.catalog;
@@ -278,8 +278,8 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
           catalog:async(name,tracks)=>{
             if(!jobActive())return [];
             const cached=[...(searchYouTubeMusic?.cachedArtist?.(name)||[]),...(searchYouTubeArtwork?.cachedArtist?.(name)||[])];
-            const missing=tracks.filter(track=>!track.coverUrl&&!enrichCatalogTrack(track,cached).coverUrl&&/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(track.recordingId||""));
-            if(missing.length<2||!musicBrainzClient?.searchRecordingBatch||!jobActive()||batchBudget<=0)return cached;
+            const missing=tracks.filter(track=>!track.coverUrl&&!enrichCatalogTrack(track,cached).coverUrl&&(MBID.test(track.recordingId||"")||cleanText(track.title)));
+            if(!missing.length||!musicBrainzClient?.searchRecordingBatch||!jobActive()||batchBudget<=0)return cached;
             batchBudget--;
             try{
               const records=await musicBrainzClient.searchRecordingBatch(name,missing,{background:true,deadlineAt:Date.now()+1500});
