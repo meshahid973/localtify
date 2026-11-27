@@ -55,15 +55,16 @@ test("import progress distinguishes picker, processing and errors without claimi
   const { ImportProgress } = compile("src/features/library/ImportProgress.tsx", {
     "../covers/Cover": { Cover: () => null },
     "../../shared/ui/LocaltifyViewUi": { MascotStateArt: () => null },
-    "../search": { prettyTitle: String }
+    "../../shared/appearance/OpticalCard": { OpticalCard: props => React.createElement("div", props) },
+    "./import-progress.css": {}
   });
   const state = { active: true, phase: "picking", message: "Choose files", count: 0, preview: [] };
   const render = patch => renderToStaticMarkup(React.createElement(ImportProgress, { state: { ...state, ...patch } }));
-  assert.equal(render({ active: false }), "");
+  assert.doesNotMatch(render({ active: false }), /importPanel|Choose music/);
   assert.match(render({}), /Choose music to import/);
-  assert.match(render({ phase: "scanning" }), /Scanning your music/);
+  assert.match(render({ phase: "scanning" }), /Importing music/);
   const error = render({ phase: "error", message: "Could not read the folder" });
-  assert.match(error, /Import interrupted/);
+  assert.match(error, /Couldn’t import music/);
   assert.match(error, /Could not read the folder/);
   assert.doesNotMatch(error, /safe rollback/);
 });

@@ -120,7 +120,7 @@ jobs:
           LOCALTIFY_QA_OUTPUT: ${{ runner.temp }}/localtify-desktop-qa
         run: npx electron scripts/ci-desktop-regression.cjs
       - name: Rendered Liquid Glass reliability and interaction regression
-        if: ${{ github.head_ref == 'codex/liquid-glass-design-system' }}
+        if: ${{ github.head_ref == 'codex/liquid-glass-design-system' || github.head_ref == 'codex/settings-song-system' || github.head_ref == 'codex/visual-identity-4' }}
         timeout-minutes: 4
         env:
           LOCALTIFY_QA_LIQUID_GLASS: "1"

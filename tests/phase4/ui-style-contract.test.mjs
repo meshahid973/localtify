@@ -78,7 +78,9 @@ test("theme controls and library layout follow their owners", () => {
 test("sidebar navigation retains keyboard focus and theme contrast", () => {
   const nav = read("src/features/shell/SidebarNav.tsx");
   const effects = read("src/features/shell/effects.css");
-  assert.ok(nav.includes('aria-current={primaryNavigationView(view) === item.id ? "page" : undefined}'));
+  assert.ok(nav.includes('aria-current={active ? "page" : undefined}'));
+  assert.match(nav, /const currentView = primaryNavigationView\(view\)/);
+  assert.match(nav, /const active = currentView === item\.id/);
   assert.match(read("src/styles/view-shell.css"), /\.navItem:focus-visible \.navIcon\s*\{\s*outline: 2px solid var\(--lt-accent\) !important/);
   assert.match(read("src/styles/view-shell.css"), /\.navItem\.active \{[^}]*color: var\(--lt-text\) !important/);
 });

@@ -22,10 +22,10 @@ export default function AppearanceSettings(props: AppearanceSettingsProps) {
   return (
     <section className="settingsCategoryPage settingsAppearanceCleanV491" aria-label="Appearance settings">
       <header className="settingsCategoryHeader">
-        <div><h4>Appearance</h4><span className="settingsHintText">Personalize how Localtify looks and feels.</span></div>
+        <div><h4>Appearance</h4></div>
       </header>
       <div id="settings-appearance-theme" className="settingsPanelCard">
-        <div className="settingsPanelHeader"><div><strong>Color mode</strong><span>Choose a light or dark interface.</span></div></div>
+        <div className="settingsPanelHeader"><div><strong>Color mode</strong></div></div>
         <div className="settingsModeGrid" role="group" aria-label="App theme">
           {(["light", "dark"] as const).map(mode => (
             <button key={mode} type="button" className="settingsModeButton" aria-pressed={selected === mode}
@@ -53,7 +53,7 @@ export default function AppearanceSettings(props: AppearanceSettingsProps) {
 
       <div id="settings-appearance-layout" className="settingsPanelCard settingsLayoutControls">
         <div className="settingsPanelHeader">
-          <div><strong>Layout & motion</strong><span>Adjust the density and animation of the interface.</span></div>
+          <div><strong>Layout & motion</strong></div>
         </div>
         <div className="settingsMiniGrid">
           {phone ? null : <ToggleRow label="Compact player" help="Use a smaller bottom playback bar." checked={settings.compactPlayer} onChange={(value) => void updateSetting("compactPlayer", value)} />}
@@ -74,7 +74,7 @@ export default function AppearanceSettings(props: AppearanceSettingsProps) {
       </div>
 
       <div id="settings-appearance-sidebar" className="settingsPanelCard">
-        <div className="settingsPanelHeader"><div><strong>Navigation</strong><span>Organize the shortcuts you use most.</span></div></div>
+        <div className="settingsPanelHeader"><div><strong>Navigation</strong></div></div>
         {!phone ? <SettingsChoiceGroup compact label="Sidebar layout" value={settings.sidebarBehavior}
           options={[{ value: "slim", label: "Collapsed" }, { value: "fixed", label: "Expanded" }, { value: "hover", label: "On hover" }]}
           onChange={mode => void updateSetting("sidebarBehavior", mode)} /> : null}

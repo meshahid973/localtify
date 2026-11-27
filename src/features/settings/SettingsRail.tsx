@@ -84,7 +84,7 @@ export default function SettingsRail({
               const selected = activeCategory === tab.id;
               return <button key={tab.id} ref={selected ? selectedRef : undefined} className={`settingsCategoryButton ${selected ? "active" : ""}`}
                 type="button" onClick={() => onCategoryChange(tab.id)} title={tab.description}
-                aria-current={selected ? "page" : undefined}>
+                aria-label={tab.label} aria-current={selected ? "page" : undefined}>
                 <span className="settingsCategoryIcon" aria-hidden="true">
                   <SolidIcon className="settingsSolidIcon" name={tab.icon} size={20} />
                 </span>

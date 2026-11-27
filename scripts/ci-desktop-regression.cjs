@@ -984,7 +984,7 @@ server.listen(5173,async()=>{
       await win.webContents.executeJavaScript("document.querySelector('.settingsCategoryButton[title*=\"Lyrics\"]')?.click()");
       await until(()=>win.webContents.executeJavaScript("!!document.querySelector('[data-settings-category=lyrics] #settings-lyrics-display')").catch(()=>false),"independent lyrics settings");
       await screenshot(win,"settings-lyrics");
-      const playbackSelected = await win.webContents.executeJavaScript("(()=>{const button=[...document.querySelectorAll('.settingsCategoryButton')].find(button=>button.textContent.trim()==='Playback');if(!button)return false;button.click();return true;})()");
+      const playbackSelected = await win.webContents.executeJavaScript("(()=>{const button=[...document.querySelectorAll('.settingsCategoryButton')].find(button=>button.getAttribute('aria-label')==='Playback');if(!button)return false;button.click();return true;})()");
       assert.ok(playbackSelected,"Playback settings remain reachable");
       await until(()=>win.webContents.executeJavaScript("!!document.querySelector('[data-settings-category=playback] #settings-playback-transitions')").catch(()=>false),"Playback Settings "+mode,5000);
       const playbackHeaderTop = await win.webContents.executeJavaScript("document.querySelector('.settingsPage .pageHeader')?.getBoundingClientRect().top ?? -999");
@@ -1019,13 +1019,13 @@ server.listen(5173,async()=>{
         await win.webContents.executeJavaScript(check.click);
         await until(()=>win.webContents.executeJavaScript(check.focused).catch(()=>false),"focused "+check.label);
       }
-      const discordSelected = await win.webContents.executeJavaScript("(()=>{const button=[...document.querySelectorAll('.settingsCategoryButton')].find(button=>button.textContent.trim()==='Discord');if(!button)return false;button.click();return true;})()");
+      const discordSelected = await win.webContents.executeJavaScript("(()=>{const button=[...document.querySelectorAll('.settingsCategoryButton')].find(button=>button.getAttribute('aria-label')==='Discord');if(!button)return false;button.click();return true;})()");
       assert.ok(discordSelected,"Discord settings remain reachable");
       await until(()=>win.webContents.executeJavaScript("!!document.querySelector('[data-settings-category=discord] #settings-discord-privacy')").catch(()=>false),"Discord Settings "+mode,5000);
       const discordHeaderTop = await win.webContents.executeJavaScript("document.querySelector('.settingsPage .pageHeader')?.getBoundingClientRect().top ?? -999");
       assert.ok(discordHeaderTop >= 0 && discordHeaderTop < 160, "Settings discord scroll reset: "+discordHeaderTop);
       await screenshot(win,"settings-discord-"+mode);
-      const librarySelected = await win.webContents.executeJavaScript("(()=>{const button=[...document.querySelectorAll('.settingsCategoryButton')].find(button=>button.textContent.trim()==='Library');if(!button)return false;button.click();return true;})()");
+      const librarySelected = await win.webContents.executeJavaScript("(()=>{const button=[...document.querySelectorAll('.settingsCategoryButton')].find(button=>button.getAttribute('aria-label')==='Library');if(!button)return false;button.click();return true;})()");
       assert.ok(librarySelected,"Library settings remain reachable");
       await until(()=>win.webContents.executeJavaScript("!!document.querySelector('[data-settings-category=library] #settings-library-folders')").catch(()=>false),"Library Settings "+mode,5000);
       const libraryHeaderTop = await win.webContents.executeJavaScript("document.querySelector('.settingsPage .pageHeader')?.getBoundingClientRect().top ?? -999");

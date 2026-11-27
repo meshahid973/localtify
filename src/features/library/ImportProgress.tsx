@@ -8,7 +8,7 @@ export function ImportProgress({ state }: { state: ImportAnimationState }) {
   const importing = state.phase === "scanning";
   const failed = state.phase === "error";
   const added = state.count > 0;
-  const title = importing ? "Import music" : failed ? "Couldn’t import music" : added ? "Import complete" : "No tracks added";
+  const title = state.phase === "picking" ? "Choose music to import" : importing ? "Importing music" : failed ? "Couldn’t import music" : added ? "Import complete" : "No tracks added";
   return (
     <div className="importOverlay" data-active={state.active} role="status">
       {state.active ? <OpticalCard className="importPanel">
