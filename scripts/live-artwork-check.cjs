@@ -99,6 +99,53 @@ async function controlledResolution(implementation) {
   }
   return cases;
 }
+// Compare the real IPC and album cache paths, not a synthetic cache implementation.
+async function controlledCache(root){
+  const {registerDiscoverIpc}=require(path.resolve(root,"electron/ipc/discover.cjs"));
+  const {createAudioDbArtwork}=require(path.resolve(root,"electron/discover/audiodb.cjs"));
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),"localtify-artwork-benchmark-"));
+  try{
+    let calls=0;
+    const coverUrl="https://lh3.googleusercontent.com/fixture=w256-h256-l90-rj";
+    const setup=()=>{
+      const handlers=new Map();
+      const lifecycle=registerDiscoverIpc({handle:(name,handler)=>handlers.set(name,handler)},{
+        cacheFile:path.join(dir,"metadata.json"),getSongs:()=>[],getSettings:()=>({discoverEnabled:true}),fetch:async()=>({ok:true,json:async()=>({error:6})}),
+        searchYouTubeArtwork:async(kind,query)=>{calls++;await delay(40);return query==="One More Time Daft Punk"&&kind==="recording"?[{title:"One More Time",artist:"Daft Punk",coverUrl}]:[];}
+      });
+      return {get:(title)=>handlers.get("discover:get")({},{artwork:{title,artist:"Daft Punk"}}),close:()=>lifecycle.close()};
+    };
+    let app=setup();
+    const measure=async work=>{const before=calls,start=performance.now();const result=await work();return {ms:Number((performance.now()-start).toFixed(3)),requests:calls-before,resolved:Boolean(result?.coverUrl)};};
+    const cold=await measure(async()=>{const [one,two]=await Promise.all([app.get("One More Time"),app.get("One More Time")]);if(one.coverUrl!==two.coverUrl)throw Error("cache coalescing diverged");return one;});
+    const warm=await measure(()=>app.get("One More Time"));
+    const missing=await measure(()=>app.get("Unknown fixture"));
+    const repeatMissing=await measure(()=>app.get("Unknown fixture"));
+    app.close();app=setup();
+    const restart=await measure(()=>app.get("One More Time"));
+    const restartMissing=await measure(()=>app.get("Unknown fixture"));
+    app.close();
+    let tracks=0,albums=0,clock=1000;
+    const audio=createAudioDbArtwork({apiKey:"123",now:()=>{clock+=3000;return clock;},fetchImpl:async address=>{
+      const u=new URL(address);
+      if(u.pathname.endsWith("searchtrack.php")){tracks++;return new Response(JSON.stringify({track:[{strTrack:u.searchParams.get("t"),strArtist:"Artist",strAlbum:"Album",idAlbum:"42"}]}));}
+      albums++;return new Response(JSON.stringify({album:[{idAlbum:"42",strArtist:"Artist",strAlbum:"Album",strAlbumThumb:"https://www.theaudiodb.com/images/media/album/thumb/example.jpg"}]}));
+    }});
+    const first=await audio("First","Artist"),second=await audio("Second","Artist");
+    if(!first.coverUrl||first.coverUrl!==second.coverUrl||!cold.resolved||!warm.resolved||!restart.resolved||missing.resolved||repeatMissing.resolved||restartMissing.resolved)throw Error("cache fixture returned invalid identity");
+    const {createRemoteArtworkCache}=require(path.resolve(root,"electron/runtime/remote-artwork-cache.cjs"));
+    const bytes=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/zGQAAAAASUVORK5CYII=","base64");
+    let imageCalls=0;
+    const imageOptions={dir:path.join(dir,"images"),fetchImpl:async()=>{imageCalls++;await delay(40);return new Response(bytes,{headers:{"content-type":"image/png","cache-control":"public,max-age=3600"}});}};
+    let images=createRemoteArtworkCache(imageOptions);
+    const measureImage=async work=>{const before=imageCalls,start=performance.now();const result=await work();if(!result)throw Error("image fixture did not decode");return {ms:Number((performance.now()-start).toFixed(3)),requests:imageCalls-before};};
+    const imageCold=await measureImage(async()=>{const [a,b]=await Promise.all([images.resolve(coverUrl),images.resolve(coverUrl)]);if(a!==b)throw Error("image coalescing diverged");return a;});
+    const imageWarm=await measureImage(()=>images.resolve(coverUrl));
+    await images.close();images=createRemoteArtworkCache(imageOptions);
+    const imageRestart=await measureImage(()=>images.resolve(coverUrl));await images.close();
+    return {cold,warm,missing,repeatMissing,restart,restartMissing,album:{tracks,albums},image:{cold:imageCold,warm:imageWarm,restart:imageRestart}};
+  }finally{fs.rmSync(dir,{recursive:true,force:true});}
+}
 async function liveResolution(){
   const counts={}, pending=new Set();
   const instrument=provider=>async(address,options)=>{
@@ -264,8 +311,9 @@ async function main() {
     candidate:await controlledResolution(createArtworkLookup)
   }:undefined;
   if(comparison&&[...comparison.baseline,...comparison.candidate].some(row=>row.resolved!==row.expected))throw Error("Controlled artwork identity resolution diverged");
+  const cacheComparison=baselineRoot?{baseline:await controlledCache(baselineRoot),candidate:await controlledCache(path.resolve(__dirname,".."))}:undefined;
   console.log(JSON.stringify({checkedAt:new Date().toISOString(),sample:{title:expectedTitle,artist:expectedArtist},
-    checks:sorted,resolution,comparison,note:"Advisory network observation, not a guarantee of future provider availability"},null,2));
+    checks:sorted,resolution,comparison,cacheComparison,note:"Advisory network observation, not a guarantee of future provider availability"},null,2));
   // Manual release acceptance must not silently pass without configured keys
   // or when either keyed integration is unable to retrieve usable artwork.
   if(process.argv.includes("--require-keyed")) {

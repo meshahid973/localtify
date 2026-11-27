@@ -105,16 +105,17 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
   const needsLookup = lookup && (!directUrls.length || failed.length > 0);
   // The cache returns a display URL only; the provider URL remains the lookup/download identity.
   const remembered = src ? getResolvedRemoteArtwork(src) : undefined;
-  const eligibleLocal = Boolean(src && !isDisplayOnlyCover(src) && window.localitfy?.resolveRemoteArtwork);
+  // Cover Art Archive is display-only for this cache, independently of download handling.
+  const eligibleLocal = Boolean(src && !isDisplayOnlyCover(src) && !src.startsWith("https://coverartarchive.org/") && window.localitfy?.resolveRemoteArtwork);
   const pendingLocal = Boolean(near && eligibleLocal && remembered === undefined && local?.source !== src);
   useEffect(() => {
-    if (!near || !src || isDisplayOnlyCover(src) || !window.localitfy?.resolveRemoteArtwork) return;
+    if (!near || !src || !eligibleLocal) return;
     let active = true;
     void resolveRemoteArtwork(src).then(url => {
       if (active) setLocal({source: src, url});
     });
     return () => { active = false; };
-  }, [src, near]);
+  }, [src, near, eligibleLocal]);
   const localCandidate = eligibleLocal ? (remembered ?? (local && local.source === src ? local.url : "")) : "";
   const localSrc = localCandidate !== badLocal ? localCandidate : "";
   const displaySrc = pendingLocal ? "" : localSrc || src;
@@ -128,6 +129,7 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
   const requestKey = exhausted ? key + ":fallback" : key;
   const excludedKey=JSON.stringify(failed.slice(-8).sort());
   const retryPrimary=exhausted && resolved?.key===key && resolved.unavailable===true && !resolved.fallback;
+  const tooManyFailures=!src&&failed.length>=8;
   const finishedMissing=resolved?.key===key&&resolved.fallback&&!resolved.value.coverUrl&&!resolved.value.fallbackCoverUrl&&!resolved.value.coverAlternatives?.length;
   useEffect(() => {
     if (!near || !src || !displaySrc || imageReady) return;
@@ -139,7 +141,7 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
   }, [src, displaySrc, localSrc, key, imageReady, near]);
   useEffect(() => {
     if (!needsLookup || (!person && !artist) || !title || !near) return;
-    if(finishedMissing)return;
+    if(finishedMissing||tooManyFailures)return;
     let live = true;
     let releaseRequest: (()=>void) | undefined;
     let retryTimer: number | undefined;
@@ -163,7 +165,9 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
         request.release();
         if(!live)return;
         if(answer?.status!=="artwork"){
-          if(attempts<3&&answer?.status!=="off")retryTimer=window.setTimeout(start,attempts*900);
+          // A temporary provider failure is already subject to a shared backend cooldown.
+          // At most one delayed retry per visible consumer, never continuous polling.
+          if(attempts<2&&answer?.status!=="off")retryTimer=window.setTimeout(start,answer?.status==="error"?15000:900);
           return;
         }
         if(hasCandidate(answer)){
@@ -175,7 +179,7 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
     };
     start();
     return () => { live = false; releaseRequest?.(); if (retryTimer !== undefined) window.clearTimeout(retryTimer); };
-  }, [key, title, artist, needsLookup, near, person, exhausted, requestKey, providerId, album, durationMs, excludedKey, retryPrimary, finishedMissing]);
+  }, [key, title, artist, needsLookup, near, person, exhausted, requestKey, providerId, album, durationMs, excludedKey, retryPrimary, finishedMissing, tooManyFailures]);
   return <span ref={ref} className="discoverCover" aria-hidden="true">
     {!imageReady ? (person ? <UserRound size={24} /> : <Disc3 size={24} />) : null}
     {(near || imageReady) && src && displaySrc ? <img key={displaySrc} ref={imageRef} src={displaySrc} alt="" loading="eager" decoding="async" fetchPriority="auto" referrerPolicy="no-referrer" data-ready={imageReady}

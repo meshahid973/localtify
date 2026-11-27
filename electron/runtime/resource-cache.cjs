@@ -4,9 +4,9 @@ const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 
 // Only disposable lookup results belong here, never user artwork or library data.
-function createResourceCache({ maxEntries = 512, maxBytes = 2 * 1024 * 1024, file = "", now = Date.now, validate = () => true } = {}) {
+function createResourceCache({ maxEntries = 512, maxBytes = 2 * 1024 * 1024, file = "", now = Date.now, validate = () => true, migrate = () => [] } = {}) {
   const entries = new Map();
-  let loaded = false, loading = null, bytes = 2, dirty = false, timer = null, writing = null, revision = 0, generation = 0, failedWrites = 0;
+  let closed=false, loaded = false, loading = null, bytes = 2, dirty = false, timer = null, writing = null, revision = 0, generation = 0, failedWrites = 0;
   function remove(key) {
     const entry = entries.get(key);
     if (entry) { bytes -= entry.bytes + 1; entries.delete(key); }
@@ -27,7 +27,8 @@ function createResourceCache({ maxEntries = 512, maxBytes = 2 * 1024 * 1024, fil
     if (loaded) return;
     loaded = true;
     try {
-      const rows = JSON.parse(data);
+      const decoded = JSON.parse(data);
+      const rows = Array.isArray(decoded) ? decoded : migrate(decoded);
       if (!Array.isArray(rows)) return;
       for (const row of rows.slice(-maxEntries)) {
         if (!Array.isArray(row)) continue;
@@ -59,7 +60,7 @@ function createResourceCache({ maxEntries = 512, maxBytes = 2 * 1024 * 1024, fil
     return JSON.stringify([...entries].map(([key, {value, expiresAt}]) => [key,{value,expiresAt}]));
   }
   function schedule(delayMs = 250) {
-    if (!file || !dirty || timer !== null || writing) return;
+    if (closed || !file || !dirty || timer !== null || writing) return;
     timer = setTimeout(() => {
       timer = null;
       const currentRevision = revision, currentGeneration = generation;
@@ -103,9 +104,13 @@ function createResourceCache({ maxEntries = 512, maxBytes = 2 * 1024 * 1024, fil
     finally { if (temporary) { try { fs.rmSync(temporary, { force: true }); } catch {} } }
   }
   function set(key, value, ttlMs) {
+    if(closed)return;
     load();
     if (typeof key !== "string" || key.length > 1024 || !validate(value) || !(ttlMs > 0) || !Number.isFinite(ttlMs)) return;
-    insert(key, { value, expiresAt: now() + ttlMs });
+    const expiresAt=now()+ttlMs;
+    const previous=entries.get(key);
+    if(previous && previous.expiresAt>=expiresAt && JSON.stringify(previous.value)===JSON.stringify(value))return;
+    insert(key, { value, expiresAt });
     if (file) { dirty = true; revision++; failedWrites = 0; schedule(); }
   }
   function get(key) {
@@ -117,6 +122,7 @@ function createResourceCache({ maxEntries = 512, maxBytes = 2 * 1024 * 1024, fil
     entries.set(key, entry);
     return entry.value;
   }
-  return { get, set, flush, hydrate, get size() { load(); return entries.size; } };
+  function close(){closed=true;flush();}
+  return { get, set, flush, close, hydrate, get size() { load(); return entries.size; } };
 }
 module.exports = { createResourceCache };
