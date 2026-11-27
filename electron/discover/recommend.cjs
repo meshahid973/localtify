@@ -84,7 +84,7 @@ function diversify(entries, limit) {
   return picked;
 }
 
-async function discover({ songs, hiddenArtists = [], client, now = Date.now(), catalog, active = () => true, onProgress = () => {} }) {
+async function discover({ songs, hiddenArtists = [], client, now = Date.now(), catalog, cachedArtwork, active = () => true, onProgress = () => {} }) {
   const hidden = notForMeTest([], hiddenArtists);
   const taste = libraryTaste(songs, hidden, now);
   if (!taste.seeds.length) return { status: "no-taste", generatedAt: now, seeds: [], artists: [], tracks: [] };
@@ -127,6 +127,10 @@ async function discover({ songs, hiddenArtists = [], client, now = Date.now(), c
     }
   }
   async function enrich(name,tracks){
+    if(cachedArtwork&&active())tracks=await Promise.all(tracks.map(async track=>{
+      if(safeDisplayCover(track.coverUrl)||!active())return track;
+      try{return {...track,...await cachedArtwork(track)};}catch{return track;}
+    }));
     if(!catalog||!active()||!tracks.length||tracks.every(track=>safeDisplayCover(track.coverUrl)))return tracks;
     const id=key(name);
     let batch=batches.get(id);

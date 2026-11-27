@@ -81,12 +81,19 @@ function createMusicBrainzClient({ userAgent, fetchImpl = fetch, minIntervalMs =
       }
     };
     const entry = { promise, run, resolve, reject, background };
+    // Remove an expired batch from the queue immediately, even if an earlier
+    // unrelated request is still running. A started request has its own timeout.
+    const deadlineTimer=deadlineAt?setTimeout(()=>{
+      const index=waiting.indexOf(entry);
+      if(index>=0){waiting.splice(index,1);reject(unavailable());}
+    },Math.max(1,deadlineAt-Date.now())):null;
     inFlight.set(key, entry);
     promise.then(() => {
+      if(deadlineTimer!==null)clearTimeout(deadlineTimer);
       inFlight.delete(key);
       cache.set(key, { promise, expiresAt: Date.now() + Math.max(0, cacheTtlMs) });
       while (cache.size > Math.max(1, maxCacheEntries)) cache.delete(cache.keys().next().value);
-    }, () => { inFlight.delete(key); });
+    }, () => { if(deadlineTimer!==null)clearTimeout(deadlineTimer);inFlight.delete(key); });
     waiting.push(entry);
     pump();
     return promise;

@@ -252,17 +252,19 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
     const jobActive=()=>jobLive&&requestActive();
     const initial=new Promise(resolve=>{publish=resolve;});
     const promise = Promise.resolve().then(async()=>{
-      let result;
+      let result, batchBudget=6;
       const previous=saved?.apiKey===apiKey&&now()-saved.result.generatedAt<86400000?saved.result:null;
       try {
         result=await discover({...current,client,now:now(),active:jobActive,
+          cachedArtwork:track=>jobActive()&&(!track.recordingId||track.providerId)&&(!track.album||track.providerId)?lookupArtwork.cached(track.title,track.artist,track):{},
           // Reuse existing catalog data without widening unofficial endpoint usage.
           // Additional batch requests use the documented MusicBrainz search API.
           catalog:async(name,tracks)=>{
             if(!jobActive())return [];
             const cached=[...(searchYouTubeMusic?.cachedArtist?.(name)||[]),...(searchYouTubeArtwork?.cachedArtist?.(name)||[])];
             const missing=tracks.filter(track=>!enrichCatalogTrack(track,cached).coverUrl);
-            if(missing.length<2||!musicBrainzClient?.searchRecordingBatch||!jobActive())return cached;
+            if(missing.length<2||!musicBrainzClient?.searchRecordingBatch||!jobActive()||batchBudget<=0)return cached;
+            batchBudget--;
             try{
               const records=await musicBrainzClient.searchRecordingBatch(name,missing.map(track=>track.title),{background:true,deadlineAt:Date.now()+1500});
               return jobActive()?[...cached,...records]:[];

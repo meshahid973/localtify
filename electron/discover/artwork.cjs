@@ -261,6 +261,16 @@ function createArtworkLookup(client,now=Date.now,trackInfo,lookupAudioDb,lookupM
       return {};
     });
   };
+  lookup.cached=async(title,artist,identity={})=>{
+    await cache.hydrate();
+    const providerId=identity.providerId||"",album=norm(identity.album),durationMs=identity.durationMs||0;
+    for(const fallback of [false,true]){
+      const raw=JSON.stringify(["recording",norm(title),norm(artist),providerId,providerId?album:"",providerId?durationMs:0,fallback]);
+      const value=withoutFailedArtwork(cache.get(raw.length>1024?"identity:"+artworkDigest(raw):raw));
+      if(value.coverUrl&&(!durationMs||(value.durationMs&&Math.abs(value.durationMs-durationMs)<=5000)))return value;
+    }
+    return {};
+  };
   lookup.resolve=resolve;
   lookup.flush=cache.flush;
   lookup.close=cache.close;

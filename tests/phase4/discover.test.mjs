@@ -727,3 +727,19 @@ test("expired background catalog batch never starts another provider request",as
   await assert.rejects(client.searchRecordingBatch("Artist",["One","Two"],{background:true,deadlineAt:Date.now()-1}));
   assert.equal(calls,0);
 });
+
+test("queued batch expiry does not wait for unrelated metadata or issue an expired request",async()=>{
+  const {createMusicBrainzClient}=require("../../electron/musicbrainz/client.cjs");let finish,calls=0;
+  const client=createMusicBrainzClient({userAgent:"Localtify tests",minIntervalMs:0,fetchImpl:async()=>{calls++;return new Promise(resolve=>{finish=resolve;});}});
+  const blocking=client.searchRecordings("Blocking","Artist");
+  await assert.rejects(client.searchRecordingBatch("Artist",["One","Two"],{background:true,deadlineAt:Date.now()+20}));
+  assert.equal(calls,1);finish({ok:true,headers:new Headers(),json:async()=>({recordings:[]})});await blocking;
+});
+test("recommendation refresh retains verified unchanged artwork but not conflicting identities",()=>{
+  const {reuseRecommendationArtwork}=require("../../electron/discover/recommend.cjs");
+  const coverUrl="https://lh3.googleusercontent.com/fixture=w256-h256-l90-rj",track={title:"Track",artist:"Artist",url:"https://last.fm/music/Artist",providerId:"ytmusic:abcdefghijk",durationMs:180000,coverUrl};
+  const result={status:"ready",artists:[],tracks:[{title:track.title,artist:track.artist,url:track.url}]};
+  const previous={...result,tracks:[track]};
+  assert.equal(reuseRecommendationArtwork(result,previous).tracks[0].coverUrl,coverUrl);
+  assert.equal(reuseRecommendationArtwork({...result,tracks:[{...result.tracks[0],durationMs:220000}]},previous).tracks[0].coverUrl,undefined);
+});
