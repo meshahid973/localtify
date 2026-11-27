@@ -1,4 +1,3 @@
-import { OpticalCard } from "../../../shared/appearance/OpticalCard";
 import { Check } from "lucide-react";
 import SidebarTabsSettings from "./SidebarTabsSettings";
 import { isAndroidApp } from "../../../app/platform";
@@ -25,12 +24,10 @@ export default function AppearanceSettings(props: AppearanceSettingsProps) {
       <header className="settingsCategoryHeader">
         <div><h4>Appearance</h4></div>
       </header>
-      <OpticalCard id="settings-appearance-theme" className="settingsPanelCard">
+      <div id="settings-appearance-theme" className="settingsPanelCard">
         <div className="settingsPanelHeader"><div><strong>Theme</strong></div></div>
-        <ToggleRow label="Liquid Glass" help="Use optical glass on interface controls." checked={settings.liquidGlass === true}
-          onChange={value => void updateSetting("liquidGlass", value)} />
         <div className="settingsModeGrid" role="group" aria-label="App theme">
-          {(["light", "dark", "oled"] as const).map(mode => (
+          {(["light", "dark"] as const).map(mode => (
             <button key={mode} type="button" className="settingsModeButton" aria-pressed={selected === mode}
               onClick={() => void updateSetting("theme", mode)}>
               <span className="settingsModePreview" data-preview-mode={mode} aria-hidden="true">
@@ -38,11 +35,13 @@ export default function AppearanceSettings(props: AppearanceSettingsProps) {
                 <span className="settingsModePreviewBody"><i/><span><i/><i/><i/></span><i/></span>
                 {selected === mode ? <span className="settingsModeCheck"><Check size={14}/></span> : null}
               </span>
-              <strong>{mode === "light" ? "Light" : mode === "oled" ? "OLED" : "Dark"}</strong>
+              <strong>{mode === "light" ? "Light" : "Dark"}</strong>
             </button>
           ))}
         </div>
-      </OpticalCard>
+        <ToggleRow label="Liquid Glass" help="Use optical glass on interface controls." checked={settings.liquidGlass === true}
+          onChange={value => void updateSetting("liquidGlass", value)} />
+      </div>
 
       <div id="settings-appearance-ambience" className="settingsPanelCard settingsCoverTintCard">
         <div className="settingsPanelHeader"><div><strong>Artwork ambience</strong></div></div>
@@ -94,7 +93,7 @@ export default function AppearanceSettings(props: AppearanceSettingsProps) {
           options={[{value:"dynamic",label:"Dynamic"},{value:"albumCover",label:"Album cover"},{value:"cleanBlack",label:"Minimal"},{value:"none",label:"Hidden"}]}
           onChange={value => void updateSetting("homeBannerType", value)} />
         <SettingsChoiceGroup label="Card backgrounds" compact value={settings.mediaCardBackground}
-          options={[{value:"solid",label:"Solid"},{value:"glassy",label:"Soft"},{value:"oledFlat",label:"OLED"}]}
+          options={[{value:"solid",label:"Solid"},{value:"glassy",label:"Soft"}]}
           onChange={value => void updateSetting("mediaCardBackground", value)} />
         <details className="settingsDisclosure settingsAppearanceExtras">
           <summary>More home options</summary>
@@ -109,7 +108,7 @@ export default function AppearanceSettings(props: AppearanceSettingsProps) {
       <div id="settings-appearance-player" className="settingsPanelCard">
         <div className="settingsPanelHeader"><div><strong>Fullscreen player</strong></div></div>
         <SettingsChoiceGroup compact label="Player background" value={settings.playerBackgroundStyle}
-          options={[{value:"flat",label:"Flat"},{value:"coverBlur",label:"Artwork blur"},{value:"oledBlack",label:"OLED black"}]}
+          options={[{value:"flat",label:"Flat"},{value:"coverBlur",label:"Artwork blur"}]}
           onChange={value => void updateSetting("playerBackgroundStyle", value)} />
         <SettingsChoiceGroup compact label="Animated artwork" value={settings.gifVisualsMode}
           options={[{value:"none",label:"Off"},{value:"loadingOnly",label:"Only while loading"},{value:"everywhere",label:"Everywhere"}]}

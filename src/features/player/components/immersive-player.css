@@ -32,20 +32,6 @@
   color: var(--lt-text);
   background: var(--lt-bg);
 }
-.immersivePlayer[data-background="oledBlack"]{
-  --lt-bg: var(--lt-oled-bg);
-  --lt-text: var(--lt-oled-text);
-  --lt-muted: var(--lt-oled-muted);
-  --lt-surface: var(--lt-oled-surface);
-  --lt-border: var(--lt-oled-border);
-  --lt-border-strong: var(--lt-oled-border);
-  --lt-accent: var(--lt-oled-text);
-  --lt-accent-rgb: var(--lt-oled-rgb);
-  --accent: var(--lt-oled-text);
-  --accent-rgb: var(--lt-oled-rgb);
-  --button-text-on-accent: var(--lt-oled-bg);
-  --muted: var(--lt-muted);
-}
 .immersiveTop{
   display: grid;
   grid-template-columns: minmax(88px,1fr) minmax(0,2fr) minmax(88px,1fr);

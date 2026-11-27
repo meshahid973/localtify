@@ -159,7 +159,7 @@ export default function PhonePlayer(props: PhonePlayerProps) {
             else if (lyrics.open) lyrics.onClose();
             else closePlayer();
           }}>
-          {props.backgroundStyle !== "flat" && props.backgroundStyle !== "oledBlack" && props.effectiveAmbient && !props.backgrounded ? (
+          {props.backgroundStyle !== "flat" && props.effectiveAmbient && !props.backgrounded ? (
             <div className="phonePlayerBackdrop" aria-hidden="true"><Cover song={currentSong} className="phonePlayerBackdropArt" preferThumbnail /></div>
           ) : null}
 

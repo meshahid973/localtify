@@ -3,7 +3,6 @@ import { coverColorSyncOptions } from "./settings.constants";
 export function normalizeThemeId(value: unknown, fallback: ThemeId = "dark"): ThemeId {
   const raw = String(value ?? "").trim().toLowerCase();
   if (raw === "light" || raw === "mono") return "light";
-  if (raw === "oled") return "oled";
   if (raw === "dark" || raw) return "dark";
   return fallback;
 }

@@ -57,7 +57,7 @@ export type Settings = {
   showHeroBadge: boolean;
   lastSongId: string;
   homeBannerType: "dynamic" | "albumCover" | "cleanBlack" | "none";
-  mediaCardBackground: "solid" | "glassy" | "oledFlat";
+  mediaCardBackground: "solid" | "glassy";
   homeLayoutMode: "compact" | "balanced" | "bigHero";
   libraryRowStyle: "compactRows" | "comfyRows" | "coverCards" | "listOnly";
   sidebarBehavior: "fixed" | "slim" | "hover";
@@ -67,7 +67,7 @@ export type Settings = {
   /** Saved Home section order; unknown or missing sections fall back to the default order. */
   homeSectionOrder: string[];
   homeHiddenSections: string[];
-  playerBackgroundStyle: "flat" | "coverBlur" | "oledBlack";
+  playerBackgroundStyle: "flat" | "coverBlur";
   /** Present in the persisted runtime defaults even though the old monolith type omitted it. */
   homeHeroCoverBrightness: number;
   discordEnabled: boolean;

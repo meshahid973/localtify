@@ -136,7 +136,6 @@
   animation: phonePlayerRise 260ms cubic-bezier(0.2, 0, 0, 1) both;
 }
 
-.phonePlayerSheet[data-background="oledBlack"]{ background: var(--lt-bg); }
 
 @keyframes phonePlayerRise{
   from{ transform: translateY(24px); opacity: 0; }

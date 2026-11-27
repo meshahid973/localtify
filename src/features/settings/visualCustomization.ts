@@ -27,12 +27,12 @@ export function applyVisualCustomizationDefaults<T extends Record<string, any>>(
     showRightColumn: false,
     homeBannerType: normalizeChoice(settings.homeBannerType, ["dynamic", "albumCover", "cleanBlack", "none"], VISUAL_CUSTOMIZATION_DEFAULTS.homeBannerType),
     blurEffects: "normal",
-    mediaCardBackground: normalizeChoice(settings.mediaCardBackground, ["solid", "glassy", "oledFlat"], VISUAL_CUSTOMIZATION_DEFAULTS.mediaCardBackground),
+    mediaCardBackground: normalizeChoice(settings.mediaCardBackground === "oledFlat" ? "solid" : settings.mediaCardBackground, ["solid", "glassy"], VISUAL_CUSTOMIZATION_DEFAULTS.mediaCardBackground),
     homeLayoutMode: normalizeChoice(settings.homeLayoutMode, ["compact", "balanced", "bigHero"], VISUAL_CUSTOMIZATION_DEFAULTS.homeLayoutMode),
     libraryRowStyle: normalizeChoice(settings.libraryRowStyle, ["compactRows", "comfyRows", "coverCards", "listOnly"], VISUAL_CUSTOMIZATION_DEFAULTS.libraryRowStyle),
     starsIntensity: "off",
     sidebarBehavior: normalizeChoice(settings.sidebarBehavior, ["fixed", "slim", "hover"], VISUAL_CUSTOMIZATION_DEFAULTS.sidebarBehavior),
-    playerBackgroundStyle: normalizeChoice(settings.playerBackgroundStyle, ["flat", "coverBlur", "oledBlack"], VISUAL_CUSTOMIZATION_DEFAULTS.playerBackgroundStyle),
+    playerBackgroundStyle: normalizeChoice(settings.playerBackgroundStyle === "oledBlack" ? "flat" : settings.playerBackgroundStyle, ["flat", "coverBlur"], VISUAL_CUSTOMIZATION_DEFAULTS.playerBackgroundStyle),
     homeHeroCoverBrightness: Number.isFinite(Number(settings.homeHeroCoverBrightness)) ? Math.min(1.55, Math.max(0.65, Number(settings.homeHeroCoverBrightness))) : 1,
     catBuddyEnabled: settings.catBuddyEnabled === true
   };
