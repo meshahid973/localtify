@@ -313,7 +313,7 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
             }
             if(musicBrainzClient?.searchRecordingBatch&&batchBudget>0){
               batchBudget--;
-              extra.push(timed("provider-musicbrainz-batch",()=>musicBrainzClient.searchRecordingBatch(name,missing,{background:true,deadlineAt:deadline})).then(rows=>Array.isArray(rows)?rows:[],()=>[]));
+              extra.push(timed("provider-musicbrainz-batch",()=>musicBrainzClient.searchRecordingBatch(name,missing,{background:true,deadlineAt:Math.min(deadline,Date.now()+1500)})).then(rows=>Array.isArray(rows)?rows:[],()=>[]));
             }
             if(!extra.length)return cached;
             const completed=[];

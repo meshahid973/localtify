@@ -100,3 +100,15 @@ test("catalog recording metadata survives restart without another search",async(
     assert.equal(next.cachedArtist("Kenshi Yonezu")[0].id,"ytmusic:abcdefghijk");next.close();
   }finally{rmSync(dir,{recursive:true,force:true});}
 });
+
+test("artist-name search is corroborated by multiple recording identities before reuse",async()=>{
+  const id="UCabcdefghijklmnopqrstuv";
+  const artist={musicResponsiveListItemRenderer:{flexColumns:[col([linked("Kenshi Yonezu","MUSIC_PAGE_TYPE_ARTIST",id)])],navigationEndpoint:linked("Kenshi Yonezu","MUSIC_PAGE_TYPE_ARTIST",id).navigationEndpoint}};
+  const body={header:{musicImmersiveHeaderRenderer:{title:{runs:[{text:"Kenshi Yonezu"}]}}},contents:[{musicShelfRenderer:{title:{runs:[{text:"Songs"}]},contents:[row("KICK BACK"),row("Lemon","abcdefghij2")]}}]};
+  let calls=0;
+  const search=createYouTubeMusicSearch(async url=>{calls++;return {ok:true,text:async()=>JSON.stringify(url.includes("/browse?")?body:response([artist]))};});
+  const wanted=[{title:"KICK BACK",artist:"Kenshi Yonezu"},{title:"Lemon",artist:"Kenshi Yonezu"}];
+  const first=await search.artistCatalog("Kenshi Yonezu",wanted);assert.equal(first.length,2);assert.equal(calls,2);
+  const second=await search.artistCatalog("Kenshi Yonezu",wanted);assert.equal(second.length,2);assert.equal(calls,2);
+  search.close();
+});

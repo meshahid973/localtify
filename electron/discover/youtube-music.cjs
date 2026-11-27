@@ -114,9 +114,11 @@ function walkRecords(root,visit){
     for(let i=children.length-1;i>=0;i--)if(children[i]&&typeof children[i]==="object")stack.push(children[i]);
   }
 }
+function validBrowse(endpoint){return typeof endpoint?.browseId==="string"&&/^[A-Za-z0-9_-]{1,120}$/.test(endpoint.browseId)&&(endpoint.params===undefined||typeof endpoint.params==="string"&&endpoint.params.length<=512);}
 function mapArtistPage(body,id){
   if(!artistId.test(id))return null;
   let header,topSongs;
+  const discography=[];
   const tracks=new Map(),releases=new Map();
   walkRecords(body,node=>{
     header ||= node.musicImmersiveHeaderRenderer||node.musicVisualHeaderRenderer||node.musicHeaderRenderer||node.musicResponsiveHeaderRenderer;
@@ -135,6 +137,9 @@ function mapArtistPage(body,id){
     if(carousel){
       const label=text(carousel.header?.musicCarouselShelfBasicHeaderRenderer?.title);
       if(/^(albums|singles & eps)$/i.test(label)){
+        const h=carousel.header?.musicCarouselShelfBasicHeaderRenderer;
+        const endpoint=browse(runs(h?.title)[0])||h?.moreContentButton?.buttonRenderer?.navigationEndpoint?.browseEndpoint;
+        if(endpoint?.browseEndpointContextSupportedConfigs?.browseEndpointContextMusicConfig?.pageType==="MUSIC_PAGE_TYPE_ARTIST_DISCOGRAPHY"&&validBrowse(endpoint))discography.push({browseId:endpoint.browseId,params:endpoint.params,kind:/^albums$/i.test(label)?"album":"single"});
         for(const raw of arr(carousel.contents).slice(0,80)){
           const item=raw?.musicTwoRowItemRenderer,endpoint=browse(runs(item?.title)[0])||item?.navigationEndpoint?.browseEndpoint;
           const title=text(item?.title),releaseId=endpoint?.browseId;
@@ -150,7 +155,7 @@ function mapArtistPage(body,id){
   });
   const name=text(header?.title);
   if(!name)return null;
-  return {id:"ytmusic:"+id,name,coverUrl:coverFor(header,undefined),tracks:[...tracks.values()].slice(0,100),releases:[...releases.values()].slice(0,100),topSongs};
+  return {id:"ytmusic:"+id,name,coverUrl:coverFor(header,undefined),tracks:[...tracks.values()].slice(0,100),releases:[...releases.values()].slice(0,100),topSongs,discography:discography.slice(0,2)};
 }
 function mapArtistSongs(body,id){
   const rows=new Map();
@@ -162,9 +167,21 @@ function mapArtistSongs(body,id){
   });
   return [...rows.values()].slice(0,100);
 }
+function mapDiscography(body,kind){
+  const releases=new Map();
+  walkRecords(body,node=>{
+    const item=node.musicTwoRowItemRenderer;if(!item)return false;
+    const endpoint=browse(runs(item.title)[0])||item.navigationEndpoint?.browseEndpoint;
+    const id=endpoint?.browseId,title=text(item.title);if(!albumIdPattern.test(id||"")||!title)return true;
+    const releaseDate=runs(item.subtitle).map(r=>clean(r.text)).find(v=>/^\d{4}$/.test(v));
+    releases.set(id,{id:"ytmusic:"+id,title,coverUrl:coverFor({thumbnail:item.thumbnailRenderer}),releaseDate,releaseType:kind==="album"?"album":/^ep$/i.test(clean(runs(item.subtitle)[0]?.text))?"ep":"single"});return true;
+  });return [...releases.values()].slice(0,100);
+}
 const artistKey=value=>clean(value).normalize("NFKC").trim().replace(/\s+[-–—]\s+Topic$/i,"").replace(/\s+/g," ").toLowerCase();
 const diskKey=(type,value)=>type+":"+createHash("sha256").update(value).digest("hex");
 const isTrack=row=>row&&/^ytmusic:[A-Za-z0-9_-]{11}$/.test(row.id||"")&&typeof row.title==="string"&&typeof row.artist==="string"&&(!row.coverUrl||safeThumbnail(row.coverUrl)===row.coverUrl);
+const isRelease=row=>row&&/^ytmusic:MPREb_[A-Za-z0-9_-]{1,80}$/.test(row.id||"")&&typeof row.title==="string"&&(!row.coverUrl||safeThumbnail(row.coverUrl)===row.coverUrl);
+const isPage=page=>page&&/^ytmusic:UC[A-Za-z0-9_-]{22}$/.test(page.id||"")&&typeof page.name==="string"&&(!page.coverUrl||safeThumbnail(page.coverUrl)===page.coverUrl)&&Array.isArray(page.releases)&&page.releases.length<=100&&page.releases.every(isRelease);
 async function requestCatalog(fetchImpl,endpoint,payload) {
   const response=await fetchImpl(origin+endpoint+"?prettyPrint=false",{method:"POST",redirect:"error",credentials:"omit",headers:{"content-type":"application/json",accept:"application/json","x-youtube-client-name":"67","x-youtube-client-version":clientVersion,"x-origin":"https://music.youtube.com"},body:JSON.stringify({...payload,context:{client:{clientName:"WEB_REMIX",clientVersion,hl:"en",gl:"US"}}}),signal:AbortSignal.timeout(6500)});
   if(!response.ok){
@@ -183,7 +200,7 @@ async function requestCatalog(fetchImpl,endpoint,payload) {
 }
 function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPending=2,{file=""}={}) {
   const cache=new Map(),pending=new Map(),waiting=[];
-  const persistent=createResourceCache({file,now,maxEntries:512,maxBytes:12*1024*1024,validate:value=>value&&typeof value==="object"&&Array.isArray(value.items)&&value.items.length<=100&&value.items.every(isTrack)});
+  const persistent=createResourceCache({file,now,maxEntries:512,maxBytes:12*1024*1024,validate:value=>value&&typeof value==="object"&&Array.isArray(value.items)&&value.items.length<=100&&value.items.every(isTrack)&&(!value.page||isPage(value.page))});
   let trace=()=>{};
   const limit=Math.max(1,Math.min(6,maxPending));
   const backgroundLimit=Math.max(1,limit-2);
@@ -223,8 +240,8 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
     const job={background,queuedAt:performance.now(),signal:options.signal,resolve,reject,timer:null,promise:null,run:async()=>{
       try{
         const started=performance.now();trace("catalog-network",{count:1});
-        const items=await work();trace("catalog-response",{ms:Math.round(performance.now()-started),count:items.length});
-        if(items.length)cache.set(key,{at:now(),items});
+        const items=await work();trace("catalog-response",{ms:Math.round(performance.now()-started),count:Array.isArray(items)?items.length:items?.tracks?.length||0});
+        if(Array.isArray(items)?items.length:items)cache.set(key,{at:now(),items});
         while(cache.size>128)cache.delete(cache.keys().next().value);
         return items;
       }catch(error){
@@ -286,7 +303,7 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
   search.artistCatalog=async(name,wanted,options={})=>{
     await persistent.hydrate();
     const {enrichCatalogTrack}=require("./artwork.cjs");
-    const matches=items=>wanted.filter(track=>enrichCatalogTrack({...track,coverUrl:undefined},items).providerId?.startsWith("ytmusic:"));
+    const matches=items=>wanted.filter(track=>{const match=enrichCatalogTrack({...track,coverUrl:undefined},items);return !!match.coverUrl&&items.some(item=>item.id===match.providerId);});
     const known=search.cachedArtist(name);
     const ids=new Set(known.filter(item=>matches([item]).length).flatMap(item=>(item.artistCredits||[]).filter(c=>artistKey(c.name)===artistKey(name)).map(c=>c.id)).filter(id=>/^ytmusic:UC[A-Za-z0-9_-]{22}$/.test(id||"")));
     trace("artist-identity-cache",{state:ids.size?"hit":"miss",count:ids.size});
@@ -300,34 +317,61 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
       if(options.signal?.aborted)break;
       const id=candidate.slice(8);if(!artistId.test(id))continue;
       const key=diskKey("artist-page",candidate);
-      let items=persistent.get(key)?.items;
+      const stored=persistent.get(key);
+      let items=stored?.items, page=stored?.page;
       trace("artist-catalog-cache",{state:items?"hit":"miss"});
       if(!items){
         const started=performance.now();
-        items=await scheduled("browse:"+id,{...options,artwork:true},async()=>{
-          const page=mapArtistPage(await requestCatalog(fetchImpl,"browse",{browseId:id}),id);
-          if(!page||artistKey(page.name)!==artistKey(name))return [];
-          let tracks=page.tracks;
-          if(page.topSongs&&tracks.length<20&&!options.signal?.aborted){
-            // Return the initial page promptly; a larger shelf can be fetched on a later lookup.
-            // The first response alone is sufficient to corroborate identity when two tracks match.
-          }
-          return tracks;
-        });
+        page=await scheduled("browse:"+id,{...options,artwork:true},async()=>mapArtistPage(await requestCatalog(fetchImpl,"browse",{browseId:id}),id));
+        if(!page||artistKey(page.name)!==artistKey(name))continue;
+        items=page.tracks;
+        if(page.topSongs&&matches(items).length<wanted.length&&!options.signal?.aborted){
+          try{
+            const more=await scheduled("songs:"+JSON.stringify(page.topSongs),{...options,artwork:true},async()=>mapArtistSongs(await requestCatalog(fetchImpl,"browse",page.topSongs),id));
+            items=[...new Map([...items,...more].map(item=>[item.id,item])).values()].slice(0,100);
+          }catch{/* keep initial page when expansion fails */}
+        }
         trace("artist-catalog",{ms:Math.round(performance.now()-started),count:items.length});
       }
+      if(!page||artistKey(page.name)!==artistKey(name))continue;
+      const releases=new Map(page.releases.map(release=>[release.id,release]));
+      items=items.map(item=>{
+        const release=releases.get(item.albumId);
+        return release?{...item,coverUrl:release.coverUrl||item.coverUrl,releaseDate:release.releaseDate}:item;
+      });
       const corroborated=matches(items);
       // Two distinct matching recommendations, or an already independently matched
       // provider artist ID, are required before persisting an artist page association.
       const trusted=known.some(item=>item.artistCredits?.some(c=>c.id===candidate&&artistKey(c.name)===artistKey(name))&&matches([item]).length);
-      if(trusted||new Set(corroborated.map(t=>norm(t.title))).size>=2)verified.push({key,items,candidate});
+      if(trusted||new Set(corroborated.map(t=>norm(t.title))).size>=2)verified.push({key,items,candidate,page});
     }
     if(verified.length===1){
-      const page=verified[0];if(page.items.length){persistent.set(page.key,{items:page.items},7*86400000);remember(page.items);}
+      const entry=verified[0];
+      const {tracks:_,topSongs:__,discography:___,...metadata}=entry.page;
+      if(entry.items.length){persistent.set(entry.key,{items:entry.items,page:metadata},7*86400000);remember(entry.items);}
+      const page=entry;
       for(const item of page.items)collected.set(item.id,item);
       trace("artist-catalog-match",{count:matches(page.items).length,total:wanted.length});
     }else trace("artist-catalog-match",{state:verified.length?"ambiguous":"unverified",count:0,total:wanted.length});
     return [...collected.values()].slice(0,100);
+  };
+  // Explicit artist detail retrieval uses the very same queue and parsed page.
+  // Discography expansion is requested only by an explicit caller, not every
+  // Discover refresh. No artist association is inferred from a text query.
+  search.getArtist=async(providerId,options={})=>{
+    const id=String(providerId||"").replace(/^ytmusic:/,"");if(!artistId.test(id))return null;
+    await persistent.hydrate();
+    const page=await scheduled("browse:"+id,options,async()=>mapArtistPage(await requestCatalog(fetchImpl,"browse",{browseId:id}),id));
+    if(!page)return null;
+    const tracks=new Map(page.tracks.map(track=>[track.id,track])),releases=new Map(page.releases.map(release=>[release.id,release]));
+    const jobs=[];
+    if(page.topSongs)jobs.push(scheduled("songs:"+JSON.stringify(page.topSongs),options,async()=>mapArtistSongs(await requestCatalog(fetchImpl,"browse",page.topSongs),id)).then(rows=>{for(const row of rows)tracks.set(row.id,row);}));
+    for(const {kind,...endpoint} of page.discography)jobs.push(scheduled("discography:"+JSON.stringify(endpoint),options,async()=>mapDiscography(await requestCatalog(fetchImpl,"browse",endpoint),kind)).then(rows=>{for(const row of rows)releases.set(row.id,row);}));
+    await Promise.allSettled(jobs);
+    const items=[...tracks.values()].slice(0,100),{tracks:_,topSongs:__,discography:___,...metadata}=page;
+    metadata.releases=[...releases.values()].slice(0,100);
+    remember(items);persistent.set(diskKey("artist-page","ytmusic:"+id),{items,page:metadata},7*86400000);
+    return {...metadata,tracks:items};
   };
   return search;
 }
@@ -380,4 +424,4 @@ function exactMusicCandidate(wanted, items) {
   const unique=[...new Map(exact.map(item=>[item.url,item])).values()];
   return unique.length===1?unique[0]:null;
 }
-module.exports={mapArtistPage,mapArtistSongs,createYouTubeMusicSearch,createYouTubeMusicRadio,mapSearchResponse,mapRadioResponse,safeThumbnail,isJunkVideo,matchesQuery,exactMusicCandidate};
+module.exports={mapArtistPage,mapArtistSongs,mapDiscography,createYouTubeMusicSearch,createYouTubeMusicRadio,mapSearchResponse,mapRadioResponse,safeThumbnail,isJunkVideo,matchesQuery,exactMusicCandidate};
