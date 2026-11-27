@@ -106,11 +106,11 @@ async function discover({ songs, hiddenArtists = [], client, now = Date.now(), c
   const favourites=taste.seeds.slice(0,MISSING_SONG_ARTISTS);
   const topTracks=new Array(Math.min(rankedArtists.length,TOP_TRACK_ARTISTS));
   const favouriteTracks=new Array(favourites.length);
-  const completedArtists=new Set();
+  const completedArtists=new Set(),enrichedArtists=new Set();
   const filter=(list,name)=>list.filter(track=>!hidden({artist:track.artist||name})&&!taste.ownedTracks.has(trackKey(track.artist||name,track.title))).map(track=>({...track,artist:track.artist||name}));
-  const snapshot=(partial=false)=>({
+  const snapshot=(partial=false,raw=false)=>({
     status:"ready",generatedAt:now,seeds:taste.seeds.map(seed=>seed.name),
-    artists:rankedArtists.flatMap((artist,index)=>partial&&!completedArtists.has(index)?[]:[{
+    artists:rankedArtists.flatMap((artist,index)=>partial&&!(raw?completedArtists:enrichedArtists).has(index)?[]:[{
       name:artist.name,url:artist.url,because:because(artist),seedCount:artist.reasons.length,topTracks:topTracks[index]||[]
     }]),
     tracks:favouriteTracks.flatMap(list=>list||[]),...(partial?{partial:true}:{})
@@ -147,34 +147,35 @@ async function discover({ songs, hiddenArtists = [], client, now = Date.now(), c
     trace("identity-match",{ms:Math.round(performance.now()-began),total:tracks.length,attached:enriched.filter(t=>t.coverUrl).length});
     return enriched;
   }
-  let published=false;
-  function publish(){
+  let published=false,firstDeadline;
+  function publish(force=false){
     if(published||!active())return;
-    const count=topTracks.reduce((n,list)=>n+(list?.length||0),0);
+    const count=topTracks.reduce((n,list,index)=>n+((force||enrichedArtists.has(index))?list?.length||0:0),0);
     const fallbackCount=favouriteTracks.reduce((n,list)=>n+(list?.length||0),0);
-    if(count>=3||(completedArtists.size===topTracks.length&&(count||fallbackCount))){
-      published=true;onProgress(snapshot(true));
+    if((force&&count+fallbackCount>0)||count>=3||(completedArtists.size===topTracks.length&&(count||fallbackCount))){
+      published=true;clearTimeout(firstDeadline);onProgress(snapshot(true,force));
     }
   }
+  function armFirstDeadline(){if(!published&&firstDeadline===undefined)firstDeadline=setTimeout(()=>publish(true),450);}
   const rankedJobs=settleAll(rankedArtists.slice(0,TOP_TRACK_ARTISTS),async(artist)=>{
     if(!active())return [];
     const index=rankedArtists.indexOf(artist);
     const tracks=filter(await client.topTracks(artist.name),artist.name);
     topTracks[index]=tracks;
-    completedArtists.add(index);publish();
+    completedArtists.add(index);armFirstDeadline();
     topTracks[index]=await enrich(artist.name,tracks,"recommended");
+    enrichedArtists.add(index);publish();
     return topTracks[index];
   });
   const favouriteJobs=settleAll(favourites,async seed=>{
     if(!active())return [];
     const index=favourites.indexOf(seed);
     const tracks=filter(await client.topTracks(seed.name,15),seed.name).slice(0,MISSING_SONGS_PER_ARTIST);
-    favouriteTracks[index]=tracks;publish();
+    favouriteTracks[index]=tracks;armFirstDeadline();
     favouriteTracks[index]=await enrich(seed.name,tracks,"popular");
-    return favouriteTracks[index];
+    publish();return favouriteTracks[index];
   });
-  await Promise.all([rankedJobs,favouriteJobs]);
-  return snapshot();
+  try{await Promise.all([rankedJobs,favouriteJobs]);return snapshot();}finally{clearTimeout(firstDeadline);}
 }
 
 /** A saved result without anything you've since added to your library or marked "not for me". */

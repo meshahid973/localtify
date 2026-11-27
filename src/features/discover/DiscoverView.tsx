@@ -127,6 +127,16 @@ export default function DiscoverView({ settings, updateSetting, sendToDownloads,
     }
   }
 
+  async function searchArtistSongs(id:string,title:string) {
+    if(!/^ytmusic:UC[A-Za-z0-9_-]{22}$/.test(id)||catalogLoading||!settings.discoverEnabled)return;
+    const request=++catalogRequestRef.current;
+    setRelatedTitle(title);setCatalogLoading(true);setCatalog(null);
+    try{
+      const answer=await window.localitfy.getDiscoveries({catalog:{kind:"recording",term:id,artistId:id}});
+      if(request===catalogRequestRef.current)setCatalog(answer.status==="catalog"||answer.status==="error"?answer:{status:"error",error:"Artist catalog unavailable."});
+    }catch{if(request===catalogRequestRef.current)setCatalog({status:"error",error:"Artist catalog unavailable."});}
+    finally{if(request===catalogRequestRef.current)setCatalogLoading(false);}
+  }
   async function searchRelated(track: DiscoverTrack) {
     const seed = /^https:\/\/www\.youtube\.com\/watch\?v=([A-Za-z0-9_-]{11})$/.exec(track.url)?.[1];
     if (!seed || !settings.discoverEnabled || catalogLoading) return;
@@ -235,14 +245,14 @@ export default function DiscoverView({ settings, updateSetting, sendToDownloads,
         {catalog.items.slice(0,1).map(item => <div key={item.id} className="discoverTopResult">
           <DiscoverCover priority title={item.title} artist={item.artist} artwork={item} providerId={/^(?:ytmusic:(?:UC[A-Za-z0-9_-]{22}|[A-Za-z0-9_-]{11})|[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12})$/i.test(item.id) ? item.id : ""} lookup={!item.id.startsWith("vocadb:")} person={catalog.kind === "artist"} />
           <span className="discoverSongText"><button type="button" className="discoverName" onClick={() => openLink(item.url)} title={item.title}>{item.title}</button><small>{item.subtitle}</small></span>
-          {catalog.kind === "recording" ? <><span className="discoverDuration">{duration(item.durationMs)}</span>{!item.id.startsWith("vocadb:") ? pickButton(item) : null}</> : null}
+          {catalog.kind === "recording" ? <><span className="discoverDuration">{duration(item.durationMs)}</span>{!item.id.startsWith("vocadb:") ? pickButton(item) : null}</> : /^ytmusic:UC[A-Za-z0-9_-]{22}$/.test(item.id) ? <OpticalButton type="button" className="softButton" disabled={catalogLoading} onClick={()=>void searchArtistSongs(item.id,item.title)}>Top songs</OpticalButton> : null}
         </div>)}
         {catalog.items.length > 1 ? <h3 className="discoverHeading">{relatedTitle ? "More related songs" : "More matches"}</h3> : null}
         <ul className="discoverSongList" aria-label="Search results">
         {catalog.items.slice(1).map(item => <li key={item.id}>
           <DiscoverCover title={item.title} artist={item.artist} artwork={item} providerId={/^(?:ytmusic:(?:UC[A-Za-z0-9_-]{22}|[A-Za-z0-9_-]{11})|[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12})$/i.test(item.id) ? item.id : ""} lookup={!item.id.startsWith("vocadb:")} person={catalog.kind === "artist"} />
           <span className="discoverSongText"><button type="button" className="discoverName" onClick={() => openLink(item.url)} title={item.title}>{item.title}</button><small title={item.subtitle}>{item.subtitle}</small></span>
-          {catalog.kind === "recording" ? <><span className="discoverDuration">{duration(item.durationMs)}</span>{!item.id.startsWith("vocadb:") ? pickButton(item) : null}</> : null}
+          {catalog.kind === "recording" ? <><span className="discoverDuration">{duration(item.durationMs)}</span>{!item.id.startsWith("vocadb:") ? pickButton(item) : null}</> : /^ytmusic:UC[A-Za-z0-9_-]{22}$/.test(item.id) ? <OpticalButton type="button" className="softButton" disabled={catalogLoading} onClick={()=>void searchArtistSongs(item.id,item.title)}>Top songs</OpticalButton> : null}
         </li>)}
       </ul></> : <p className="discoverCatalogMessage" role="status">No matching catalog results. Try another song title or artist.</p> : null}
     </section> : null}

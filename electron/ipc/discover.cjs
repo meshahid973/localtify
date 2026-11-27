@@ -74,6 +74,7 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
     const cleanedArtist=artist.replace(/\s+[-–—]\s+Topic$/i,"").trim();
     const query=(title+" "+cleanedArtist).trim().slice(0,160);
     if(!active()||signal?.aborted)return [];
+    await searchYouTubeArtwork.hydrate?.();
     const cached=searchYouTubeArtwork.cachedArtist?.(cleanedArtist)||[];
     if(withoutFailedArtwork(matchMusicArtwork(cached,title,artist,identity),excluded).coverUrl){trace("catalog-artwork-reuse",{state:"hit"});return cached;}
     const songs=await timed("provider-youtube-recording",()=>searchYouTubeArtwork("recording",query,{artwork:true,signal}));
@@ -212,14 +213,17 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
         return { status: "error", error: "Enter a search of 2–160 characters." };
       if (!musicBrainzClient) return { status: "error", error: "Public catalog is unavailable. Update the desktop application." };
       const radioSeed = query?.radioSeed;
+      const artistId=query?.artistId;
+      if(artistId!==undefined&&(kind!=="recording"||radioSeed!==undefined||!/^ytmusic:UC[A-Za-z0-9_-]{22}$/.test(artistId||"")||!searchYouTubeMusic?.getArtist))return {status:"error",error:"Artist catalog unavailable."};
       if (radioSeed !== undefined && (kind !== "recording" || typeof radioSeed !== "string" || !/^[A-Za-z0-9_-]{11}$/.test(radioSeed) || !searchYouTubeMusicRadio)) return { status: "error", error: "Related songs unavailable." };
-      const key = JSON.stringify([kind, term.toLowerCase(), radioSeed || ""]);
+      const key = JSON.stringify([kind, term.toLowerCase(), radioSeed || "",artistId||""]);
       if (catalogRunning && catalogRunning.key !== key)
         return { status: "error", error: "Another catalog search is in progress. Try again when it finishes." };
       if (!catalogRunning) {
         const promise = Promise.resolve().then(async () => {
           if (getSettings().discoverEnabled !== true) return [];
           if (radioSeed) return searchYouTubeMusicRadio(radioSeed);
+          if(artistId){const page=await searchYouTubeMusic.getArtist(artistId);return page?.tracks||[];}
           // Search YouTube Music only for explicit user queries, never library seeds.
           if (searchYouTubeMusic) {
             const direct = await searchYouTubeMusic(kind, term).catch(() => []);

@@ -252,6 +252,36 @@ async function probeExpansion(){
   }
   return outcomes;
 }
+async function liveArtistCatalogs(){
+  const {enrichCatalogTrack}=require("../electron/discover/artwork.cjs");
+  const groups=[
+    ["masarada",["Liar Dancer","ライアーダンサー"]],
+    ["gulu gulu",["Oyasumi.","おやすみ。"]],
+    ["Shü",["Mosu. (feat. KASANE TETO)"]],
+    ["Euphxria",["SUICIDAL-IDOL - ecstacy (slowed)"]],
+    ["Lumi Athena",["LET ME SEE YA MOVE!","ICEWHORE!"]],
+    ["Malice Mizer",["Ma Chérie","ILLUMINATI"]],
+    ["Hot N Cold",["Agartha Remix"]],
+    ["Slowed",["Reverb","Frank Ocean - Seigfried (Slowed Perfectly)"]],
+    ["Daft Punk",["One More Time","Digital Love","Harder, Better, Faster, Stronger"]]
+  ];
+  let requests=0;const events=[];
+  const search=createYouTubeMusicSearch(async(url,options)=>{requests++;return fetch(url,options);},Date.now,4);
+  search.setTrace((stage,detail)=>{if(events.length<1000)events.push({stage,...detail});});
+  const results=[];
+  for(const [artist,titles] of groups){
+    const start=performance.now(),before=requests,wanted=titles.map(title=>({title,artist}));
+    try{
+      const rows=await search.artistCatalog(artist,wanted);
+      const matches=wanted.map(track=>{const match=enrichCatalogTrack(track,rows);return {title:track.title,attached:!!match.coverUrl,identified:!!match.providerId};});
+      const warmStart=performance.now(),warmBefore=requests;
+      await search.artistCatalog(artist,wanted);
+      results.push({artist,records:rows.length,requests:requests-before,coldMs:Math.round(warmStart-start),warmMs:Math.round(performance.now()-warmStart),warmRequests:requests-warmBefore,matches});
+    }catch(error){results.push({artist,requests:requests-before,ms:Math.round(performance.now()-start),status:error?.status?"http-"+error.status:error?.code||"unavailable"});}
+  }
+  search.close();
+  return {requests,results,events:events.filter(e=>e.stage==="catalog-response"||e.stage==="artist-catalog-match"||e.stage==="catalog-queue")};
+}
 async function main() {
   const jobs=[];
   jobs.push(check("Deezer",async()=>{
@@ -378,7 +408,8 @@ async function main() {
   const recommendationComparison=baselineRoot?{baseline:await controlledRecommendation(baselineRoot,false),candidate:await controlledRecommendation(path.resolve(__dirname,".."),true)}:undefined;
   const expansion=process.argv.includes("--provider-expansion")?await probeExpansion():undefined;
   const nameOnlyBatch=process.argv.includes("--pipeline6")?await liveCatalogBatch(false):undefined;
-  console.log(JSON.stringify({expansion,nameOnlyBatch,checkedAt:new Date().toISOString(),sample:{title:expectedTitle,artist:expectedArtist},
+  const artistCatalogs=process.argv.includes("--pipeline6")?await liveArtistCatalogs():undefined;
+  console.log(JSON.stringify({expansion,nameOnlyBatch,artistCatalogs,checkedAt:new Date().toISOString(),sample:{title:expectedTitle,artist:expectedArtist},
     checks:sorted,resolution,comparison,cacheComparison,catalogBatch,recommendationComparison,note:"Advisory network observation, not a guarantee of future provider availability"},null,2));
   // Manual release acceptance must not silently pass without configured keys
   // or when either keyed integration is unable to retrieve usable artwork.

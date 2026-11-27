@@ -305,11 +305,14 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
     const {enrichCatalogTrack}=require("./artwork.cjs");
     const matches=items=>wanted.filter(track=>{const match=enrichCatalogTrack({...track,coverUrl:undefined},items);return !!match.coverUrl&&items.some(item=>item.id===match.providerId);});
     const known=search.cachedArtist(name);
-    const ids=new Set(known.filter(item=>matches([item]).length).flatMap(item=>(item.artistCredits||[]).filter(c=>artistKey(c.name)===artistKey(name)).map(c=>c.id)).filter(id=>/^ytmusic:UC[A-Za-z0-9_-]{22}$/.test(id||"")));
+    const matchedIds=new Set(wanted.map(track=>enrichCatalogTrack({...track,coverUrl:undefined},known)).filter(track=>track.coverUrl).map(track=>track.providerId));
+    const ids=new Set(known.filter(item=>matchedIds.has(item.id)).flatMap(item=>(item.artistCredits||[]).filter(c=>artistKey(c.name)===artistKey(name)).map(c=>c.id)).filter(id=>/^ytmusic:UC[A-Za-z0-9_-]{22}$/.test(id||"")));
     trace("artist-identity-cache",{state:ids.size?"hit":"miss",count:ids.size});
     if(ids.size!==1){
-      const artists=await search("artist",name,{...options,artwork:true});
-      for(const artist of artists.filter(item=>artistKey(item.title)===artistKey(name)).slice(0,2))ids.add(artist.id);
+      const artists=await search("artist",name,{...options,artwork:true}).catch(()=>[]);
+      const exact=artists.filter(item=>artistKey(item.title)===artistKey(name));
+      if(exact.length>2&&!ids.size){trace("artist-catalog-match",{state:"ambiguous",count:0,total:wanted.length});return known;}
+      for(const artist of exact.slice(0,2))ids.add(artist.id);
     }
     const collected=new Map(known.map(item=>[item.id,item]));
     const verified=[];
@@ -322,7 +325,7 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
       trace("artist-catalog-cache",{state:items?"hit":"miss"});
       if(!items){
         const started=performance.now();
-        page=await scheduled("browse:"+id,{...options,artwork:true},async()=>mapArtistPage(await requestCatalog(fetchImpl,"browse",{browseId:id}),id));
+        page=await scheduled("browse:"+id,{...options,artwork:true},async()=>mapArtistPage(await requestCatalog(fetchImpl,"browse",{browseId:id}),id)).catch(()=>null);
         if(!page||artistKey(page.name)!==artistKey(name))continue;
         items=page.tracks;
         if(page.topSongs&&matches(items).length<wanted.length&&!options.signal?.aborted){
@@ -342,7 +345,7 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
       const corroborated=matches(items);
       // Two distinct matching recommendations, or an already independently matched
       // provider artist ID, are required before persisting an artist page association.
-      const trusted=known.some(item=>item.artistCredits?.some(c=>c.id===candidate&&artistKey(c.name)===artistKey(name))&&matches([item]).length);
+      const trusted=known.some(item=>matchedIds.has(item.id)&&item.artistCredits?.some(c=>c.id===candidate&&artistKey(c.name)===artistKey(name)));
       if(trusted||new Set(corroborated.map(t=>norm(t.title))).size>=2)verified.push({key,items,candidate,page});
     }
     if(verified.length===1){
@@ -361,16 +364,19 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
   search.getArtist=async(providerId,options={})=>{
     const id=String(providerId||"").replace(/^ytmusic:/,"");if(!artistId.test(id))return null;
     await persistent.hydrate();
+    const cached=persistent.get(diskKey("artist-details","ytmusic:"+id));
+    if(cached?.page){trace("artist-catalog-cache",{state:"hit"});return {...cached.page,tracks:cached.items};}
     const page=await scheduled("browse:"+id,options,async()=>mapArtistPage(await requestCatalog(fetchImpl,"browse",{browseId:id}),id));
     if(!page)return null;
     const tracks=new Map(page.tracks.map(track=>[track.id,track])),releases=new Map(page.releases.map(release=>[release.id,release]));
     const jobs=[];
     if(page.topSongs)jobs.push(scheduled("songs:"+JSON.stringify(page.topSongs),options,async()=>mapArtistSongs(await requestCatalog(fetchImpl,"browse",page.topSongs),id)).then(rows=>{for(const row of rows)tracks.set(row.id,row);}));
     for(const {kind,...endpoint} of page.discography)jobs.push(scheduled("discography:"+JSON.stringify(endpoint),options,async()=>mapDiscography(await requestCatalog(fetchImpl,"browse",endpoint),kind)).then(rows=>{for(const row of rows)releases.set(row.id,row);}));
-    await Promise.allSettled(jobs);
+    const settled=await Promise.allSettled(jobs);
     const items=[...tracks.values()].slice(0,100),{tracks:_,topSongs:__,discography:___,...metadata}=page;
     metadata.releases=[...releases.values()].slice(0,100);
     remember(items);persistent.set(diskKey("artist-page","ytmusic:"+id),{items,page:metadata},7*86400000);
+    if(settled.every(job=>job.status==="fulfilled"))persistent.set(diskKey("artist-details","ytmusic:"+id),{items,page:metadata},7*86400000);
     return {...metadata,tracks:items};
   };
   return search;
