@@ -128,3 +128,26 @@ test("failed providers release capacity and unsafe candidates cannot win",async(
   assert.deepEqual(await firstArtwork([async()=>({})]),{});
   assert.deepEqual(await firstArtwork([async()=>{throw Error("must not run");}],{active:()=>false}),{});
 });
+
+test("background artwork cooldown honors Retry-After without blocking explicit catalog queries", async()=>{
+  const {createYouTubeMusicSearch}=require("../../electron/discover/youtube-music.cjs");
+  let now=1000,calls=0;
+  const search=createYouTubeMusicSearch(async()=>{calls++;return calls===1?new Response("",{status:429,headers:{"Retry-After":"90"}}):new Response("{}");},()=>now);
+  await assert.rejects(search("recording","Song",{artwork:true}));
+  await assert.rejects(search("recording","Another",{artwork:true}));
+  assert.equal(calls,1);
+  assert.deepEqual(await search("recording","Manual search"),[]);
+  assert.equal(calls,2);
+  now+=89999;await assert.rejects(search("recording","Another",{artwork:true}));assert.equal(calls,2);
+  now++;assert.deepEqual(await search("recording","Another",{artwork:true}),[]);assert.equal(calls,3);
+});
+test("a cancelled AudioDB consumer never starts its follow-up album request",async()=>{
+  const {createAudioDbArtwork}=require("../../electron/discover/audiodb.cjs");
+  const controller=new AbortController();let calls=0;
+  const lookup=createAudioDbArtwork({apiKey:"123",fetchImpl:async()=>{
+    calls++;controller.abort();
+    return new Response(JSON.stringify({track:[{strTrack:"Song",strArtist:"Artist",strAlbum:"Album",idAlbum:"42"}]}));
+  }});
+  await assert.rejects(lookup.resolve("Song","Artist",controller.signal));
+  assert.equal(calls,1);
+});

@@ -119,13 +119,13 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
     const hit=cache.get(key);
     if(hit&&now()-hit.at<300000){cache.delete(key);cache.set(key,hit);return hit.items;}
     if(pending.has(key))return pending.get(key);
-    if(pending.size>=maxPending||now()<blockedUntil)throw unavailable();
+    if(pending.size>=maxPending||(options.artwork===true&&now()<blockedUntil))throw unavailable();
     const task=Promise.resolve().then(async()=>{
       const body=await requestCatalog(fetchImpl,"search",{query:query.trim(),params:filters[kind]});
       const items=mapSearchResponse(body,kind,query,options.artwork!==true);
       if(items.length) cache.set(key,{at:now(),items});while(cache.size>128)cache.delete(cache.keys().next().value);
       return items;
-    }).catch(error=>{blockedUntil=Math.max(blockedUntil,now()+providerCooldown(error));throw error;}).finally(()=>pending.delete(key));
+    }).catch(error=>{if(options.artwork===true)blockedUntil=Math.max(blockedUntil,now()+providerCooldown(error));throw error;}).finally(()=>pending.delete(key));
     pending.set(key,task);return task;
   };
 }

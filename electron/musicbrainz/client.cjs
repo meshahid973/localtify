@@ -1,6 +1,6 @@
 "use strict";
 
-const { retryAfterMs } = require("../discover/provider-health.cjs");
+const { retryAfterMs, providerCooldown, unavailable } = require("../discover/provider-health.cjs");
 const API = "https://musicbrainz.org/ws/2/";
 const COVER_ART = "https://coverartarchive.org/";
 
@@ -21,7 +21,7 @@ const phrase = (value) => `"${String(value || "").replace(/[\\"]/g, "\\$&")}"`;
  */
 function createMusicBrainzClient({ userAgent, fetchImpl = fetch, minIntervalMs = 1100, timeoutMs = 15000, maxCacheEntries = 256, cacheTtlMs = 24 * 60 * 60 * 1000, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) }) {
   let active = false;
-  let lastAt = 0;
+  let lastAt = 0, backgroundBlockedUntil = 0;
   let foregroundStreak = 0;
   const cache = new Map();
   const inFlight = new Map();
@@ -57,6 +57,7 @@ function createMusicBrainzClient({ userAgent, fetchImpl = fetch, minIntervalMs =
       if (!background) existing.background = false;
       return existing.promise;
     }
+    if (background && Date.now() < backgroundBlockedUntil) return Promise.reject(unavailable());
     if (waiting.length >= 128 || (background && waiting.filter(job => job.background).length >= 16)) {
       return Promise.reject(new Error("MusicBrainz request queue is busy. Try again shortly."));
     }
@@ -64,12 +65,16 @@ function createMusicBrainzClient({ userAgent, fetchImpl = fetch, minIntervalMs =
     const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
     const run = async () => {
       for (let attempt = 0; ; attempt += 1) {
+        if (background && Date.now() < backgroundBlockedUntil) throw unavailable();
         const wait = lastAt + minIntervalMs - Date.now();
         if (wait > 0) await sleep(wait);
+        if (background && Date.now() < backgroundBlockedUntil) throw unavailable();
         lastAt = Date.now();
-        const response = await fetchImpl(key, { headers: { "User-Agent": userAgent, Accept: "application/json" }, signal: AbortSignal.timeout(timeoutMs) }).catch((error) => { throw unreachable(error); });
+        const response = await fetchImpl(key, { headers: { "User-Agent": userAgent, Accept: "application/json" }, signal: AbortSignal.timeout(timeoutMs) }).catch((error) => { if(background)backgroundBlockedUntil=Date.now()+15000; throw unreachable(error); });
+        if(response.status===429||response.status===503)backgroundBlockedUntil=Math.max(backgroundBlockedUntil,Date.now()+providerCooldown({status:response.status,retryAfterMs:retryAfterMs(response.headers)}));
         // 503 means the rate limit was hit; back off and retry a couple of times.
-        if (response.status === 503 && attempt < 2 && !background) { await sleep(Math.max(2000 * (attempt + 1), retryAfterMs(response.headers))); continue; }
+        const retryDelay=retryAfterMs(response.headers);
+        if (response.status === 503 && attempt < 2 && !background && retryDelay<=15000) { await sleep(Math.max(2000 * (attempt + 1), retryDelay)); continue; }
         if (!response.ok) throw response.status >= 500 ? unreachable(new Error(String(response.status))) : new Error(`MusicBrainz request failed (${response.status})`);
         return response.json();
       }
@@ -99,6 +104,7 @@ function createMusicBrainzClient({ userAgent, fetchImpl = fetch, minIntervalMs =
       });
     },
     searchRecordings: (title, artist, options) => request("recording", { query: `recording:${phrase(title)}${artist ? ` AND artist:${phrase(artist)}` : ""}`, limit: "25" }, options).then((body) => body.recordings || []),
+    getRecording: (id, options) => request(`recording/${encodeURIComponent(id)}`, { inc: "artist-credits+releases+release-groups" }, options),
     searchReleases: (album, artist) => request("release", { query: `release:${phrase(album)}${artist ? ` AND artist:${phrase(artist)}` : ""}`, limit: "15" }).then((body) => body.releases || []),
     // Every edition of an album (standard, deluxe, regional…), with track counts.
     getReleaseGroupReleases: (id) => request("release", { "release-group": id, inc: "media", limit: "50" }).then((body) => body.releases || []),

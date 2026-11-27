@@ -67,7 +67,7 @@ function bioText(html) {
     .trim();
 }
 
-function createLastfmClient({ apiKey, cacheFile, fetch = globalThis.fetch, now = Date.now, wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) }) {
+function createLastfmClient({ apiKey, cacheFile, fetch = globalThis.fetch, now = Date.now, artwork = false, wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) }) {
   let cache = null;
   let dirty = false;
   let nextSlot = 0, blockedUntil = 0, blockedError = null;
@@ -95,22 +95,41 @@ function createLastfmClient({ apiKey, cacheFile, fetch = globalThis.fetch, now =
     const key = `${method}?${new URLSearchParams(params)}`;
     const cached = loadCache()[key];
     if (cached && now() - cached.at < CACHE_TTL_MS) return cached.data;
-    if (now() < blockedUntil) throw blockedError;
+    if (artwork && now() < blockedUntil) throw blockedError;
     const slot = Math.max(now(), nextSlot);
     nextSlot = slot + REQUEST_SPACING_MS;
     if (slot > now()) await wait(slot - now());
-    if (now() < blockedUntil) throw blockedError;
+    if (artwork && now() < blockedUntil) throw blockedError;
     const url = `${API_URL}?${new URLSearchParams({ method, ...params, api_key: apiKey, format: "json", autocorrect: params.autocorrect ?? "1" })}`;
     let response;
     try {
-      response = await fetch(url, { headers: { "User-Agent": "localtify" }, signal: AbortSignal.timeout(TIMEOUT_MS) });
+      response = await fetch(url, { headers: { "User-Agent": "localtify" }, redirect: "error", credentials: "omit", signal: AbortSignal.timeout(TIMEOUT_MS) });
     } catch {
       blockedError = new LastfmError("Couldn't reach Last.fm. Check your connection and try again.", "network");
       blockedUntil = Math.max(blockedUntil, now()+15000);
       throw blockedError;
     }
     let body = null;
-    try { body = await response.json(); } catch { /* handled below */ }
+    try {
+      const max = 2 * 1024 * 1024;
+      if(Number(response.headers?.get?.("content-length")) > max) {
+        await response.body?.cancel?.();
+        throw Error("Oversized Last.fm response");
+      }
+      const reader=response.body?.getReader?.();
+      if(reader){
+        let size=0;const chunks=[];
+        try {
+          for(;;){
+            const {done,value}=await reader.read();if(done)break;
+            size+=value.byteLength;
+            if(size>max){await reader.cancel();throw Error("Oversized Last.fm response");}
+            chunks.push(Buffer.from(value));
+          }
+          body=JSON.parse(Buffer.concat(chunks,size).toString("utf8"));
+        }finally{reader.releaseLock();}
+      } else body = await response.json();
+    } catch { /* handled below */ }
     if (body?.error) {
       // "Not found" is a normal answer for obscure artists and songs, so it's cached as empty.
       if (body.error !== 6) {

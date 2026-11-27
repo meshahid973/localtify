@@ -72,7 +72,7 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
     if (settings.discoverEnabled !== true || !/^[0-9a-f]{32}$/i.test(apiKey)) return null;
     if (!artworkClient || artworkKey !== apiKey) {
       artworkKey = apiKey;
-      artworkClient = createLastfmClient({ apiKey, cacheFile: cacheFile ? cacheFile + ".artwork" : "", fetch, now });
+      artworkClient = createLastfmClient({ apiKey, cacheFile: cacheFile ? cacheFile + ".artwork" : "", fetch, now, artwork:true });
     }
     const client = artworkClient;
     try { return await client.trackInfo(title, artist); } finally { client.flush(); }
@@ -108,7 +108,7 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
     if (id.startsWith("ytmusic:")) {
       if (!searchYouTubeArtwork) return {};
       return kind === "artist"
-        ? matchArtistArtwork(await searchYouTubeArtwork("artist",title.slice(0,160),{artwork:true}).catch(()=>[]),title,id)
+        ? matchArtistArtwork(await searchYouTubeArtwork("artist",title.slice(0,160),{artwork:true}),title,id)
         : matchMusicArtwork(await lookupMusicArtwork(title,artist,identity),title,artist,identity);
     }
     if (!musicBrainzClient) return {};
@@ -119,8 +119,8 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
       if (!items.some(item=>item.id===id && normalize(item.name)===normalize(title))) return {};
       return getSettings().discoverEnabled === true ? lookupFanart("artist",id).catch(()=>({})) : {};
     }
-    const items = await musicBrainzClient.searchRecordings(title,artist,{background:true}).catch(()=>[]);
-    const match = items.find(item=>item.id===id &&
+    const items = musicBrainzClient.getRecording ? [await musicBrainzClient.getRecording(id,{background:true})] : await musicBrainzClient.searchRecordings(title,artist,{background:true});
+    const match = items.find(item=>item?.id===id &&
       normalize(item.title)===normalize(title) &&
       normalize((item["artist-credit"]||[]).map(credit=>(credit.name||credit.artist?.name||"")+(credit.joinphrase||"")).join(""))===normalize(artist) &&
       (!identity.durationMs || !Number.isFinite(item.length) || Math.abs(item.length-identity.durationMs)<=5000));
@@ -129,8 +129,8 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
     const selected = identity.album ? releases.filter(release=>normalize(release.title)===normalize(identity.album)) : releases;
     const primary = catalogArtwork("recording",{...match,releases:selected});
     const groups = [...new Set(selected.map(release=>release["release-group"]?.id).filter(value=>MBID.test(value||"")))];
-    if (lookupFanart && groups.length===1 && getSettings().discoverEnabled===true) {
-      const alternate = await lookupFanart("album",groups[0]).catch(()=>({}));
+    if (lookupFanart && groups.length===1 && active()) {
+      const alternate = await strict(lookupFanart,"album",groups[0]).catch(()=>({}));
       const covers = [...new Set([primary.coverUrl,primary.fallbackCoverUrl,...(primary.coverAlternatives||[]),alternate.coverUrl,...(alternate.coverAlternatives||[])].filter(Boolean))].slice(0,6);
       if (covers.length) return { ...primary,coverUrl:covers[0],fallbackCoverUrl:covers[1],coverAlternatives:covers };
     }
@@ -155,7 +155,7 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
         return { ...configuration, lastfmCheck };
       }
     }
-    if (settings.discoverEnabled !== true) return { status: "off" };
+    if (!active()) return { status: "off" };
     if (payload?.artwork !== undefined) {
       const { title, artist, kind = "recording", fallback = false, primaryOnly = false, providerId = "", album = "", durationMs = 0 } = payload.artwork || {};
       if (!["artist","recording"].includes(kind) || typeof title !== "string" || typeof artist !== "string" || !title.trim() || (kind === "recording" && !artist.trim()) || title.length > 300 || artist.length > 300)
@@ -166,11 +166,13 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
       try {
         const normalizeKey = value => value.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase();
         const identity = { providerId, album: normalizeKey(album), durationMs };
-        const key = JSON.stringify([kind, normalizeKey(title), normalizeKey(artist), providerId, identity.album, durationMs, fallback === true, primaryOnly === true]);
+        const key = JSON.stringify([kind, normalizeKey(title), normalizeKey(artist), providerId, identity.album, durationMs, fallback === true]);
+        const requestKey=key+":"+String(primaryOnly===true&&!providerId);
         await artworkResults.hydrate();
+        if(!active())return {status:"off"};
         let artwork = artworkResults.get(key);
         if (!artwork) {
-          let pending = artworkRequests.get(key);
+          let pending = artworkRequests.get(requestKey);
           if (!pending) {
             if (artworkRequests.size >= 8) throw Error("Artwork queue busy");
             pending = Promise.resolve().then(() => providerId
@@ -179,12 +181,12 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
                 ? lookupArtistArtwork(title.trim(), fallback === true, primaryOnly === true)
                 : lookupArtwork(title.trim(), artist.trim(), { fallback: fallback === true, primaryOnly: primaryOnly === true, active }))
               .then(value => {
-                if (getSettings().discoverEnabled === true && (value.coverUrl || value.fallbackCoverUrl)) {
+                if (active() && validArtworkResult(value)) {
                   artworkResults.set(key, value, 86400000);
                 }
                 return value;
-              }).finally(() => artworkRequests.delete(key));
-            artworkRequests.set(key, pending);
+              }).finally(() => artworkRequests.delete(requestKey));
+            artworkRequests.set(requestKey, pending);
           }
           artwork = await pending;
         }

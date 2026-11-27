@@ -88,7 +88,7 @@ function firstArtwork(jobs, { active = () => true, staggerMs = 350 } = {}) {
       }
       const work = providers[next++];
       running++;
-      Promise.resolve().then(() => work(controller.signal)).then(value => {
+      Promise.resolve().then(() => active()&&!controller.signal.aborted ? work(controller.signal) : {}).then(value => {
         if (settled) return;
         if (!active()) { finish({}); return; }
         if (validArtworkResult(value)) finish(value);
@@ -118,7 +118,7 @@ function createArtworkLookup(client,now=Date.now,trackInfo,lookupAudioDb,lookupM
   const lastfm = boundedProvider(trackInfo, 4);
   const deezer = boundedProvider(lookupDeezer, 4);
   const audioDb = boundedProvider(lookupAudioDb, 2);
-  const brainz = boundedProvider(client?.searchRecordings?.bind(client), 2);
+  const brainz = boundedProvider(client?.searchRecordings && (async (title,artist,recordingId) => validId(recordingId)&&client.getRecording ? [await client.getRecording(recordingId,{background:true})] : client.searchRecordings(title,artist,{background:true})), 2);
   const fanart = boundedProvider(lookupFanart, 2);
   let primaryRunning=0, fallbackRunning=0;
   return async (title,artist,{fallback=false,primaryOnly=false,active=()=>true}={}) => {
@@ -160,7 +160,7 @@ function createArtworkLookup(client,now=Date.now,trackInfo,lookupAudioDb,lookupM
       // A broken primary image gets an independent catalog/album fallback.
       const catalog = brainz && (async signal => {
         const verified=norm(track?.name)===norm(title)&&norm(track?.artist?.name)===norm(artist);
-        const items=await brainz(title,artist,{background:true});
+        const items=await brainz(title,artist,verified?track?.mbid:undefined);
         if(signal.aborted||!active())return {};
         const matched=findRecording(items,title,artist,verified?track?.mbid:undefined);
         if(!matched)return {};
@@ -178,8 +178,8 @@ function createArtworkLookup(client,now=Date.now,trackInfo,lookupAudioDb,lookupM
         return result;
       });
       const alternate = await run(fallback
-        ? [catalog,lastfmJob,audioDb&&(()=>audioDb(title,artist))]
-        : [audioDb&&(()=>audioDb(title,artist)),catalog]);
+        ? [catalog,lastfmJob,audioDb&&(signal=>audioDb(title,artist,signal))]
+        : [audioDb&&(signal=>audioDb(title,artist,signal)),catalog]);
       if (!alternate.coverUrl && failed && active()) throw unavailable();
       return alternate;
     }).then(value=>{

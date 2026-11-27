@@ -39,8 +39,8 @@ function matchDeezerArtwork(body,kind,title,artist="") {
   if(!covers.length)return {};
   return {coverUrl:covers[0],...(covers.length>1?{coverAlternatives:covers}:{}),...(durations.length?{durationMs:durations[0]*1000}:{})};
 }
-async function boundedJson(fetchImpl,url,headers={}) {
-  const response=await fetchImpl(url,{method:"GET",credentials:"omit",redirect:"error",headers:{Accept:"application/json",...headers},signal:AbortSignal.timeout(5500)});
+async function boundedJson(fetchImpl,url,headers={},signal) {
+  const response=await fetchImpl(url,{method:"GET",credentials:"omit",redirect:"error",headers:{Accept:"application/json",...headers},signal:signal?AbortSignal.any([signal,AbortSignal.timeout(5500)]):AbortSignal.timeout(5500)});
   if(!response.ok||response.status===429){
     await response.body?.cancel?.().catch(()=>undefined);
     const error=new Error("Artwork provider unavailable");

@@ -101,12 +101,13 @@ function hydrateArtwork() {
 }
 export async function cachedArtworkFromMac(artwork: ArtworkQuery): Promise<DiscoverResult> {
   if (phoneLibrary.effectiveSettings().discoverEnabled !== true) return {status:"off"};
-  const key=JSON.stringify([artwork.kind||"recording",artwork.providerId||"",artwork.title,artwork.artist,artwork.album||"",artwork.durationMs||0,!!artwork.fallback,!!artwork.primaryOnly]);
+  const key=JSON.stringify([artwork.kind||"recording",artwork.providerId||"",artwork.title,artwork.artist,artwork.album||"",artwork.durationMs||0,!!artwork.fallback]);
+  const requestKey=key+":"+String(!!artwork.primaryOnly);
   if (key.length>2048) return {status:"error",error:"Artwork query too long"};
   await hydrateArtwork();
   const row=artworkRows.get(key);
   if (row && Date.now()-row.at<86400000) { artworkRows.delete(key); artworkRows.set(key,row); return row.result; }
-  const pending=artworkPending.get(key);
+  const pending=artworkPending.get(requestKey);
   if(pending) return pending;
   if(artworkPending.size>=8) return row?.result ?? {status:"artwork"};
   const job=callMac<DiscoverResult>("discover:get",{artwork},15000).then(async answer=>{
@@ -122,7 +123,7 @@ export async function cachedArtworkFromMac(artwork: ArtworkQuery): Promise<Disco
     }
     if(!answer.ok && row && Date.now()-row.at<7*86400000) return row.result;
     return result ?? {status:"artwork"} as const;
-  }).finally(()=>artworkPending.delete(key));
-  artworkPending.set(key,job);
+  }).finally(()=>artworkPending.delete(requestKey));
+  artworkPending.set(requestKey,job);
   return job;
 }
