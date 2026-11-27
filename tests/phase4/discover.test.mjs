@@ -751,3 +751,38 @@ test("recommendation refresh retains verified unchanged artwork but not conflict
   assert.equal(reuseRecommendationArtwork(result,previous).tracks[0].coverUrl,coverUrl);
   assert.equal(reuseRecommendationArtwork({...result,tracks:[{...result.tracks[0],durationMs:220000}]},previous).tracks[0].coverUrl,undefined);
 });
+
+
+test("primary public artwork avoids authenticated Last.fm requests",async()=>{
+  const {createArtworkLookup}=require("../../electron/discover/artwork.cjs");
+  let authenticated=0;
+  const coverUrl="https://e-cdns-images.dzcdn.net/images/cover/0123456789abcdef0123456789abcdef/250x250-000000-80-0-0.jpg";
+  const lookup=createArtworkLookup(null,Date.now,async()=>{authenticated++;return null;},undefined,undefined,async()=>({coverUrl}));
+  assert.equal((await lookup("song","artist")).coverUrl,coverUrl);
+  assert.equal(authenticated,0);
+});
+test("specialist catalog preserves aliases and distinct versions without importing third-party images",async()=>{
+  const {createVocaDbSearch,suitableVocaDbQuery}=require("../../electron/discover/vocadb.cjs");
+  let calls=0;
+  const search=createVocaDbSearch({spacingMs:0,fetchImpl:async(url)=>{
+    calls++;assert.equal(new URL(url).hostname,"vocadb.net");
+    return new Response(JSON.stringify({items:[{id:1,name:"Override",defaultName:"オーバーライド",names:[{value:"Oobaarai do"}],artistString:"Yoshida Yasei feat. Kasane Teto",songType:"Original",lengthSeconds:130,mainPicture:{url:"https://example.invalid/cover"}},{id:2,name:"Override",artistString:"Yoshida Yasei feat. Kasane Teto",songType:"Remix"}]}));
+  }});
+  assert.ok(suitableVocaDbQuery("重音テト"));assert.equal(suitableVocaDbQuery("Daft Punk"),false);
+  const rows=await search("recording","オーバーライド");
+  assert.equal(rows.length,2);assert.equal(rows[0].title,"オーバーライド");assert.equal(rows[0].durationMs,130000);
+  assert.equal(rows[0].url,"https://vocadb.net/S/1");assert.equal(rows[0].coverUrl,undefined);assert.notEqual(rows[0].id,rows[1].id);
+  assert.deepEqual(await search("recording","オーバーライド"),rows);assert.equal(calls,1);
+});
+
+test("specialist fallback does not displace existing catalog results or query unrelated artists",async()=>{
+  const handlers=new Map(),settings={discoverEnabled:false};let calls=0,ordinary=[];
+  registerDiscoverIpc({handle:(name,fn)=>handlers.set(name,fn)},{getSongs:()=>[],getSettings:()=>settings,musicBrainzClient:{searchCatalog:async()=>ordinary},searchVocaDb:async()=>{calls++;return [{id:"vocadb:1",title:"重音テト",artist:"",url:"https://vocadb.net/Ar/1"}];}});
+  const search=term=>handlers.get("discover:get")({},{catalog:{kind:"artist",term}});
+  assert.equal((await search("重音テト")).status,"off");assert.equal(calls,0);
+  settings.discoverEnabled=true;
+  await search("Daft Punk");assert.equal(calls,0);
+  ordinary=[{id:"12345678-1234-1234-1234-123456789abc",name:"重音テト"}];
+  assert.equal((await search("重音テト")).items[0].id,ordinary[0].id);assert.equal(calls,0);
+  ordinary=[];assert.equal((await search("重音テト")).items[0].id,"vocadb:1");assert.equal(calls,1);
+});

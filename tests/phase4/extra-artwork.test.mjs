@@ -83,16 +83,19 @@ test("an upstream 403 has a five-minute cooldown without caching an empty cover"
  assert.equal(requests,2,"retry after cooldown, never permanently cache the error");
 });
 
-test("keyed artwork sources resolve before a blocked Deezer service",async()=>{
+test("public artwork is attempted first and a blocked Deezer service reaches the keyed fallback",async()=>{
  const {createArtworkLookup}=require("../../electron/discover/artwork.cjs");
- let deezer=0,mb=0;
+ let deezer=0,mb=0,lastfm=0;
  const lookup=createArtworkLookup({searchRecordings:async()=>{mb++;return [];}},Date.now,
-  async()=>({name:"Bang Bang",artist:{name:"B.A. Robertson"},album:{image:[{"#text":"https://lastfm.freetls.fastly.net/i/u/300x300/0123456789abcdef0123456789abcdef.jpg"}]}}),
-  async()=>({coverUrl:portrait}),undefined,async()=>{deezer++;return {};});
+  async()=>{lastfm++;return {name:"Bang Bang",artist:{name:"B.A. Robertson"},album:{image:[{"#text":"https://lastfm.freetls.fastly.net/i/u/300x300/0123456789abcdef0123456789abcdef.jpg"}]}};},
+  async()=>({coverUrl:portrait}),undefined,async()=>{deezer++;throw Object.assign(new Error("blocked"),{status:403});});
  const result=await lookup("Bang Bang","B.A. Robertson");
  assert.equal(result.coverUrl,"https://lastfm.freetls.fastly.net/i/u/300x300/0123456789abcdef0123456789abcdef.jpg");
- assert.equal(deezer,0,"never hit optional Deezer while a verified image exists");
- assert.equal(mb,0);
+ assert.equal(deezer,1);
+ assert.equal(mb,1);
+ assert.equal(lastfm,1);
+ assert.deepEqual(await lookup("Bang Bang","B.A. Robertson"),result);
+ assert.equal(deezer,1,"warm cache must not retry the blocked source");
 });
 test("fallback mode skips the failed Deezer image and reaches catalog releases",async()=>{
  const {createArtworkLookup}=require("../../electron/discover/artwork.cjs");

@@ -232,7 +232,7 @@ function createArtworkLookup(client,now=Date.now,trackInfo,lookupAudioDb,lookupM
       const musicJob = music && (async signal => matchMusicArtwork(await music(title,artist,{},signal,excluded),title,artist));
       const deezerJob = deezer && (() => deezer("recording",title,artist));
       if (!fallback) {
-        const primary = await run([musicJob,lastfmJob,deezerJob]);
+        const primary = await run([musicJob,deezerJob,...(!musicJob&&!deezerJob?[lastfmJob]:[])]);
         if (primary.coverUrl || !active()) return primary;
         if (primaryOnly) {
           const known=withoutFailedArtwork(knownRelease?{coverUrl:knownRelease}:{},excluded);
@@ -264,7 +264,7 @@ function createArtworkLookup(client,now=Date.now,trackInfo,lookupAudioDb,lookupM
       });
       const alternate = await run(fallback
         ? [catalog,lastfmJob,audioDb&&(signal=>audioDb(title,artist,signal,cache,excluded)),...((excluded.length||retryPrimary)?[deezerJob,musicJob]:[])]
-        : [audioDb&&(signal=>audioDb(title,artist,signal,cache,excluded)),catalog]);
+        : [catalog,...(musicJob||deezerJob?[lastfmJob]:[]),audioDb&&(signal=>audioDb(title,artist,signal,cache,excluded))]);
       if(alternate.coverUrl)return alternate;
       const known=withoutFailedArtwork(knownRelease?{coverUrl:knownRelease}:{},excluded);
       if(known.coverUrl)return known;

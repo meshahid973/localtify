@@ -9,6 +9,8 @@ const {createAudioDbArtwork} = require("../electron/discover/audiodb.cjs");
 const {createMusicBrainzClient,coverThumbUrl} = require("../electron/musicbrainz/client.cjs");
 const {createYouTubeMusicSearch} = require("../electron/discover/youtube-music.cjs");
 const {createStoreSearch} = require("../electron/discover/catalog.cjs");
+const {createVocaDbSearch} = require("../electron/discover/vocadb.cjs");
+const {boundedJson} = require("../electron/discover/extra-artwork.cjs");
 const {createLyricsService} = require("../electron/lyrics/service.cjs");
 const fs = require("node:fs");
 const os = require("node:os");
@@ -164,17 +166,16 @@ async function liveResolution(){
   };
   const youtube=createYouTubeMusicSearch(instrument("YouTube Music"),Date.now,4);
   const deezer=createDeezerArtwork({fetchImpl:instrument("Deezer")});
-  const audio=createAudioDbArtwork({apiKey:process.env.LOCALTIFY_AUDIODB_API_KEY||"123",fetchImpl:instrument("TheAudioDB")});
+  const audio=createAudioDbArtwork({apiKey:process.env.LOCALTIFY_AUDIODB_API_KEY,fetchImpl:instrument("TheAudioDB")});
   const lastfm=/^[a-f0-9]{32}$/i.test(process.env.LOCALTIFY_LASTFM_API_KEY||"")?createLastfmClient({apiKey:process.env.LOCALTIFY_LASTFM_API_KEY,fetch:instrument("Last.fm"),artwork:true}):null;
   const brainz=createMusicBrainzClient({userAgent:"Localtify artwork validation (https://github.com/meshahid973/localtify)",fetchImpl:instrument("MusicBrainz"),timeoutMs:9000});
-  const fanart=createFanartArtwork({apiKey:process.env.LOCALTIFY_FANART_API_KEY,fetchImpl:instrument("Fanart.tv")});
   const lookup=createArtworkLookup(brainz,Date.now,lastfm?lastfm.trackInfo:undefined,audio?.resolve,
     async(title,artist,identity,signal)=>{
       const query=(title+" "+artist).slice(0,160);
       const songs=await youtube("recording",query,{artwork:true});
       if(matchMusicArtwork(songs,title,artist).coverUrl||signal?.aborted)return songs;
       return [...songs,...await youtube("video",query,{artwork:true})];
-    },deezer.resolve,fanart?.resolve);
+    },deezer.resolve);
   const cases=[];
   for(const [title,artist] of samples){
     const start=performance.now();
@@ -230,6 +231,26 @@ async function liveCatalogBatch(){
     }));
     return {artist,requests,catalogMs,records:records.length,frontMarked:records.filter(row=>row.releases?.some(release=>release["cover-art-archive"]?.front===true)).length,results};
   }catch{return {artist,requests,catalogMs:Math.round(performance.now()-start),status:"unavailable"};}
+}
+async function probeExpansion(){
+  const voca=createVocaDbSearch();
+  const outcomes=[];
+  for(const title of ["メズマライザー","Liar Dancer","オーバーライド"]){
+    const start=performance.now();
+    try{const rows=await voca("recording",title);outcomes.push({provider:"VocaDB",title,metadataMs:Math.round(performance.now()-start),exact:rows.filter(r=>[r.title,...r.aliases].some(a=>norm(a)===norm(title))).length,artwork:"not licensed for reuse"});}
+    catch{outcomes.push({provider:"VocaDB",title,status:"unavailable",metadataMs:Math.round(performance.now()-start)});}
+  }
+  for(const [title,artist] of [["One More Time","Daft Punk"],["Strobe","deadmau5"],["Sleepless","Flume"],["Ghosts 'n' Stuff","deadmau5"]]){
+    const start=performance.now();
+    try{
+      const url=new URL("https://api.audius.co/v1/tracks/search");url.search=new URLSearchParams({query:title+" "+artist,limit:"10",app_name:"Localtify"}).toString();
+      const body=await boundedJson(fetch,url.href,imageHeaders);
+      const exact=(Array.isArray(body?.data)?body.data:[]).filter(row=>norm(row.title)===norm(title)&&norm(row.user?.name)===norm(artist));
+      outcomes.push({provider:"Audius",title,artist,metadataMs:Math.round(performance.now()-start),exact:exact.length,artworkField:exact.some(row=>typeof row.artwork?.["150x150"]==="string"||typeof row.artwork?.["480x480"]==="string")});
+    }catch(error){outcomes.push({provider:"Audius",title,artist,status:"unavailable",http:error?.status,metadataMs:Math.round(performance.now()-start)});if(error?.status===429||error?.status===401||error?.status===403)break;}
+    await delay(1100);
+  }
+  return outcomes;
 }
 async function main() {
   const jobs=[];
@@ -297,9 +318,8 @@ async function main() {
     return {status:image?"ok":"image-unavailable",metadata:true,image};
   }));
   jobs.push(check("TheAudioDB",async()=>{
-    // 123 is TheAudioDB's documented public demo key. An operator-provided
-    // key can override it, but is never serialized into this report.
-    const key=process.env.LOCALTIFY_AUDIODB_API_KEY||"123";
+    const key=process.env.LOCALTIFY_AUDIODB_API_KEY;
+    if(!key)return {status:"skipped-key-required",detail:"Authorized operator key required"};
     const lookup=createAudioDbArtwork({apiKey:key});
     if(!lookup)return {status:"skipped",detail:"Invalid provider key"};
     const result=await lookup(expectedTitle,expectedArtist);
@@ -356,7 +376,8 @@ async function main() {
   const cacheComparison=baselineRoot?{baseline:await controlledCache(baselineRoot),candidate:await controlledCache(path.resolve(__dirname,".."))}:undefined;
   const catalogBatch=process.argv.includes("--resolution")||baselineRoot?await liveCatalogBatch():undefined;
   const recommendationComparison=baselineRoot?{baseline:await controlledRecommendation(baselineRoot,false),candidate:await controlledRecommendation(path.resolve(__dirname,".."),true)}:undefined;
-  console.log(JSON.stringify({checkedAt:new Date().toISOString(),sample:{title:expectedTitle,artist:expectedArtist},
+  const expansion=process.argv.includes("--provider-expansion")?await probeExpansion():undefined;
+  console.log(JSON.stringify({expansion,checkedAt:new Date().toISOString(),sample:{title:expectedTitle,artist:expectedArtist},
     checks:sorted,resolution,comparison,cacheComparison,catalogBatch,recommendationComparison,note:"Advisory network observation, not a guarantee of future provider availability"},null,2));
   // Manual release acceptance must not silently pass without configured keys
   // or when either keyed integration is unable to retrieve usable artwork.
