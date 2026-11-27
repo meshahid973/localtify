@@ -724,6 +724,9 @@ test("artist catalog batch reuses existing catalog results and only queries the 
   assert.deepEqual(enrichCatalogTrack(track,[{...candidate,releases:[{id:release,title:"Album","cover-art-archive":{front:false}}]}]),track);
   await client.searchRecordingBatch("Artist",[{title:"Song",recordingId:id},"Other"],{background:true});
   assert.ok(calls[1].searchParams.get("query").includes("rid:"+JSON.stringify(id)));
+  await client.searchRecordingBatch("Artist",[{recordingId:id},{recordingId:release}],{background:true});
+  assert.equal(calls[2].searchParams.get("query"),`(rid:"${id}" OR rid:"${release}")`);
+  assert.equal(calls[2].searchParams.get("limit"),"10");
 });
 
 test("expired background catalog batch never starts another provider request",async()=>{

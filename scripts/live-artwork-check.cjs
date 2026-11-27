@@ -214,13 +214,13 @@ async function controlledRecommendation(root,batch){
 }
 async function liveCatalogBatch(){
   const {enrichCatalogTrack}=require("../electron/discover/artwork.cjs");
-  const artist="Daft Punk",tracks=["One More Time","Digital Love","Harder, Better, Faster, Stronger"].map(title=>({title,artist}));
+  const artist="Daft Punk",tracks=[["One More Time","60fa767a-d85d-4991-82bc-4294e0b11ae7"],["Digital Love","15f16efc-8762-4151-95ab-c12d06268640"],["Harder, Better, Faster, Stronger","f1a6a40f-78f5-4918-968d-f64363bae94c"]].map(([title,recordingId])=>({title,artist,recordingId,album:"Discovery"}));
   let requests=0;
   const client=createMusicBrainzClient({userAgent:"Localtify/0.5.1 (https://github.com/meshahid973/localtify)",timeoutMs:9000,
     fetchImpl:async(url,options)=>{requests++;return fetch(url,options);}});
   const start=performance.now();
   try{
-    const records=await client.searchRecordingBatch(artist,tracks.map(t=>t.title),{background:true});
+    const records=await client.searchRecordingBatch(artist,tracks,{background:true,deadlineAt:Date.now()+1500});
     const catalogMs=Math.round(performance.now()-start);
     const results=await Promise.all(tracks.map(async track=>{
       const row=enrichCatalogTrack(track,records);

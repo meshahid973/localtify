@@ -262,7 +262,7 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
           catalog:async(name,tracks)=>{
             if(!jobActive())return [];
             const cached=[...(searchYouTubeMusic?.cachedArtist?.(name)||[]),...(searchYouTubeArtwork?.cachedArtist?.(name)||[])];
-            const missing=tracks.filter(track=>!enrichCatalogTrack(track,cached).coverUrl);
+            const missing=tracks.filter(track=>!track.coverUrl&&!enrichCatalogTrack(track,cached).coverUrl&&/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(track.recordingId||""));
             if(missing.length<2||!musicBrainzClient?.searchRecordingBatch||!jobActive()||batchBudget<=0)return cached;
             batchBudget--;
             try{

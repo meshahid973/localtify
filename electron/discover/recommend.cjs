@@ -129,7 +129,7 @@ async function discover({ songs, hiddenArtists = [], client, now = Date.now(), c
   async function enrich(name,tracks){
     if(cachedArtwork&&active())tracks=await Promise.all(tracks.map(async track=>{
       if(safeDisplayCover(track.coverUrl)||!active())return track;
-      try{return {...track,...await cachedArtwork(track)};}catch{return track;}
+      try{const art=await cachedArtwork(track);return {...track,...art,durationMs:track.durationMs||art.durationMs};}catch{return track;}
     }));
     if(!catalog||!active()||!tracks.length||tracks.every(track=>safeDisplayCover(track.coverUrl)))return tracks;
     const id=key(name);
