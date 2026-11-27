@@ -103,6 +103,18 @@ export default function AppShell(props: AppShellProps) {
     view, importSongs, startSidebarResize,
     contentRef, updateSidebarLayout, openSidebarSettings, history: nav
   } = navigation;
+  // Prepare Discover after startup/navigation settles, without mounting the
+  // route or transferring covers while the application is minimized.
+  useEffect(() => {
+    if (!discover.settings.discoverEnabled || isAndroidApp() || view === "discover" || isAppBackgrounded) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      void import("../discover/DiscoverArtwork").then(module => {
+        if (!controller.signal.aborted) return module.preloadDiscover(controller.signal);
+      }).catch(() => undefined);
+    }, 2000);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [discover.settings.discoverEnabled, discover.settings.lastfmApiKey, view, isAppBackgrounded]);
   const detail = nav.detail;
   const { isSeeking, isVolumeDragging, draggedSongId, isPlaying } = playerBar;
   const { isThreeAm } = home;

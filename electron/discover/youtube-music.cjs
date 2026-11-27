@@ -7,6 +7,7 @@
 const { retryAfterMs, providerCooldown, unavailable, capacity } = require("./provider-health.cjs");
 const {createResourceCache}=require("../runtime/resource-cache.cjs");
 const {createHash}=require("node:crypto");
+const {recordingKey,canonicalIdentity}=require("./track-identity.cjs");
 const origin = "https://music.youtube.com/youtubei/v1/";
 const clientVersion = "1.20260911.08.00";
 const filters = { video: "EgWKAQIQAWoKEAkQBRAKEAMQBA%3D%3D", recording: "EgWKAQIIAWoKEAkQBRAKEAMQBA%3D%3D", artist: "EgWKAQIgAWoKEAkQBRAKEAMQBA%3D%3D" };
@@ -221,11 +222,65 @@ async function requestCatalog(fetchImpl,endpoint,payload) {
 }
 function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPending=2,{file=""}={}) {
   const cache=new Map(),pending=new Map(),waiting=[];
-  const persistent=createResourceCache({file,now,maxEntries:512,maxBytes:12*1024*1024,validate:value=>value&&typeof value==="object"&&Array.isArray(value.items)&&value.items.length<=100&&value.items.every(isTrack)&&(!value.page||isPage(value.page))&&(!value.album||isRelease(value.album))});
+  const validRecord=row=>{
+    if(isTrack(row))return true;
+    if(!row||typeof row.title!=="string"||typeof row.artist!=="string")return false;
+    const key=recordingKey(row.id);
+    if(!key||key.startsWith("ytmusic:"))return false;
+    const tail=key.split(":").at(-1);
+    if(key.startsWith("musicbrainz:")){if(row.url!=="https://musicbrainz.org/recording/"+tail)return false;}
+    else if(key.startsWith("vocadb:")){if(row.url!=="https://vocadb.net/S/"+tail)return false;}
+    else if(key.startsWith("deezer:")){if(row.url!=="https://www.deezer.com/track/"+tail)return false;}
+    else if(key.startsWith("itunes:")){try{const u=new URL(row.url);if(u.protocol!=="https:"||u.username||u.password||u.port||!["music.apple.com","itunes.apple.com"].includes(u.hostname)||u.searchParams.get("i")!==tail)return false;}catch{return false;}}
+    else return false;
+    const safe=require("../runtime/remote-cover.cjs").safeDisplayCover;
+    return [row.coverUrl,row.fallbackCoverUrl,...(Array.isArray(row.coverAlternatives)?row.coverAlternatives:[])].filter(Boolean).every(safe);
+  };
+  const persistent=createResourceCache({file,now,maxEntries:2048,maxBytes:12*1024*1024,validate:value=>value&&typeof value==="object"&&(
+    value.record?validRecord(value.record):
+    ((Array.isArray(value.items)&&value.items.length<=100&&value.items.every(validRecord))||
+      (Array.isArray(value.ids)&&value.ids.length<=100&&value.ids.every(id=>typeof id==="string"&&recordingKey(id)===id)))&&(!value.page||isPage(value.page))&&(!value.album||isRelease(value.album)))});
+  const recordKey=id=>diskKey("record",recordingKey(id));
+  function readRows(entry){
+    if(!entry)return [];
+    if(Array.isArray(entry.items))return entry.items;
+    return (entry.ids||[]).map(id=>persistent.get(recordKey(id))?.record).filter(Boolean);
+  }
+  function storeRecord(item){
+    if(!validRecord(item))return null;
+    const key=recordingKey(item.id),old=persistent.get(recordKey(key))?.record;
+    const row={...item};
+    if(old){
+      // Same provider ID only. A sparse response must not erase verified metadata.
+      for(const field of ["album","albumId","durationMs","coverUrl","fallbackCoverUrl","coverAlternatives","releaseDate","releaseId","releaseGroupId","isrc","artistIds","artistCredits","aliases"]){
+        if((row[field]===undefined||row[field]===""||(Array.isArray(row[field])&&!row[field].length))&&old[field]!==undefined)row[field]=old[field];
+      }
+    }
+    // A cached answer is not a fresh verification. Avoid rewriting unchanged
+    // records, while still merging genuinely new provider metadata.
+    const {identity:_incoming,...incomingFields}=row;
+    if(old){const {identity:_old,...oldFields}=old;
+      if(Object.keys(incomingFields).length===Object.keys(oldFields).length&&Object.keys(incomingFields).every(field=>JSON.stringify(incomingFields[field])===JSON.stringify(oldFields[field])))return old;
+    }
+    row.identity=canonicalIdentity(row,{now:now()});
+    persistent.set(recordKey(key),{record:row},14*86400000);
+    return row;
+  }
+  function storePage(key,items,metadata,ttl=7*86400000){
+    const ids=items.map(item=>storeRecord(item)).filter(Boolean).map(item=>recordingKey(item.id));
+    persistent.set(key,{ids:[...new Set(ids)].slice(0,100),...metadata},ttl);
+  }
   let trace=()=>{};
   const limit=Math.max(1,Math.min(6,maxPending));
   const backgroundLimit=Math.max(1,limit-2);
   let blockedUntil=0,hardBlockedUntil=0,running=0,backgroundRunning=0;
+  let hardReason="unavailable",softReason="unavailable";
+  function blocked(background){
+    const hard=now()<hardBlockedUntil,soft=background&&now()<blockedUntil;
+    if(!hard&&!soft)return false;
+    trace("catalog-blocked",{state:hard?hardReason:softReason,ms:Math.max(0,(hard?hardBlockedUntil:blockedUntil)-now())});
+    return true;
+  }
   function pump(){
     while(running<limit&&waiting.length){
       const foreground=waiting.findIndex(job=>!job.background);
@@ -234,7 +289,7 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
       const [job]=waiting.splice(index,1);
       clearTimeout(job.timer);job.detach?.();
       if(job.signal?.aborted){job.reject(capacity());continue;}
-      if(now()<hardBlockedUntil||(job.background&&now()<blockedUntil)){job.reject(unavailable());continue;}
+      if(blocked(job.background)){job.reject(unavailable());continue;}
       trace("catalog-queue",{ms:Math.round(performance.now()-job.queuedAt)});
       running++;const wasBackground=job.background;if(wasBackground)backgroundRunning++;
       void job.run().then(job.resolve,job.reject).finally(()=>{
@@ -254,7 +309,7 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
       else if(prior.signal!==options.signal){prior.detach?.();prior.signal=undefined;}
       return prior.promise.then(select);
     }
-    if(now()<hardBlockedUntil||(background&&now()<blockedUntil))throw unavailable();
+    if(blocked(background))throw unavailable();
     if((waiting.length>=32&&background)||waiting.length>=48)throw capacity();
     let resolve,reject;
     const result=new Promise((yes,no)=>{resolve=yes;reject=no;});
@@ -266,8 +321,10 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
         while(cache.size>128)cache.delete(cache.keys().next().value);
         return items;
       }catch(error){
-        if([401,403,429].includes(error?.status))hardBlockedUntil=Math.max(hardBlockedUntil,now()+providerCooldown(error));
-        if(job.background)blockedUntil=Math.max(blockedUntil,now()+providerCooldown(error));
+        const status=Number.isInteger(error?.status)&&error.status>=400&&error.status<=599?"http-"+error.status:error?.name==="TimeoutError"?"timeout":"transport-or-response";
+        trace("catalog-failure",{state:status});
+        if([401,403,429].includes(error?.status)){hardReason=status;hardBlockedUntil=Math.max(hardBlockedUntil,now()+providerCooldown(error));}
+        if(job.background){softReason=status;blockedUntil=Math.max(blockedUntil,now()+providerCooldown(error));}
         throw error;
       }
     }};
@@ -284,8 +341,9 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
     return job.promise.then(select);
   };
   function remember(items){
-    const byArtist=new Map();
-    for(const item of items.filter(isTrack)){
+    const byArtist=new Map(),normalized=[];
+    for(const raw of items){
+      const item=storeRecord(raw);normalized.push(item||raw);if(!item)continue;
       for(const name of [item.artist,...(item.artistCredits||[]).map(c=>c.name)]){
         const key=artistKey(name);if(!key)continue;
         const group=byArtist.get(key)||new Map();group.set(item.id,item);byArtist.set(key,group);
@@ -293,11 +351,14 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
     }
     for(const [name,group] of byArtist){
       const key=diskKey("artist-tracks",name);
-      const old=persistent.get(key)?.items||[];
-      const merged=new Map(old.map(item=>[item.id,item]));
-      for(const item of group.values()){merged.delete(item.id);merged.set(item.id,item);}
-      persistent.set(key,{items:[...merged.values()].slice(-100)},14*86400000);
+      const entry=persistent.get(key),old=readRows(entry);
+      if(entry?.items)for(const row of old)storeRecord(row);
+      const merged=new Set(old.map(item=>recordingKey(item.id)));
+      for(const item of group.values()){const id=recordingKey(item.id);merged.delete(id);merged.add(id);}
+      const ids=[...merged].slice(-100);
+      if(!entry?.ids||JSON.stringify(entry.ids)!==JSON.stringify(ids))persistent.set(key,{ids},14*86400000);
     }
+    return normalized;
   }
   const search=async(kind,query,options={})=>{
     if(!Object.hasOwn(filters,kind)||typeof query!=="string"||query.trim().length<2||query.length>160)return [];
@@ -307,16 +368,17 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
     return scheduled(key,options,async()=>{
       const body=await requestCatalog(fetchImpl,"search",{query:query.trim(),params:filters[kind]});
       const items=mapSearchResponse(body,kind,query,false,100,false);
-      if(kind!=="artist")remember(items);
-      return items;
+      return kind!=="artist"?remember(items):items;
     },select);
   };
   search.cachedArtist=name=>{
     const wanted=artistKey(name);if(!wanted)return [];
-    const items=persistent.get(diskKey("artist-tracks",wanted))?.items||[];
+    const items=readRows(persistent.get(diskKey("artist-tracks",wanted)));
     trace("recording-cache",{state:items.length?"hit":"miss",count:items.length});
     return items;
   };
+  search.cachedRecording=id=>{const key=recordingKey(id);const row=key?persistent.get(recordKey(key))?.record:undefined;trace("recording-identity-cache",{state:row?"hit":"miss"});return row;};
+  search.rememberCatalog=async items=>{await persistent.hydrate();return remember(items);};
   search.hydrate=()=>persistent.hydrate();
   search.close=()=>persistent.close();
   search.flush=()=>persistent.flush();
@@ -348,7 +410,8 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
       const id=candidate.slice(8);if(!artistId.test(id))continue;
       const key=diskKey("artist-page",candidate);
       const stored=persistent.get(key);
-      let items=stored?.items, page=stored?.page;
+      let items=stored?readRows(stored):undefined, page=stored?.page;
+      if(!items?.length)items=undefined;
       trace("artist-catalog-cache",{state:items?"hit":"miss"});
       if(!items){
         const started=performance.now();
@@ -381,7 +444,7 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
     if(verified.length===1){
       const entry=verified[0];
       const {tracks:_,topSongs:__,discography:___,...metadata}=entry.page;
-      if(entry.items.length){persistent.set(entry.key,{items:entry.items,page:metadata},7*86400000);remember(entry.items);}
+      if(entry.items.length){remember(entry.items);storePage(entry.key,entry.items,{page:metadata});}
       const page=entry;
       for(const item of page.items)collected.set(item.id,item);
       trace("artist-catalog-match",{count:matches(page.items).length,total:wanted.length});
@@ -395,6 +458,13 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
       const more=await Promise.all(missing.map(track=>search("recording",(track.title+" "+track.artist).slice(0,160),{...options,artwork:true}).catch(()=>[])));
       for(const rows of more)for(const row of rows)collected.set(row.id,row);
     }
+    // Video catalog is a bounded second route for recordings absent from music shelves.
+    const unresolved=wanted.find(track=>!matches([...collected.values()]).includes(track));
+    if(unresolved&&!options.signal?.aborted){
+      const query=(unresolved.title+" "+unresolved.artist).slice(0,160);
+      const videos=await search("video",query,{...options,artwork:true}).catch(()=>[]);
+      for(const row of videos)collected.set(row.id,row);
+    }
     const all=[...collected.values()];
     const relevant=all.filter(item=>wanted.some(track=>matchMusicArtwork([item],track.title,track.artist,track).coverUrl));
     return [...new Map([...relevant,...all].map(row=>[row.id,row])).values()].slice(0,100);
@@ -406,7 +476,7 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
     const id=String(providerId||"").replace(/^ytmusic:/,"");if(!artistId.test(id))return null;
     await persistent.hydrate();
     const cached=persistent.get(diskKey("artist-details","ytmusic:"+id));
-    if(cached?.page){trace("artist-catalog-cache",{state:"hit"});return {...cached.page,tracks:cached.items};}
+    if(cached?.page&&readRows(cached).length){trace("artist-catalog-cache",{state:"hit"});return {...cached.page,tracks:readRows(cached)};}
     const page=await scheduled("browse:"+id,options,async()=>mapArtistPage(await requestCatalog(fetchImpl,"browse",{browseId:id}),id));
     if(!page)return null;
     const tracks=new Map(page.tracks.map(track=>[track.id,track])),releases=new Map(page.releases.map(release=>[release.id,release]));
@@ -416,20 +486,25 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
     const settled=await Promise.allSettled(jobs);
     const items=[...tracks.values()].slice(0,100),{tracks:_,topSongs:__,discography:___,...metadata}=page;
     metadata.releases=[...releases.values()].slice(0,100);
-    remember(items);persistent.set(diskKey("artist-page","ytmusic:"+id),{items,page:metadata},7*86400000);
-    if(settled.every(job=>job.status==="fulfilled"))persistent.set(diskKey("artist-details","ytmusic:"+id),{items,page:metadata},7*86400000);
+    remember(items);storePage(diskKey("artist-page","ytmusic:"+id),items,{page:metadata});
+    if(settled.every(job=>job.status==="fulfilled"))storePage(diskKey("artist-details","ytmusic:"+id),items,{page:metadata});
     return {...metadata,tracks:items};
   };
   search.getAlbum=async(providerId,options={})=>{
     const id=String(providerId||"").replace(/^ytmusic:/,"");if(!albumIdPattern.test(id))return null;
     await persistent.hydrate();
     const key=diskKey("album","ytmusic:"+id),cached=persistent.get(key);
-    if(cached?.album){trace("release-cache",{state:"hit"});return {...cached.album,tracks:cached.items};}
+    if(cached?.album&&readRows(cached).length){trace("release-cache",{state:"hit"});return {...cached.album,tracks:readRows(cached)};}
     const page=await scheduled("album:"+id,options,async()=>mapAlbumPage(await requestCatalog(fetchImpl,"browse",{browseId:id}),id));
     if(!page)return null;
     const {tracks:items,...album}=page;remember(items);
-    if(items.length)persistent.set(key,{items,album},7*86400000);
+    if(items.length)storePage(key,items,{album});
     return page;
+  };
+  search.radio=async seed=>{
+    if(!videoId.test(seed||""))return [];
+    await persistent.hydrate();
+    return scheduled("radio:"+seed,{},async()=>{const rows=mapRadioResponse(await requestCatalog(fetchImpl,"next",{videoId:seed,playlistId:"RDAMVM"+seed}),seed);remember(rows);return rows;});
   };
   return search;
 }

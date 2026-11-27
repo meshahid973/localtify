@@ -24,7 +24,7 @@ const onTrack = (song, release, { track, medium, recording }, score) => ({
  * Looks songs up on MusicBrainz and downloads each release's front cover once into coverDir,
  * so previews and applied covers never load from the network afterwards.
  */
-function createTaggingLookup({ client, coverDir, userAgent, fetchImpl = fetch }) {
+function createTaggingLookup({ client, coverDir, userAgent, fetchImpl = fetch, musicCatalog }) {
   const genreCache = createResourceCache({ maxEntries: 512, validate: value => typeof value === "string" });
   const genrePending = new Map();
   const coverCache = new Map();
@@ -93,7 +93,21 @@ function createTaggingLookup({ client, coverDir, userAgent, fetchImpl = fetch })
   async function lookupSong(song) {
     const title = searchTitle(song.title);
     const artist = primaryArtist(song.artist);
-    let recordings = await client.searchRecordings(title, artist);
+    let recordings;
+    // Reuse the independently verified MusicBrainz identity, but fetch current
+    // release data before proposing any local file/library metadata change.
+    if(musicCatalog&&Number(song.durationMs)>0&&client.getRecording){
+      await musicCatalog.hydrate?.();
+      const rows=(musicCatalog.cachedArtist?.(song.artist)||[]).filter(row=>/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(row.id));
+      const {evaluateRecording}=require("../discover/track-identity.cjs");
+      const decision=evaluateRecording(song,rows);
+      if(decision.status==="matched"){
+        const id=decision.candidate.id;
+        const recording=await client.getRecording(id).catch(unreachableOnly);
+        if(recording?.id===id&&evaluateRecording({...song,recordingId:id},[{...recording,artist:creditText(recording["artist-credit"]||[])}]).status==="matched")recordings=[recording];
+      }
+    }
+    if(!recordings?.length)recordings=await client.searchRecordings(title, artist);
     if (!recordings.length && artist) recordings = await client.searchRecordings(title, "");
     const picked = pickRecording({ ...song, title }, recordings);
     return picked ? finish(buildProposal(song, picked)) : null;

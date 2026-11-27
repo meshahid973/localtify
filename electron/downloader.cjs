@@ -10,7 +10,8 @@ const { publishDownloadedFile, isPendingPublication } = require("./download-publ
 const { filePathKey } = require("./runtime/path-identity.cjs");
 const { createMediaConverter } = require("./media-converter.cjs");
 const { createYouTubeMusicSearch, isJunkVideo, exactMusicCandidate } = require("./discover/youtube-music.cjs");
-const searchMusicCatalog = createYouTubeMusicSearch();
+let searchMusicCatalog = createYouTubeMusicSearch();
+function setMusicCatalog(search){if(typeof search==="function")searchMusicCatalog=search;}
 
 let _userDataPath = null;
 let _ffmpegPath = ffmpegStatic || null;
@@ -854,8 +855,10 @@ async function findSpotifyYoutubeMatch(track = {}, onProgress, job = {}) {
   if (selected) return { matchOk: true, matchScore: 100, matchMode: "selected-recording", providerUrl: selected, matchedTitle: String(track.title || ""), matchedArtist: String(track.artist || ""), matchedDurationMs: Number(track.durationMs) || 0 };
   if (activeDownloadCancelled) throw new Error("Download cancelled");
   const query = [track.title || track.name, track.artist || track.artists].filter(Boolean).join(" ").trim();
-  const direct = query.length >= 2 && query.length <= 160
-    ? exactMusicCandidate(track, await searchMusicCatalog("recording", query).catch(() => [])) : null;
+  await searchMusicCatalog.hydrate?.();
+  const cached=exactMusicCandidate(track,searchMusicCatalog.cachedArtist?.(track.artist||track.artists||"")||[]);
+  const direct = cached || (query.length >= 2 && query.length <= 160
+    ? exactMusicCandidate(track, await searchMusicCatalog("recording", query).catch(() => [])) : null);
   if (activeDownloadCancelled) throw new Error("Download cancelled");
   if (direct) return { matchOk: true, matchScore: 100, matchMode: "catalog-exact", providerUrl: direct.url, matchedTitle: direct.title, matchedArtist: direct.artist, matchedDurationMs: direct.durationMs };
   const candidates = await searchSpotifyYoutubeCandidates(track, 12);
@@ -1128,6 +1131,7 @@ async function convertLocalMediaFiles(filePaths, destinationDirectory, options =
 }
 
 module.exports = {
+  setMusicCatalog,
   listDownloadJobs,
   completeDownloadImports,
   runDownloadOperation,

@@ -39,7 +39,7 @@ jobs:
           mkdir -p qa-providers
           args=(--resolution)
           if [[ "$HEAD_REF" == 'codex/provider-expansion-5' ]]; then args+=(--provider-expansion); fi
-          if [[ "$HEAD_REF" == 'codex/discover-pipeline-6' ]]; then args+=(--pipeline6); fi
+          if [[ "$HEAD_REF" == 'codex/discover-pipeline-6' || "$HEAD_REF" == 'codex/music-identity-5' ]]; then args+=(--pipeline6); fi
           if [[ -n "$BASE_SHA" ]]; then
             baseline="$RUNNER_TEMP/artwork-baseline"
             mkdir -p "$baseline"
