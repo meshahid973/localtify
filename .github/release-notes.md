@@ -18,7 +18,7 @@ Localtify 0.5.1 is a major interface and performance update.
 
 ## Downloads
 
-- Windows x64 installer: unsigned; Windows may show a security warning. Install updates manually from GitHub.
+- Windows x64 installer: unsigned; Windows may show a security warning. Install manually from GitHub if an older updater rejects the unsigned package.
 - Linux x64: AppImage, Debian and RPM packages.
 - Android: signed APK.
 - Verify downloads against SHA256SUMS.

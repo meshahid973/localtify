@@ -6,17 +6,17 @@ const path = require("node:path");
 const { createHash } = require("node:crypto");
 const yaml = require("js-yaml");
 
-function releaseAssetNames(version, unsignedWindows = false) {
+function releaseAssetNames(version) {
   assert.match(version, /^\d+\.\d+\.\d+$/, "Stable release version required");
   return [
-    `localtify-setup-${version}.exe`, ...(unsignedWindows ? [] : [`localtify-setup-${version}.exe.blockmap`, "latest.yml"]),
+    `localtify-setup-${version}.exe`, `localtify-setup-${version}.exe.blockmap`, "latest.yml",
     `localtify-${version}-x86_64.AppImage`, `localtify-${version}-amd64.deb`, `localtify-${version}-x86_64.rpm`,
     "latest-linux.yml", `localtify-${version}-android.apk`
   ].sort();
 }
 
-async function prepareReleaseAssets(directory, version, unsignedWindows = false) {
-  const names = releaseAssetNames(version, unsignedWindows);
+async function prepareReleaseAssets(directory, version) {
+  const names = releaseAssetNames(version);
   assert.deepEqual(fs.readdirSync(directory).filter(name => name !== "SHA256SUMS").sort(), names,
     "Release must contain exactly the current Windows, Linux, Android and updater assets");
   const digests = new Map();
@@ -44,7 +44,7 @@ async function prepareReleaseAssets(directory, version, unsignedWindows = false)
     digests.set(name, { sha256: sha256.digest("hex"), sha512: sha512.digest("base64"), size });
   }
   for (const [manifest, artifact] of [
-    ...(unsignedWindows ? [] : [["latest.yml", `localtify-setup-${version}.exe`]]),
+    ["latest.yml", `localtify-setup-${version}.exe`],
     ["latest-linux.yml", `localtify-${version}-x86_64.AppImage`]
   ]) {
     const metadata = yaml.load(fs.readFileSync(path.join(directory, manifest), "utf8"));
@@ -61,7 +61,7 @@ async function prepareReleaseAssets(directory, version, unsignedWindows = false)
 }
 
 if (require.main === module) {
-  prepareReleaseAssets(path.resolve(process.argv[2] || "release-assets"), require("../package.json").version, process.env.UNSIGNED_WINDOWS === "true")
+  prepareReleaseAssets(path.resolve(process.argv[2] || "release-assets"), require("../package.json").version)
     .then(names => console.log(`[release-assets] verified ${names.length} files and wrote SHA256SUMS`))
     .catch(error => { console.error(error.message); process.exitCode = 1; });
 }

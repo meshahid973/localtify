@@ -12,7 +12,7 @@ on:
         default: v0.5.1
         type: string
       unsigned_windows:
-        description: Publish Windows installer unsigned (manual updates only)
+        description: Publish unsigned Windows installer (manual installation recommended)
         required: true
         default: true
         type: boolean
@@ -101,9 +101,9 @@ jobs:
             $signers += $signature.SignerCertificate.Thumbprint
           }
           if ($env:UNSIGNED_WINDOWS -eq "true") {
-            # Do not expose unsigned packages to older automatic updaters.
-            Remove-Item -Path "release/latest.yml", "release/*.exe.blockmap" -Force -ErrorAction SilentlyContinue
-            Write-Host "Verified unsigned Windows files; manual download only."
+            # Keep the versioned updater metadata for legacy clients. Hashes
+            # are checked before publication; no client signature check is disabled.
+            Write-Host "Verified unsigned Windows files. Older clients may reject unsigned updates."
           } else {
             if ($signers[0] -ne $signers[1]) { throw "Installer and application have different signing certificates" }
             Write-Host "Verified trusted matching Authenticode signatures on installer and application."
