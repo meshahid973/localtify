@@ -672,3 +672,36 @@ test("identified artwork never substitutes another catalog recording with the sa
     next.flush();
   }finally{fs.rmSync(dir,{recursive:true,force:true});}
  });
+
+test("catalog-first recommendations attach exact artwork with one artist query and publish before slower groups",async()=>{
+  const coverUrl="https://lh3.googleusercontent.com/fixture=w256-h256-l90-rj";
+  const calls=[],partials=[];
+  let release;
+  const client=fakeClient({
+    similarArtists:async()=>[{name:"Fast Artist",match:.9},{name:"Slow Artist",match:.7}],
+    topTracks:async name=>name==="Slow Artist"?new Promise(resolve=>{release=resolve;}):
+      name==="Fast Artist"?["One","Two","Three","One (Live)"].map(title=>({title,artist:name,url:"https://www.last.fm/music/Fast+Artist"})):[]
+  });
+  let first;
+  const initial=new Promise(resolve=>{first=resolve;});
+  const pending=discover({songs:[{title:"Owned",artist:"Seed",playCount:10}],client,now:NOW,
+    catalog:async name=>{calls.push(name);return ["One","Two","Three"].map((title,index)=>({id:"ytmusic:abcdefghij"+index,title,artist:name,album:"Album",durationMs:180000,coverUrl}));},
+    onProgress:result=>{partials.push(result);first(result);}
+  });
+  const early=await initial;
+  assert.equal(early.partial,true);assert.equal(early.artists[0].topTracks.filter(track=>track.coverUrl).length,3);
+  assert.equal(early.artists[0].topTracks[3].coverUrl,undefined,"live recording must not receive studio artwork");
+  assert.equal(early.artists[0].topTracks[0].providerId,"ytmusic:abcdefghij0");
+  assert.deepEqual(calls,["Fast Artist"]);
+  release([{title:"Slow Song",artist:"Slow Artist"}]);
+  const final=await pending;
+  assert.equal(final.partial,undefined);assert.equal(final.artists.length,2);assert.equal(partials.length,1);
+  assert.deepEqual(calls,["Fast Artist","Slow Artist"]);
+});
+test("catalog enrichment rejects conflicting versions, artists and ambiguous catalog identities",()=>{
+  const {enrichCatalogTrack}=require("../../electron/discover/artwork.cjs");
+  const track={title:"Song",artist:"Artist",durationMs:180000};
+  const candidate={id:"ytmusic:abcdefghijk",title:"Song",artist:"Artist",durationMs:180000,coverUrl:"https://lh3.googleusercontent.com/fixture=w256-h256-l90-rj"};
+  assert.equal(enrichCatalogTrack(track,[candidate]).coverUrl,candidate.coverUrl);
+  for(const rows of [[{...candidate,title:"Song (Remix)"}],[{...candidate,artist:"Other"}],[{...candidate,durationMs:220000}],[candidate,{...candidate,id:"ytmusic:abcdefghijl"}]])assert.deepEqual(enrichCatalogTrack(track,rows),track);
+});

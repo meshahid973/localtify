@@ -1,5 +1,5 @@
 export type DiscoverArtwork = { coverUrl?: string; fallbackCoverUrl?: string; coverAlternatives?: string[]; durationMs?: number };
-export type DiscoverTrack = { title: string; artist: string; url: string; album?: string } & DiscoverArtwork;
+export type DiscoverTrack = { title: string; artist: string; url: string; album?: string; providerId?: string } & DiscoverArtwork;
 export type DiscoverArtist = { name: string; url: string; because: string[]; seedCount: number; topTracks: DiscoverTrack[] };
 export type CatalogKind = "recording" | "artist";
 export type CatalogItem = { id: string; title: string; artist: string; album?: string; subtitle: string; url: string } & DiscoverArtwork;
@@ -7,7 +7,7 @@ export type DiscoverResult =
   | { status: "configuration"; lastfmSource: "default" | "override" | "missing"; lastfmCheck?: "ok" | "no-match" | "bad-key" | "rate-limited" | "network" | "http" | "error" }
   | ({ status: "artwork"; outcome?: "unavailable" } & DiscoverArtwork)
   | { status: "catalog"; kind: CatalogKind; items: CatalogItem[] }
-  | { status: "ready" | "no-taste"; generatedAt: number; seeds: string[]; artists: DiscoverArtist[]; tracks: DiscoverTrack[] }
+  | { status: "ready" | "no-taste"; generatedAt: number; partial?: boolean; seeds: string[]; artists: DiscoverArtist[]; tracks: DiscoverTrack[] }
   | { status: "off" | "needs-key" }
   | { status: "error"; error: string };
 /** Plain text from Last.fm; paragraphs are separated by blank lines. */

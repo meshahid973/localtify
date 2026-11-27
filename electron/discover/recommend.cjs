@@ -3,6 +3,8 @@
 // Discover: music from outside your library, picked from what Last.fm says is similar to what you own and play.
 // Artists you already have and artists marked "not for me" are left out; songs you already have are left out.
 const { artistCredits, notForMeTest } = require("../analysis/listening-signals.cjs");
+const { enrichCatalogTrack } = require("./artwork.cjs");
+const { safeDisplayCover } = require("../runtime/remote-cover.cjs");
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SEED_ARTISTS = 15;
@@ -82,7 +84,7 @@ function diversify(entries, limit) {
   return picked;
 }
 
-async function discover({ songs, hiddenArtists = [], client, now = Date.now() }) {
+async function discover({ songs, hiddenArtists = [], client, now = Date.now(), catalog, active = () => true, onProgress = () => {} }) {
   const hidden = notForMeTest([], hiddenArtists);
   const taste = libraryTaste(songs, hidden, now);
   if (!taste.seeds.length) return { status: "no-taste", generatedAt: now, seeds: [], artists: [], tracks: [] };
@@ -99,24 +101,68 @@ async function discover({ songs, hiddenArtists = [], client, now = Date.now() })
     }
   });
   const rankedArtists = diversify(artists.values(), RESULT_ARTISTS);
-  const topTracks = await settleAll(rankedArtists.slice(0, TOP_TRACK_ARTISTS), (artist) => client.topTracks(artist.name));
-
-  // Last.fm's similar-song lookups are mostly empty, so songs come from what's popular by the artists you play most.
-  const favourites = taste.seeds.slice(0, MISSING_SONG_ARTISTS);
-  const favouriteTracks = await settleAll(favourites, (seed) => client.topTracks(seed.name, 15));
-  const tracks = favouriteTracks.flatMap((list, index) => list
-    .filter((track) => !hidden({ artist: track.artist || favourites[index].name }) && !taste.ownedTracks.has(trackKey(track.artist || favourites[index].name, track.title)))
-    .slice(0, MISSING_SONGS_PER_ARTIST)
-    .map((track) => ({ ...track, title: track.title, artist: track.artist || favourites[index].name })));
-
-  return {
-    status: "ready",
-    generatedAt: now,
-    seeds: taste.seeds.map((seed) => seed.name),
-    artists: rankedArtists.map((artist, index) => ({ name: artist.name, url: artist.url, because: because(artist), seedCount: artist.reasons.length,
-      topTracks: (topTracks[index] || []).filter((track) => !hidden({ artist: track.artist || artist.name }) && !taste.ownedTracks.has(trackKey(track.artist, track.title))) })),
-    tracks
-  };
+  const favourites=taste.seeds.slice(0,MISSING_SONG_ARTISTS);
+  const topTracks=new Array(Math.min(rankedArtists.length,TOP_TRACK_ARTISTS));
+  const favouriteTracks=new Array(favourites.length);
+  const completedArtists=new Set();
+  const filter=(list,name)=>list.filter(track=>!hidden({artist:track.artist||name})&&!taste.ownedTracks.has(trackKey(track.artist||name,track.title))).map(track=>({...track,artist:track.artist||name}));
+  const snapshot=(partial=false)=>({
+    status:"ready",generatedAt:now,seeds:taste.seeds.map(seed=>seed.name),
+    artists:rankedArtists.flatMap((artist,index)=>partial&&!completedArtists.has(index)?[]:[{
+      name:artist.name,url:artist.url,because:because(artist),seedCount:artist.reasons.length,topTracks:topTracks[index]||[]
+    }]),
+    tracks:favouriteTracks.flatMap(list=>list||[]),...(partial?{partial:true}:{})
+  });
+  // One bounded artist-level search supplies all matching recommended tracks.
+  // Only already-selected public recommendations reach the artwork catalog, not library contents.
+  const batches=new Map(), waiting=[];
+  let catalogRunning=0;
+  function pump(){
+    while(catalogRunning<2&&waiting.length){
+      const {name,finish}=waiting.shift();
+      if(!active()){finish([]);continue;}
+      catalogRunning++;
+      Promise.resolve().then(()=>catalog(name)).then(items=>finish(Array.isArray(items)?items:[]),()=>finish([]))
+        .finally(()=>{catalogRunning--;pump();});
+    }
+  }
+  async function enrich(name,tracks){
+    if(!catalog||!active()||!tracks.length||tracks.every(track=>safeDisplayCover(track.coverUrl)))return tracks;
+    const id=key(name);
+    let batch=batches.get(id);
+    if(!batch){
+      batch=new Promise(finish=>waiting.push({name,finish}));
+      batches.set(id,batch);pump();
+    }
+    const items=await batch;
+    if(!active())return tracks;
+    return tracks.map(track=>enrichCatalogTrack(track,items));
+  }
+  let published=false;
+  function publish(){
+    if(published||!active())return;
+    const count=topTracks.reduce((n,list)=>n+(list?.length||0),0);
+    const fallbackCount=favouriteTracks.reduce((n,list)=>n+(list?.length||0),0);
+    if(count>=3||(completedArtists.size===topTracks.length&&(count||fallbackCount))){
+      published=true;onProgress(snapshot(true));
+    }
+  }
+  await settleAll(rankedArtists.slice(0,TOP_TRACK_ARTISTS),async(artist)=>{
+    if(!active())return [];
+    const index=rankedArtists.indexOf(artist);
+    const tracks=filter(await client.topTracks(artist.name),artist.name);
+    topTracks[index]=await enrich(artist.name,tracks);
+    completedArtists.add(index);publish();
+    return topTracks[index];
+  });
+  await settleAll(favourites,async seed=>{
+    if(!active())return [];
+    const index=favourites.indexOf(seed);
+    const tracks=filter(await client.topTracks(seed.name,15),seed.name).slice(0,MISSING_SONGS_PER_ARTIST);
+    favouriteTracks[index]=await enrich(seed.name,tracks);
+    publish();return favouriteTracks[index];
+  });
+  return snapshot();
 }
 
 /** A saved result without anything you've since added to your library or marked "not for me". */

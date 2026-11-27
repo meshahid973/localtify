@@ -55,6 +55,22 @@ function matchMusicArtwork(items,title,artist,identity = {}) {
   }))].slice(0,6);
   return {coverUrl:item.coverUrl,...(covers.length>1?{coverAlternatives:covers}:{}),...(Number.isFinite(item.durationMs)&&item.durationMs>0?{durationMs:item.durationMs}:{})};
 }
+function enrichCatalogTrack(track, items) {
+  if (track.coverUrl && require("../runtime/remote-cover.cjs").safeDisplayCover(track.coverUrl)) return track;
+  const identity={album:track.album||"",durationMs:track.durationMs||0,providerId:track.providerId||""};
+  // Do not substitute a different version or attach an arbitrary ID from an ambiguous result.
+  const exact=(Array.isArray(items)?items:[]).filter(item=>
+    /^ytmusic:[A-Za-z0-9_-]{11}$/.test(item?.id||"") &&
+    norm(item.title)===norm(track.title) && equivalentArtist(item.artist,track.artist) &&
+    (!identity.providerId||item.id===identity.providerId) &&
+    (!identity.album||norm(item.album)===norm(identity.album)) &&
+    (!identity.durationMs||(Number.isFinite(item.durationMs)&&Math.abs(item.durationMs-identity.durationMs)<=5000)) &&
+    matchMusicArtwork([item],track.title,track.artist,identity).coverUrl);
+  const unique=[...new Map(exact.map(item=>[item.id,item])).values()];
+  if(unique.length!==1)return track;
+  const item=unique[0],art=matchMusicArtwork([item],track.title,track.artist,identity);
+  return {...track,...art,providerId:item.id,album:track.album||item.album||undefined,durationMs:track.durationMs||art.durationMs};
+}
 function matchArtistArtwork(items,name,providerId = "") {
   const {safeThumbnail}=require("./youtube-music.cjs");
   const exact=(Array.isArray(items)?items:[]).filter(item=>artistKey(item?.title)===artistKey(name)&&(!providerId||item.id===providerId)&&/^ytmusic:UC[A-Za-z0-9_-]{22}$/.test(item.id||"")&&safeThumbnail(item.coverUrl));
@@ -233,4 +249,4 @@ function createArtworkLookup(client,now=Date.now,trackInfo,lookupAudioDb,lookupM
   lookup.close=cache.close;
   return lookup;
 }
-module.exports={catalogArtwork,createArtworkLookup,lastfmArtwork,matchMusicArtwork,matchArtistArtwork,firstArtwork,withoutFailedArtwork};
+module.exports={catalogArtwork,createArtworkLookup,lastfmArtwork,matchMusicArtwork,matchArtistArtwork,firstArtwork,withoutFailedArtwork,enrichCatalogTrack};
