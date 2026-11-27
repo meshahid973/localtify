@@ -266,21 +266,26 @@ async function liveArtistCatalogs(){
     ["Daft Punk",["One More Time","Digital Love","Harder, Better, Faster, Stronger"]]
   ];
   let requests=0;const events=[];
-  const search=createYouTubeMusicSearch(async(url,options)=>{requests++;return fetch(url,options);},Date.now,4);
+  const temp=fs.mkdtempSync(path.join(os.tmpdir(),"localtify-catalog-live-")),file=path.join(temp,"catalog.json");
+  const transport=async(url,options)=>{requests++;return fetch(url,options);};
+  const search=createYouTubeMusicSearch(transport,Date.now,4,{file});
   search.setTrace((stage,detail)=>{if(events.length<1000)events.push({stage,...detail});});
   const results=[];
   for(const [artist,titles] of groups){
     const start=performance.now(),before=requests,wanted=titles.map(title=>({title,artist}));
     try{
       const rows=await search.artistCatalog(artist,wanted);
-      const matches=wanted.map(track=>{const match=enrichCatalogTrack(track,rows);return {title:track.title,attached:!!match.coverUrl,identified:!!match.providerId};});
+      const matches=await Promise.all(wanted.map(async track=>{const match=enrichCatalogTrack(track,rows);const evaluate=require("../electron/discover/track-identity.cjs").evaluateRecording;const decision=evaluate?evaluate(track,rows):null;return {title:track.title,attached:!!match.coverUrl,identified:!!match.providerId,image:match.coverUrl?await imageAvailable(match.coverUrl).catch(()=>false):false,reason:decision?.reason,rejected:decision?.rejected};}));
       const warmStart=performance.now(),warmBefore=requests;
       await search.artistCatalog(artist,wanted);
       results.push({artist,records:rows.length,requests:requests-before,coldMs:Math.round(warmStart-start),warmMs:Math.round(performance.now()-warmStart),warmRequests:requests-warmBefore,matches});
     }catch(error){results.push({artist,requests:requests-before,ms:Math.round(performance.now()-start),status:error?.status?"http-"+error.status:error?.code||"unavailable"});}
   }
   search.close();
-  return {requests,results,events:events.filter(e=>e.stage==="catalog-response"||e.stage==="artist-catalog-match"||e.stage==="catalog-queue")};
+  const restarted=createYouTubeMusicSearch(transport,Date.now,4,{file});await restarted.hydrate();
+  const before=requests,restart=groups.map(([artist,titles])=>{const rows=restarted.cachedArtist(artist);return {artist,records:rows.length,attached:titles.filter(title=>enrichCatalogTrack({title,artist},rows).coverUrl).length};});
+  restarted.close();fs.rmSync(temp,{recursive:true,force:true});
+  return {requests,results,restart:{requests:requests-before,groups:restart},events:events.filter(e=>e.stage==="catalog-response"||e.stage==="artist-catalog-match"||e.stage==="catalog-queue")};
 }
 async function main() {
   const jobs=[];

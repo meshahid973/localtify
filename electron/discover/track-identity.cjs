@@ -57,7 +57,8 @@ function profile(item){
   const base=raw.replace(titleNoise,"");
   const featured=feature.exec(base)?.[1];
   const stripped=featured?base.replace(feature,""):base;
-  const artistWithFeature=featured&&!artistKey(artist).endsWith(" "+artistKey(featured))?artist+" "+featured:artist;
+  const withFeature=value=>featured&&artistKey(value)!==artistKey(featured)&&!artistKey(value).endsWith(" "+artistKey(featured))?value+" "+featured:value;
+  const artistWithFeature=withFeature(artist);
   const titleForms=value=>{
     const parts=value.split(/\s+[-–—]\s+/);
     return [normalized(value),...(parts.length>1&&artistKey(parts[0])===artistKey(artist)?[normalized(parts.slice(1).join(" - "))]:[])].filter(Boolean);
@@ -72,7 +73,7 @@ function profile(item){
   const durationMs=validDuration(item?.durationMs)?item.durationMs:validDuration(item?.length)?item.length:undefined;
   const ids=new Set([item?.providerId,item?.recordingId,item?.id].map(recordingKey).filter(Boolean));
   const album=clean(item?.album||item?.albumName);
-  return {raw,artist,artistKey:artistKey(artistWithFeature),creditKey:artistKey(credits.map(c=>c.name).join(" ")||artistWithFeature),credits,titles,versions,durationMs,album,ids,isrc:isrc(item?.isrc||list(item?.isrcs)[0])};
+  return {raw,artist,artistKey:artistKey(artistWithFeature),creditKey:artistKey(withFeature(credits.map(c=>c.name).join(" ")||artist)),featureKey:artistKey(featured),credits,titles,versions,durationMs,album,ids,isrc:isrc(item?.isrc||list(item?.isrcs)[0])};
 }
 function sameTags(a,b){const x=getVersionTags(clean(a)),y=getVersionTags(clean(b));return x.size===y.size&&[...x].every(tag=>y.has(tag));}
 function sameSet(a,b){return a.size===b.size&&[...a].every(v=>b.has(v));}
@@ -92,7 +93,7 @@ function rankRecording(source,item,{requireKnownDuration=true}={}){
   const sameId=id&&source.ids.has(id);
   const sourceCreditIds=new Set(source.credits.map(c=>c.id).filter(Boolean));
   const candidateCreditIds=new Set(candidate.credits.map(c=>c.id).filter(Boolean));
-  const sameCreditIds=sourceCreditIds.size>0&&sameSet(sourceCreditIds,candidateCreditIds);
+  const sameCreditIds=sourceCreditIds.size>0&&sourceCreditIds.size===source.credits.length&&candidateCreditIds.size===candidate.credits.length&&sameSet(sourceCreditIds,candidateCreditIds)&&source.featureKey===candidate.featureKey;
   const artistExact=source.artistKey===candidate.artistKey||source.artistKey===candidate.creditKey||source.creditKey===candidate.artistKey;
   const aliasMatch=source.credits.length<=1&&candidate.credits.length===1&&candidate.credits[0].id&&list(candidate.credits[0].aliases).some(a=>artistKey(a)===source.artistKey);
   if(!artistExact&&!sameCreditIds&&!aliasMatch)return reject("artist-mismatch");
@@ -125,7 +126,7 @@ function evaluateRecording(source,items,options={}){
   return {status:"matched",candidate:best.item,score:Math.min(100,best.score),reason:best.reason,rejected};
 }
 function canonicalIdentity(item,{confidence=100,now=Date.now()}={}){
-  const id=recordingKey(item?.id||item?.providerId||item?.recordingId);
+  const id=[item?.id,item?.providerId,item?.recordingId].map(recordingKey).find(Boolean);
   if(!id)return undefined;
   const credits=getCredits(item),provider=id.split(":")[0];
   const safe=require("../runtime/remote-cover.cjs").safeDisplayCover;
@@ -134,7 +135,7 @@ function canonicalIdentity(item,{confidence=100,now=Date.now()}={}){
   const releaseGroupId=mbid.test(item.releaseGroupId||"")?"musicbrainz:release-group:"+item.releaseGroupId.toLowerCase():undefined;
   const albumId=/^ytmusic:MPREb_[A-Za-z0-9_-]{1,80}$/.test(item.albumId||"")?item.albumId:undefined;
   const publicUrl=typeof item.url==="string"&&/^(?:https:\/\/www\.youtube\.com\/watch\?v=[A-Za-z0-9_-]{11}|https:\/\/musicbrainz\.org\/recording\/[a-f0-9-]{36}|https:\/\/vocadb\.net\/S\/\d+|https:\/\/www\.deezer\.com\/track\/\d+)$/.test(item.url)?item.url:undefined;
-  return {providerIds:[id],artistCredits:credits.length?credits:[{name:clean(item.artist)}].filter(c=>c.name),
+  return {title:clean(item.title||item.name),providerIds:[id],artistCredits:credits.length?credits:[{name:clean(item.artist)}].filter(c=>c.name),
     ...(albumId?{albumId}:{}),...(releaseId?{releaseId}:{}),...(releaseGroupId?{releaseGroupId}:{}),
     ...(clean(item.album)?{album:clean(item.album)}:{}),...(clean(item.releaseDate)?{releaseDate:clean(item.releaseDate)}:{}),
     ...(validDuration(item.durationMs)?{durationMs:item.durationMs}:{}),...(isrc(item.isrc||list(item.isrcs)[0])?{isrc:isrc(item.isrc||list(item.isrcs)[0])}:{}),

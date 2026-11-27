@@ -147,7 +147,7 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
   const localCandidate = eligibleLocal ? (local && local.source === src ? local.url : remembered ?? "") : "";
   const localSrc = localCandidate !== badLocal ? localCandidate : "";
   const displaySrc = pendingLocal ? "" : localSrc || src;
-  const imageReady = Boolean(displaySrc && loaded?.key === key && loaded.url === displaySrc);
+  const imageReady = Boolean(displaySrc && loaded?.url === displaySrc);
   const imageRef = useRef<HTMLImageElement>(null);
   useLayoutEffect(() => {
     if (displaySrc && imageRef.current?.complete && imageRef.current.naturalWidth > 0) setLoaded({key,url:displaySrc});

@@ -37,7 +37,9 @@ function normalizeCatalog(kind, items) {
       ? [cleanText(item.disambiguation), cleanText(item.country)].filter(Boolean).join(" · ")
       : [artist, cleanText(item["first-release-date"])].filter(Boolean).join(" · ");
     seen.add(item.id.toLowerCase());
-    result.push({ id: item.id, title, artist, subtitle, url: "https://musicbrainz.org/" + endpoint + "/" + item.id, ...catalogArtwork(kind, item) });
+    const releases=Array.isArray(item.releases)?item.releases:[];
+    const album=releases.length===1?cleanText(releases[0].title):undefined;
+    result.push({ id: item.id, title, artist, subtitle, url: "https://musicbrainz.org/" + endpoint + "/" + item.id, ...catalogArtwork(kind, item), ...(kind==="recording"?{durationMs:Number(item.length)||undefined,releaseDate:cleanText(item["first-release-date"]),artistCredits:(item["artist-credit"]||[]).slice(0,16).map(c=>({name:cleanText(c.name||c.artist?.name),id:MBID.test(c.artist?.id||"")?"musicbrainz:artist:"+c.artist.id:undefined,aliases:(c.artist?.aliases||[]).map(a=>cleanText(a.name)).filter(Boolean).slice(0,12)})),album,releaseId:releases.length===1?releases[0].id:undefined,releaseGroupId:releases.length===1?releases[0]["release-group"]?.id:undefined,isrc:item.isrcs?.[0]}:{}) });
   }
   return result;
 }
@@ -264,7 +266,9 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
           if (terms.length > 1) jobs.push(searchStore(title));
           const settled = await Promise.allSettled(jobs);
           const items = index => settled[index]?.status === "fulfilled" ? settled[index].value : [];
-          const ranked=rankCatalog(term,normalizeCatalog(kind,items(0)),[...items(1),...items(3)],items(2));
+          const mb=normalizeCatalog(kind,items(0)),store=[...items(1),...items(3)];
+          await searchYouTubeMusic?.rememberCatalog?.([...mb,...store]);
+          const ranked=rankCatalog(term,mb,store,items(2));
           if(ranked.length)return ranked;
           const specialist=await specialistFallback();if(specialist.length)return specialist;
           if(settled.slice(0,2).every(result=>result.status==="rejected")&&settled.slice(2).every(result=>result.status==="rejected"||!result.value?.length))throw Error("Catalog unavailable");
@@ -275,6 +279,7 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
       }
       try {
         const items = await catalogRunning.get(key);
+        if(kind==="recording"&&getSettings().discoverEnabled===true&&searchYouTubeMusic?.rememberCatalog)await searchYouTubeMusic.rememberCatalog(items.filter(row=>!row.storeRank&&!row.listeners));
         return getSettings().discoverEnabled === true ? { status: "catalog", kind, items } : { status: "off" };
       } catch {
         return getSettings().discoverEnabled === true
@@ -329,6 +334,7 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
                 Promise.all(extra.map(job=>job.then(rows=>{completed.push(...rows);}))),
                 new Promise(resolve=>{timer=setTimeout(resolve,Math.max(0,deadline-Date.now()));})
               ]);
+              if(jobActive())await searchYouTubeMusic?.rememberCatalog?.(normalizeCatalog("recording",completed.filter(row=>MBID.test(row.id||""))));
               return jobActive()?[...cached,...completed]:[];
             }finally{clearTimeout(timer);controller.abort();}
           },

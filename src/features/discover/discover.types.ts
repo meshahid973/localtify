@@ -1,9 +1,10 @@
+export type MusicIdentity = { title: string; providerIds: string[]; artistCredits: { name: string; id?: string; aliases?: string[] }[]; album?: string; albumId?: string; releaseId?: string; releaseGroupId?: string; releaseDate?: string; durationMs?: number; isrc?: string; publicUrl?: string; artwork?: string[]; titleAliases?: string[]; versions: string[]; provenance: string; confidence: number; verifiedAt: number };
 export type DiscoverArtwork = { coverUrl?: string; fallbackCoverUrl?: string; coverAlternatives?: string[]; durationMs?: number };
-export type DiscoverTrack = { title: string; artist: string; url: string; album?: string; providerId?: string; recordingId?: string; artistIds?: string[]; catalogArtistIds?: string[]; catalogAlbumId?: string } & DiscoverArtwork;
+export type DiscoverTrack = { title: string; artist: string; url: string; album?: string; providerId?: string; recordingId?: string; artistIds?: string[]; catalogArtistIds?: string[]; catalogAlbumId?: string; identity?: MusicIdentity } & DiscoverArtwork;
 export type DiscoverArtist = { name: string; url: string; because: string[]; seedCount: number; topTracks: DiscoverTrack[] };
 export type CatalogKind = "recording" | "artist";
 export type CatalogArtistCredit = { name: string; id?: string };
-export type CatalogItem = { id: string; title: string; artist: string; album?: string; subtitle: string; url: string; artistIds?: string[]; albumId?: string; artistCredits?: CatalogArtistCredit[]; releaseDate?: string; aliases?: string[]; songType?: string } & DiscoverArtwork;
+export type CatalogItem = { id: string; title: string; artist: string; album?: string; subtitle: string; url: string; artistIds?: string[]; albumId?: string; artistCredits?: CatalogArtistCredit[]; releaseDate?: string; aliases?: string[]; songType?: string; identity?: MusicIdentity } & DiscoverArtwork;
 export type DiscoverDiagnosticEvent = { at: number; stage: string; ms?: number; count?: number; total?: number; state?: string; attached?: number };
 export type DiscoverResult =
   | { status: "diagnostics"; events: DiscoverDiagnosticEvent[] }

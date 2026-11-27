@@ -1364,7 +1364,8 @@ app.whenReady().then(async () => {
     return local ? { url: local, cacheTtlMs: remoteArtworkCache.remainingTtl(url) } : null;
   });
   const discoverMusicSearch = require("./discover/youtube-music.cjs").createYouTubeMusicSearch(globalThis.fetch, Date.now, 6,{file:path.join(app.getPath("userData"),"music-catalog-v1.json")});
-  discoverCacheLifecycle = registerDiscoverIpc(ipcRouter, { diagnosticsEnabled: !app.isPackaged, musicBrainzClient, searchYouTubeMusic: discoverMusicSearch, searchYouTubeMusicRadio: require("./discover/youtube-music.cjs").createYouTubeMusicRadio(), searchYouTubeArtwork: discoverMusicSearch, searchStore: require("./discover/catalog.cjs").createStoreSearch(), searchVocaDb: require("./discover/vocadb.cjs").createVocaDbSearch(),
+  require("./downloader.cjs").setMusicCatalog(discoverMusicSearch);
+  discoverCacheLifecycle = registerDiscoverIpc(ipcRouter, { diagnosticsEnabled: !app.isPackaged, musicBrainzClient, searchYouTubeMusic: discoverMusicSearch, searchYouTubeMusicRadio: discoverMusicSearch.radio, searchYouTubeArtwork: discoverMusicSearch, searchStore: require("./discover/catalog.cjs").createStoreSearch(), searchVocaDb: require("./discover/vocadb.cjs").createVocaDbSearch(),
     lookupDeezer: require("./discover/extra-artwork.cjs").createDeezerArtwork(),
     lookupAudioDb: require("./discover/audiodb.cjs").createAudioDbArtwork({ apiKey: process.env.LOCALTIFY_AUDIODB_API_KEY || "" }), getSongs, getSettings, cacheFile: path.join(app.getPath("userData"), "discover-cache.json"), bioFile: path.join(app.getPath("userData"), "artist-bios.json") });
   registerMovedSongRepairIpc(ipcRouter, {
