@@ -212,14 +212,21 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
               if (relevant.length) return relevant;
             }
           }
-          if (searchVocaDb && suitableVocaDbQuery(term) && active()) {
-            const specialist = await searchVocaDb(kind, term).catch(() => []);
-            if (!active()) return [];
-            if (specialist.length) return specialist;
-          }
+          const specialistFallback=async()=>{
+            if(!searchVocaDb||!suitableVocaDbQuery(term)||!active())return [];
+            const specialist=await searchVocaDb(kind,term).catch(()=>[]);
+            return active()?specialist:[];
+          };
           // Artist searches retain the structured catalog; song searches combine
           // exact-title MusicBrainz matches, store metadata and listening popularity.
-          if (kind !== "recording" || !searchStore) return normalizeCatalog(kind, await musicBrainzClient.searchCatalog(kind, term));
+          if (kind !== "recording" || !searchStore) {
+            try {
+              const items=normalizeCatalog(kind,await musicBrainzClient.searchCatalog(kind,term));
+              return items.length?items:specialistFallback();
+            }catch(error){
+              const items=await specialistFallback();if(items.length)return items;throw error;
+            }
+          }
           const terms = searchTerms(term);
           const title = terms.at(-1);
           const settings = getSettings();
@@ -228,9 +235,12 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
           const jobs = [musicBrainzClient.searchCatalog(kind, title), searchStore(terms[0]), lastfm ? lastfm.searchTracks(title) : Promise.resolve([])];
           if (terms.length > 1) jobs.push(searchStore(title));
           const settled = await Promise.allSettled(jobs);
-          if (settled.slice(0,2).every(result=>result.status==="rejected") && settled.slice(2).every(result=>result.status==="rejected"||!result.value?.length)) throw Error("Catalog unavailable");
           const items = index => settled[index]?.status === "fulfilled" ? settled[index].value : [];
-          return rankCatalog(term, normalizeCatalog(kind, items(0)), [...items(1), ...items(3)], items(2));
+          const ranked=rankCatalog(term,normalizeCatalog(kind,items(0)),[...items(1),...items(3)],items(2));
+          if(ranked.length)return ranked;
+          const specialist=await specialistFallback();if(specialist.length)return specialist;
+          if(settled.slice(0,2).every(result=>result.status==="rejected")&&settled.slice(2).every(result=>result.status==="rejected"||!result.value?.length))throw Error("Catalog unavailable");
+          return [];
         })
           .finally(() => { if (catalogRunning?.promise === promise) catalogRunning = null; });
         catalogRunning = { key, promise };

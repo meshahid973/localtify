@@ -774,3 +774,15 @@ test("specialist catalog preserves aliases and distinct versions without importi
   assert.equal(rows[0].url,"https://vocadb.net/S/1");assert.equal(rows[0].coverUrl,undefined);assert.notEqual(rows[0].id,rows[1].id);
   assert.deepEqual(await search("recording","オーバーライド"),rows);assert.equal(calls,1);
 });
+
+test("specialist fallback does not displace existing catalog results or query unrelated artists",async()=>{
+  const handlers=new Map(),settings={discoverEnabled:false};let calls=0,ordinary=[];
+  registerDiscoverIpc({handle:(name,fn)=>handlers.set(name,fn)},{getSongs:()=>[],getSettings:()=>settings,musicBrainzClient:{searchCatalog:async()=>ordinary},searchVocaDb:async()=>{calls++;return [{id:"vocadb:1",title:"重音テト",artist:"",url:"https://vocadb.net/Ar/1"}];}});
+  const search=term=>handlers.get("discover:get")({},{catalog:{kind:"artist",term}});
+  assert.equal((await search("重音テト")).status,"off");assert.equal(calls,0);
+  settings.discoverEnabled=true;
+  await search("Daft Punk");assert.equal(calls,0);
+  ordinary=[{id:"12345678-1234-1234-1234-123456789abc",name:"重音テト"}];
+  assert.equal((await search("重音テト")).items[0].id,ordinary[0].id);assert.equal(calls,0);
+  ordinary=[];assert.equal((await search("重音テト")).items[0].id,"vocadb:1");assert.equal(calls,1);
+});
