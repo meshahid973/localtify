@@ -192,7 +192,7 @@ function MainModeApp() {
   const {
     settings, setSettings, settingsRef, settingsSaveError, retrySettingsSave,
     settingsCategory, setSettingsCategory,
-    settingsSearch, setSettingsSearch, deferredSettingsSearch,
+    settingsSearch, setSettingsSearch,
     themeSettling,
     themeMotionReady, setThemeMotionReady,
     writeSettings,
@@ -371,7 +371,7 @@ function MainModeApp() {
     return () => { active = false; };
   }, [view]);
   const availableSettingsTabs = useMemo(() => settingsCategoryTabs.map(tab => tab.id === "experimental" && analysisSupported ? { ...tab, label: "Analysis & history" } : tab), [analysisSupported]);
-  const settingsSearchQuery = normalizeSettingsSearch(deferredSettingsSearch);
+  const settingsSearchQuery = normalizeSettingsSearch(settingsSearch);
 
   const visibleSettingsTabs = useMemo(() => {
     if (!settingsSearchQuery) return availableSettingsTabs;

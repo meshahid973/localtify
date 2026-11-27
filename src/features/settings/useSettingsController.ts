@@ -1,4 +1,4 @@
-import { startTransition, useDeferredValue, useEffect, useRef, useState } from "react";
+import { startTransition, useEffect, useRef, useState } from "react";
 import type { Settings, SettingsCategory } from "./settings.types";
 import { useStableCallback } from "../../shared/hooks/useStableCallback";
 import { createSettingsWriter } from "./settingsWriter";
@@ -28,7 +28,6 @@ export function useSettingsController({ initialSettings, bootedRef, volumeDraftR
   const [writeSettings] = useState(() => createSettingsWriter<Settings>(next => window.localitfy.saveSettings(next)));
   const [settingsCategory, setSettingsCategory] = useState<SettingsCategory>("appearance");
   const [settingsSearch, setSettingsSearch] = useState("");
-  const deferredSettingsSearch = useDeferredValue(settingsSearch);
   const [themeSettling, setThemeSettling] = useState(false);
   const [themeMotionReady, setThemeMotionReady] = useState(false);
 
@@ -343,7 +342,7 @@ export function useSettingsController({ initialSettings, bootedRef, volumeDraftR
     settings, setSettings, settingsRef, settingsSaveError,
     retrySettingsSave: () => saveSettingsSafely(settingsRef.current),
     settingsCategory, setSettingsCategory,
-    settingsSearch, setSettingsSearch, deferredSettingsSearch,
+    settingsSearch, setSettingsSearch,
     themeSettling, setThemeSettling,
     themeMotionReady, setThemeMotionReady,
     saveSettingsTimerRef, writeSettings,
