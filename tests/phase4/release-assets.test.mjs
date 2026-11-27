@@ -71,3 +71,14 @@ test("a renamed non-APK file is rejected", async t => {
 test("prerelease and path-like versions cannot become asset filenames", () => {
   for (const value of ["0.5.0-rc1", "../0.5.0", "v0.5.0"]) assert.throws(() => releaseAssetNames(value), /Stable release version/);
 });
+
+test("unsigned Windows releases exclude automatic updater files but retain checksums", async t => {
+  const directory = fixture(t);
+  await assert.rejects(prepareReleaseAssets(directory, version, true), /exactly the current/);
+  fs.unlinkSync(path.join(directory, "latest.yml"));
+  fs.unlinkSync(path.join(directory, `localtify-setup-${version}.exe.blockmap`));
+  const names = await prepareReleaseAssets(directory, version, true);
+  assert.equal(names.length, 6);
+  assert.ok(names.includes(`localtify-setup-${version}.exe`));
+  assert.equal(fs.readFileSync(path.join(directory,"SHA256SUMS"),"utf8").trim().split("\n").length,6);
+});

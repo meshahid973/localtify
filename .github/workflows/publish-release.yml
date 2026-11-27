@@ -8,6 +8,11 @@ on:
         required: true
         default: v0.5.1
         type: string
+      unsigned_windows:
+        description: Publish Windows installer unsigned (manual updates only)
+        required: true
+        default: true
+        type: boolean
 
 permissions:
   contents: read
@@ -15,6 +20,7 @@ permissions:
 env:
   ONNXRUNTIME_NODE_INSTALL: skip
   RELEASE_TAG: ${{ inputs.tag }}
+  UNSIGNED_WINDOWS: ${{ inputs.unsigned_windows }}
 
 concurrency:
   group: publish-release
@@ -51,13 +57,17 @@ jobs:
         shell: bash
         run: |
           if [[ "$RUNNER_OS" == "Windows" ]]; then
-            # Never publish an unsigned installer: the updater requires a trusted
-            # Authenticode publisher and the release workflow is the trust boundary.
-            if [[ -z "$WIN_CSC_LINK" || -z "$WIN_CSC_KEY_PASSWORD" ]]; then
-              echo "::error::Windows signing certificate is not configured (LOCALTIFY_WINDOWS_CSC_LINK / LOCALTIFY_WINDOWS_CSC_KEY_PASSWORD)."
-              exit 1
+            if [[ "$UNSIGNED_WINDOWS" == "true" ]]; then
+              unset WIN_CSC_LINK WIN_CSC_KEY_PASSWORD CSC_LINK CSC_KEY_PASSWORD
+              export CSC_IDENTITY_AUTO_DISCOVERY=false
+              npm run dist -- --config.win.forceCodeSigning=false
+            else
+              if [[ -z "$WIN_CSC_LINK" || -z "$WIN_CSC_KEY_PASSWORD" ]]; then
+                echo "::error::Windows signing certificate is not configured."
+                exit 1
+              fi
+              npm run dist -- --config.win.forceCodeSigning=true
             fi
-            npm run dist -- --config.win.forceCodeSigning=true
           else
             npm run dist:linux
           fi
@@ -66,7 +76,7 @@ jobs:
           LOCALTIFY_LASTFM_API_KEY: ${{ secrets.LOCALTIFY_LASTFM_API_KEY }}
           LOCALTIFY_REQUIRE_LASTFM_KEY: "1"
         run: node scripts/check-release-artifacts.cjs
-      - name: Verify Windows installer and app Authenticode signatures
+      - name: Verify Windows installer and app signing mode
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
@@ -75,15 +85,25 @@ jobs:
           $paths = @("release/localtify-setup-$version.exe", "release/win-unpacked/localtify.exe")
           $signers = @()
           foreach ($file in $paths) {
-            if (!(Test-Path -LiteralPath $file)) { throw "Missing signed release file: $file" }
+            if (!(Test-Path -LiteralPath $file)) { throw "Missing release file: $file" }
             $signature = Get-AuthenticodeSignature -LiteralPath $file
+            if ($env:UNSIGNED_WINDOWS -eq "true") {
+              if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::NotSigned) { throw "Expected unsigned file: $file ($($signature.Status))" }
+              continue
+            }
             if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid -or !$signature.SignerCertificate) {
               throw "Release refused: invalid or absent Authenticode signature on $file ($($signature.Status))"
             }
             $signers += $signature.SignerCertificate.Thumbprint
           }
-          if ($signers[0] -ne $signers[1]) { throw "Installer and application have different signing certificates" }
-          Write-Host "Verified trusted matching Authenticode signatures on installer and application."
+          if ($env:UNSIGNED_WINDOWS -eq "true") {
+            # Do not expose unsigned packages to older automatic updaters.
+            Remove-Item -Path "release/latest.yml", "release/*.exe.blockmap" -Force -ErrorAction SilentlyContinue
+            Write-Host "Verified unsigned Windows files; manual download only."
+          } else {
+            if ($signers[0] -ne $signers[1]) { throw "Installer and application have different signing certificates" }
+            Write-Host "Verified trusted matching Authenticode signatures on installer and application."
+          }
 
       - uses: actions/upload-artifact@v7
         with:

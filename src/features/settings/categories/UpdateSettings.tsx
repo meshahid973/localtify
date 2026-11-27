@@ -19,12 +19,12 @@ export default function UpdateSettings({settings,updateSetting,appVersion,lastUp
     </div></div>
     <div className="settingsMiniGrid">
       <ToggleRow label="Check automatically" help="Check after startup and periodically while Localtify is open." checked={settings.autoUpdateEnabled} onChange={value=>void updateSetting("autoUpdateEnabled",value)}/>
-      {!isAndroidApp()?<ToggleRow label="Notify only" help="On: ask before downloading. Off: download desktop updates automatically, but ask before restarting." checked={settings.autoUpdateNotifyOnly} onChange={value=>void updateSetting("autoUpdateNotifyOnly",value)}/>:<p>Android updates open the verified release APK in the browser and require system installation approval.</p>}
+      {!isAndroidApp()?<ToggleRow label="Notify only" help="On: ask before downloading. Off: download supported automatic updates, but ask before restarting. Manual installers always require approval." checked={settings.autoUpdateNotifyOnly} onChange={value=>void updateSetting("autoUpdateNotifyOnly",value)}/>:<p>Android updates open the verified release APK in the browser and require system installation approval.</p>}
     </div>
     <div className="settingsUpdatesActions">
       <Button variant="secondary" size="sm" type="button" disabled={status==="checking" || status==="downloading"} onClick={()=>void manualUpdateCheck()}>Check for updates</Button>
       <Button variant="secondary" size="sm" type="button" onClick={()=>void openUpdateChangelog()}>View changelog</Button>
-      {status==="available"?<Button variant="primary" size="sm" type="button" onClick={()=>void askUpdaterToDownload()}>{updatePrompt.manualOnly?(isAndroidApp()?"Open APK download":"Open AppImage download"):"Download update"}</Button>:null}
+      {status==="available"?<Button variant="primary" size="sm" type="button" onClick={()=>void askUpdaterToDownload()}>{updatePrompt.manualOnly?(isAndroidApp()?"Open APK download":updatePrompt.downloadUrl?.endsWith(".exe")?"Open installer download":"Open AppImage download"):"Download update"}</Button>:null}
       {status==="downloaded"?<Button variant="primary" size="sm" type="button" onClick={()=>void askUpdaterToInstall()}>Restart to update</Button>:null}
     </div></div>
   </section>;

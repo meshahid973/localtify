@@ -1,30 +1,24 @@
-Localtify 0.5.1 brings faster libraries, smarter playlists and a more consistent listening experience.
+Localtify 0.5.1 is a major interface and performance update.
 
-## Listening and library
+## What's new
 
-- **Faster libraries.** Reduced indexing memory, shared song indexes and less redundant artwork processing.
-- **Consistent collections.** Unified navigation and layouts for Songs, Liked, Artists, Genres and Playlists.
-- **Cleaner everyday controls.** Refined Discover, Downloads, Analytics, Settings, lyrics, queue and immersive playback.
-- **Smart playlists and prompts.** Rule-based playlists refresh automatically, and prompt playlists handle exclusions, duration requests and save retries more reliably.
-- **Simpler playlist editing.** One searchable picker for songs and albums, confirmed saves and consistent sorted playback.
-- **Artwork.** Cover Studio was retired; saved artwork, normal artwork editing and bulk artwork reroll remain available.
+- Redesigned app shell, navigation, library, player, queue, lyrics, Downloads, Discover, Analytics and Settings.
+- New Liquid Glass appearance and refined light/dark themes, menus, dialogs and controls.
+- Restored Albums, smart playlists and prompt playlists.
+- Improved playlist editing, search, sorting and playback.
+- Faster library indexing, lower memory use and reduced background work.
+- Improved artwork and metadata caching, artist/album catalogs and recording matching.
+- Background Discover preloading; some niche covers may still be unavailable.
+- Improved downloads, tagging, device sync, offline playback and recovery.
+- Updated release notes and update notifications.
 
-## Discover and music metadata
+## Contributions
 
-- **Background Discover preparation.** Recommended songs and initial cover candidates can load while you use other desktop pages.
-- **Catalog reuse.** Share recording metadata, verified artist and album identities, and cached artwork between supported catalog and library workflows.
-- **Recording matching.** Preserve distinct versions, artist credits and provider identities; avoid attaching ambiguous artwork.
-- **Known limitation.** Some recommendations, particularly niche recordings and remixes, may still show missing covers. External provider restrictions or outages can slow or prevent metadata resolution.
-
-## Reliability
-
-- **Safer recovery.** Preserve malformed recovery data and retry unacknowledged listening events.
-- **Device sync.** Protect smart playlist rules from older clients and preserve local library data, offline playback and listening history.
-- **Less background work.** Cancel obsolete prompt searches, cache smart rule results and aggregate listening counts in SQLite.
+- [@aume1](https://github.com/aume1): fixed the playlist picker layout ([#182](https://github.com/meshahid973/localtify/pull/182)) and restored smart and prompt playlists ([#183](https://github.com/meshahid973/localtify/pull/183)). Thank you!
 
 ## Downloads
 
-- Windows x64: signed installer.
+- Windows x64 installer: unsigned; Windows may show a security warning. Install updates manually from GitHub.
 - Linux x64: AppImage, Debian and RPM packages.
-- Android: APK signed with the existing release key.
-- Verify published packages using `SHA256SUMS`.
+- Android: signed APK.
+- Verify downloads against SHA256SUMS.

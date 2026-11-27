@@ -170,3 +170,24 @@ test("Linux successful no-update checks are not reported as retryable failures",
     else process.env.LOCALTIFY_ENABLE_LINUX_UPDATER = previousOverride;
   }
 });
+
+test("packaged Windows checks releases but never automatically installs unsigned packages", async () => {
+  const {EventEmitter}=await import("node:events");
+  let url="",checks=0;
+  const asset="localtify-setup-0.5.2.exe";
+  const download="https://github.com/meshahid973/localtify/releases/download/v0.5.2/"+asset;
+  let assetUrl=download;
+  const runtime=updater.createUpdaterRuntime({
+    platform:"win32",app:{isPackaged:true,getVersion:()=>"0.5.1"},
+    autoUpdater:Object.assign(new EventEmitter(),{checkForUpdates:async()=>{checks++;},downloadUpdate:async()=>{throw Error("unexpected download");},quitAndInstall:()=>{throw Error("unexpected install");}}),
+    shell:{openExternal:async value=>{url=value;}},
+    https:{get(_url,_options,callback){const req=new EventEmitter();req.destroy=()=>{};queueMicrotask(()=>{const res=new EventEmitter();res.statusCode=200;res.setEncoding=()=>{};callback(res);res.emit("data",JSON.stringify({tag_name:"v0.5.2",assets:[{name:asset,size:1024,browser_download_url:assetUrl}]}));res.emit("end");});return req;}}
+  });
+  assert.equal(await runtime.checkForUpdates(),true);
+  assert.equal(runtime.getUpdateState().manualOnly,true);
+  assert.equal(checks,0);
+  await runtime.downloadUpdate();assert.equal(url,download);
+  assert.equal(await runtime.installUpdate(),false);
+  assetUrl="https://example.com/installer.exe";
+  assert.equal(await runtime.checkForUpdates(),false);
+});

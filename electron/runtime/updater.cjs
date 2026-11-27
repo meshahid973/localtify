@@ -47,6 +47,7 @@ function createUpdaterRuntime(options = {}) {
     shell,
     https,
     isDev = false,
+    platform = process.platform,
     appName = "localtify",
     getMainWindow = () => null
   } = options;
@@ -65,11 +66,15 @@ function createUpdaterRuntime(options = {}) {
   let updateDownloading = false;
 
   function isLinuxAppImageUpdateRuntime() {
-    return Boolean(app.isPackaged && process.platform === "linux");
+    return Boolean(app.isPackaged && platform === "linux");
   }
 
   function linuxUpdaterIsManualOnly() {
     return isLinuxAppImageUpdateRuntime() && process.env.LOCALTIFY_ENABLE_LINUX_UPDATER !== "1";
+  }
+
+  function windowsUpdaterIsManualOnly() {
+    return Boolean(app.isPackaged && platform === "win32");
   }
 
   function isLinuxUpdateMetadataMissingError(error) {
@@ -129,9 +134,9 @@ function createUpdaterRuntime(options = {}) {
                 const assets = Array.isArray(data.assets) ? data.assets : [];
                 // Accept only the nonempty AppImage that belongs to this stable
                 // published version, rather than any similarly named release asset.
-                const assetName = `localtify-${version}-x86_64.AppImage`;
+                const assetName = platform === "win32" ? `localtify-setup-${version}.exe` : `localtify-${version}-x86_64.AppImage`;
                 const expectedUrl = `https://github.com/meshahid973/localtify/releases/download/${tag}/${assetName}`;
-                const appImageAsset = /^v\d+\.\d+\.\d+$/.test(tag)
+                const appImageAsset = !data.draft && !data.prerelease && /^v\d+\.\d+\.\d+$/.test(tag)
                   ? assets.find(asset => asset?.name === assetName &&
                       Number.isFinite(Number(asset.size)) && Number(asset.size) > 0 &&
                       asset.browser_download_url === expectedUrl)
@@ -176,6 +181,25 @@ function createUpdaterRuntime(options = {}) {
       message: extra.message || "Linux update available. Auto-update is disabled for AppImage, so download the latest AppImage from GitHub.",
       ...extra
     });
+  }
+
+  async function checkWindowsManualReleaseUpdate(payload = {}) {
+    if (!windowsUpdaterIsManualOnly()) return null;
+    updaterChecking = true;
+    if (!payload.silent) sendAutoUpdateEvent({type:"checking",platform:"win32",manualOnly:true,message:"Checking GitHub releases..."});
+    const latest = await fetchGithubLatestReleaseInfo();
+    updaterChecking = false;
+    if (!latest?.verifiedAsset) {
+      sendAutoUpdateEvent({type:"error",platform:"win32",manualOnly:true,message:"Unable to verify a Windows release.",error:"Release metadata or installer is missing."});
+      return false;
+    }
+    if (compareUpdateVersions(latest.version, app.getVersion()) <= 0) {
+      sendAutoUpdateEvent({type:"not-available",platform:"win32",manualOnly:true,version:latest.version,message:"Localtify is up to date."});
+      return true;
+    }
+    lastUpdateInfo = latest;
+    sendAutoUpdateEvent({type:"available",platform:"win32",manualOnly:true,version:latest.version,downloadUrl:latest.downloadUrl,releaseNotes:latest.releaseNotes,message:"Download the Windows installer from GitHub and install manually."});
+    return true;
   }
 
   async function checkLinuxManualReleaseUpdate(payload = {}) {
@@ -350,6 +374,8 @@ function createUpdaterRuntime(options = {}) {
       return false;
     }
 
+    const windowsManualResult = await checkWindowsManualReleaseUpdate(payload);
+    if (windowsManualResult !== null) return windowsManualResult;
     const linuxManualResult = await checkLinuxManualReleaseUpdate(payload);
     if (linuxManualResult !== null) return linuxManualResult;
     updaterChecking = true;
@@ -382,7 +408,7 @@ function createUpdaterRuntime(options = {}) {
       sendAutoUpdateEvent({ type: "dev", message: "auto update only works in the packaged app" });
       return false;
     }
-    if (linuxUpdaterIsManualOnly()) return openLinuxUpdateReleaseLink("download-button");
+    if (windowsUpdaterIsManualOnly() || linuxUpdaterIsManualOnly()) return openLinuxUpdateReleaseLink("download-button");
     if (updateDownloading || updateDownloaded) return false;
     if (!lastUpdateInfo || compareUpdateVersions(lastUpdateInfo.version, app.getVersion()) <= 0) {
       sendAutoUpdateEvent({type:"error",silent:false,error:"Check for a newer verified release before downloading."});
@@ -417,6 +443,7 @@ function createUpdaterRuntime(options = {}) {
       sendAutoUpdateEvent({ type: "dev", message: "auto update only works in the packaged app" });
       return false;
     }
+    if (windowsUpdaterIsManualOnly()) return false;
     if (linuxUpdaterIsManualOnly()) return openLinuxUpdateReleaseLink("install-button");
     if (!updateDownloaded) {
       sendAutoUpdateEvent({
