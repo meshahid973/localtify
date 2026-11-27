@@ -119,28 +119,34 @@
   border-color: transparent;
 }
 
-.app[data-liquid-glass="true"] :is(.ltOpticalButton, .ltOpticalHistory, .ltOpticalSidebarGroup, .ltOpticalQueueActions) {
+.app[data-liquid-glass="true"] :is(.ltOpticalButton, .ltOpticalHistory, .ltOpticalQueueActions) {
   --glass-tint: var(--lt-bg-elevated);
 }
 
-.app[data-liquid-glass="true"] .ltOpticalSidebarGroup {
-  background: var(--lt-fill-subtle);
+.app[data-liquid-glass="true"] .ltSidebarGlassButton {
+  --glass-tint: var(--lt-bg-elevated);
 }
 
-.app[data-liquid-glass="true"] .ltOpticalSidebarGroup .navIcon {
-  transition: scale var(--lt-control-motion) ease-out;
+.app[data-liquid-glass="true"] .ltSidebarGlassButton.active {
+  --glass-tint: color-mix(in srgb, var(--lt-bg-elevated), var(--lt-text) 12%);
+}
+
+.app[data-liquid-glass="true"] .sidebar .navGroupedV467 {
+  --lt-sidebar-nav-gap: 6px;
+}
+
+.app[data-liquid-glass="true"] .ltSidebarGlassButton:not(.active, :focus-visible) > canvas {
+  opacity: .45;
+}
+
+.app[data-liquid-glass="true"] .navGroupedV467:hover .ltSidebarGlassButton > canvas {
+  opacity: .7;
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .app[data-liquid-glass="true"]:not(.reducedMotion) .ltOpticalSidebarGroup .navItem:active .navIcon {
-    scale: .92;
+  .app[data-liquid-glass="true"]:not(.reducedMotion) .ltSidebarGlassButton > canvas {
+    transition: opacity var(--lt-control-motion) ease;
   }
-}
-
-.app[data-liquid-glass="true"] .ltOpticalSidebarGroup .navItem:focus-visible {
-  outline: 1px solid var(--lt-optical-focus);
-  outline-offset: -2px;
-  --tw-ring-shadow: 0 0 transparent;
 }
 
 .app[data-liquid-glass="true"] .ltOpticalQueueActions > .queuePanelIconButton {

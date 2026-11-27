@@ -125,7 +125,7 @@ main.app.app > .appShell > .sidebar .nav {
   flex: 0 0 auto !important;
   min-width: 0 !important;
   width: 100% !important;
-  gap: var(--lt-space-1) !important;
+  gap: var(--lt-sidebar-nav-gap, var(--lt-space-1)) !important;
   padding: 0 !important;
   margin: 0 !important;
 }

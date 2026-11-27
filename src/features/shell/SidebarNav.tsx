@@ -4,8 +4,8 @@ import { ArrowDown, ArrowUp, EyeOff, SlidersHorizontal } from "lucide-react";
 import { navItems, primaryNavigationView } from "./navigation.constants";
 import { ContextMenuLayer } from "../../shared/ui/ContextMenuLayer";
 import { SolidIcon } from "../../shared/ui/SolidIcon";
-import { useAppearance } from "../../shared/appearance/appearance";
-import { panelOptics } from "../../shared/appearance/OpticalCard";
+import { controlOptics, useAppearance } from "../../shared/appearance/appearance";
+import { GlassButton } from "../../vendor/liquid-glass/glass-button";
 import { canMoveSidebarItem, moveSidebarItem, resolveSidebarGroups, sidebarGroupForView, toggleSidebarItemHidden } from "./sidebarLayout";
 import type { SidebarNavOrder } from "./sidebarLayout";
 import type { View } from "./view.types";
@@ -24,7 +24,7 @@ export type SidebarNavProps = {
 
 type SidebarMenuState = { view: View; x: number; y: number };
 const sidebarItems = new Map(navItems.map(item => [item.id, item]));
-const sidebarOptics = { ...panelOptics, pointerLight: false };
+const sidebarOptics = { ...controlOptics, pointerLight: false };
 
 export default function SidebarNav({ view, changeView, sidebarNavOrder, sidebarHiddenNav, updateSidebarLayout, openSidebarSettings }: SidebarNavProps) {
   const [menu, setMenu] = useState<SidebarMenuState | null>(null);
@@ -54,31 +54,32 @@ export default function SidebarNav({ view, changeView, sidebarNavOrder, sidebarH
         if (!item) return null;
         const active = currentView === item.id;
         return (
-          <button
-            key={item.id}
-            type="button"
-            className={`navItem nav-${item.id}${active ? " active" : ""}`}
-            data-nav-id={item.id}
-            data-nav-group={group.id}
-            onClick={() => changeView(item.id, "nav")}
-            onContextMenu={event => openMenu(event, item.id)}
-            title={item.label}
-            aria-label={`open ${item.label}`}
-            aria-current={active ? "page" : undefined}
-          >
-            <span className={`navIcon navIcon-${item.id}`} aria-hidden="true">
-              <SolidIcon className="navSolidIcon" name={item.icon} size={20} />
-            </span>
-            <span className="navText"><strong>{item.label}</strong></span>
-          </button>
+          <GlassButton key={item.id} asChild optical={!!kit} pull={false} tint={.5}
+            optics={sidebarOptics} backdrop=".app" className={kit ? "ltSidebarGlassButton rounded-[var(--lt-radius-item)]" : undefined}>
+            <button
+              type="button"
+              className={`navItem nav-${item.id}${active ? " active" : ""}`}
+              data-nav-id={item.id}
+              data-nav-group={group.id}
+              onClick={() => changeView(item.id, "nav")}
+              onContextMenu={(event) => openMenu(event, item.id)}
+              title={item.label}
+              aria-label={`open ${item.label}`}
+              aria-current={active ? "page" : undefined}
+            >
+              <span className={`navIcon navIcon-${item.id}`} aria-hidden="true">
+                <SolidIcon className="navSolidIcon" name={item.icon} size={20} />
+              </span>
+              <span className="navText"><strong>{item.label}</strong></span>
+            </button>
+          </GlassButton>
         );
       })}
     </nav>;
     return (
       <div key={group.id} className={`sidebarNavGroupV467 sidebarNavGroup-${group.id}`}>
         <p className="sidebarGroupLabelV467">{group.label}</p>
-        {kit ? <kit.GlassCard asChild tint={.72} blur={3} optics={sidebarOptics}
-          className="ltOpticalSidebarGroup rounded-[14px]">{nav}</kit.GlassCard> : nav}
+        {nav}
         {divider ? <div className="navDivider" aria-hidden="true" /> : null}
       </div>
     );
