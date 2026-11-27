@@ -104,10 +104,18 @@ const safeCover = (value?: string) => value && (deezerCover.test(value) || fanar
 let warmGeneration = -1;
 const warmedTracks = new Set<string>();
 const warmedImages = new Set<string>();
+const attemptedImages = new Set<string>();
+const warmingImages = new Map<string, Promise<void>>();
 function warmImage(url: string, signal: AbortSignal) {
-  if (signal.aborted || warmedImages.has(url)) return Promise.resolve();
-  warmedImages.add(url);
-  return new Promise<void>(resolve => {
+  if (signal.aborted) return Promise.resolve();
+  const pending = warmingImages.get(url);
+  if (pending) return pending;
+  if (attemptedImages.has(url)) return Promise.resolve();
+  attemptedImages.add(url);
+  const generation = warmGeneration;
+  // Let an already-issued browser transfer settle instead of abandoning it and
+  // starting another on navigation. The outer loop stops issuing new work.
+  const task = new Promise<void>(resolve => {
     const image = new Image();
     image.decoding = "async";
     image.fetchPriority = "low";
@@ -115,14 +123,18 @@ function warmImage(url: string, signal: AbortSignal) {
     const finish = () => {
       window.clearTimeout(timer);
       image.onload = image.onerror = null;
-      signal.removeEventListener("abort", finish);
       resolve();
     };
     const timer = window.setTimeout(finish, 5000);
-    image.onload = image.onerror = finish;
-    signal.addEventListener("abort", finish, { once: true });
+    image.onload = () => {
+      if (warmGeneration === generation && image.naturalWidth > 0) warmedImages.add(url);
+      finish();
+    };
+    image.onerror = finish;
     image.src = url;
-  });
+  }).finally(() => warmingImages.delete(url));
+  warmingImages.set(url,task);
+  return task;
 }
 function firstCover(value?: DiscoverArtwork) {
   return [value?.coverUrl,value?.fallbackCoverUrl,...(value?.coverAlternatives||[]).slice(0,6)].map(safeCover).find(Boolean);
@@ -159,10 +171,11 @@ export async function preloadDiscover(signal: AbortSignal) {
   const started=performance.now();
   // The backend already coalesces recommendation generation and retains the
   // completed result; opening Discover joins that operation without refreshing.
+  discoverTrace("background-discover-start");
   const result=await window.localitfy.getDiscoveries();
   if(signal.aborted||result.status!=="ready")return;
   if(warmGeneration!==result.generatedAt){
-    warmGeneration=result.generatedAt;warmedTracks.clear();warmedImages.clear();
+    warmGeneration=result.generatedAt;warmedTracks.clear();warmedImages.clear();attemptedImages.clear();
   }
   const shelves=buildDiscoverShelves(result.artists,result.tracks);
   const tracks=[...shelves.recommended.slice(0,10),...shelves.popular.slice(0,6)];
