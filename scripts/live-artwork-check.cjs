@@ -4,7 +4,7 @@
 // credentials, private library contents or destructive actions are involved.
 const {createDeezerArtwork,createFanartArtwork} = require("../electron/discover/extra-artwork.cjs");
 const {createLastfmClient} = require("../electron/discover/lastfm.cjs");
-const {lastfmArtwork} = require("../electron/discover/artwork.cjs");
+const {lastfmArtwork,createArtworkLookup,matchMusicArtwork} = require("../electron/discover/artwork.cjs");
 const {createAudioDbArtwork} = require("../electron/discover/audiodb.cjs");
 const {createMusicBrainzClient,coverThumbUrl} = require("../electron/musicbrainz/client.cjs");
 const {createYouTubeMusicSearch} = require("../electron/discover/youtube-music.cjs");
@@ -17,6 +17,12 @@ const path = require("node:path");
 const now = () => Date.now();
 const checks = [];
 const expectedTitle = "One More Time", expectedArtist = "Daft Punk";
+const {parseEnv}=require("node:util");
+// The diagnostic runs outside Electron; load only its relevant local keys.
+try {
+  const local=parseEnv(fs.readFileSync(path.join(__dirname,"..",".env"),"utf8"));
+  for(const key of ["LOCALTIFY_LASTFM_API_KEY","LOCALTIFY_AUDIODB_API_KEY","LOCALTIFY_FANART_API_KEY"]) if(!process.env[key]&&local[key])process.env[key]=local[key];
+}catch{}
 const norm = s => String(s||"").normalize("NFKC").trim().toLowerCase();
 const imageHeaders = { "User-Agent":"Localtify artwork validation (https://github.com/meshahid973/localtify)" };
 
@@ -54,6 +60,86 @@ async function check(provider,work) {
     checks.push({provider,status:"error",metadata:false,image:false,elapsedMs:now()-start,
       detail:String(error?.message||error).slice(0,120)});
   }
+}
+
+
+const samples=[
+  ["One More Time","Daft Punk"],
+  ["夜に駆ける","YOASOBI"],
+  ["Liar Dancer","masarada"],
+  ["Around the World (Live)","Daft Punk"],
+  ["Get Lucky","Daft Punk feat. Pharrell Williams & Nile Rodgers"]
+];
+const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+// Compare the actual resolver revisions with the same deterministic responses.
+async function controlledResolution(implementation) {
+  const cases=[];
+  const cover="https://e-cdns-images.dzcdn.net/images/cover/0123456789abcdef0123456789abcdef/250x250-000000-80-0-0.jpg";
+  const youtube="https://lh3.googleusercontent.com/fixture=w256-h256-l90-rj";
+  for(let i=0;i<samples.length;i++){
+    const [title,artist]=samples[i],counts={},pending=[];
+    const fake=(name,ms,result,fail=false)=>()=>{
+      counts[name]=(counts[name]||0)+1;
+      const job=delay(ms).then(()=>{if(fail)throw Error("Fixture provider unavailable");return result;});
+      pending.push(job.catch(()=>{}));return job;
+    };
+    const lookup=implementation({searchRecordings:fake("MusicBrainz",80,[])},Date.now,
+      fake("Last.fm",40,null),fake("TheAudioDB",180,{}),
+      fake("YouTube Music",i===0?60:1000,i===0?[{title,artist,coverUrl:youtube}]:i===3?[{title:title+" (remix)",artist,coverUrl:youtube}]:[],i===2),
+      fake("Deezer",60,i===4?{}:{coverUrl:cover}));
+    const started=performance.now();
+    const [a,b]=await Promise.all([lookup(title,artist),lookup(title,artist)]);
+    const firstMs=Math.round(performance.now()-started);
+    if(JSON.stringify(a)!==JSON.stringify(b))throw Error("Concurrent fixture requests diverged");
+    const warmStart=performance.now();
+    if(a.coverUrl)await lookup(title,artist);
+    const warmMs=a.coverUrl?Number((performance.now()-warmStart).toFixed(3)):null;
+    await Promise.all(pending);
+    cases.push({title,artist,firstMs,warmMs,resolved:Boolean(a.coverUrl),expected:i!==4,counts});
+  }
+  return cases;
+}
+async function liveResolution(){
+  const counts={}, pending=new Set();
+  const instrument=provider=>async(address,options)=>{
+    const stat=counts[provider]??={requests:0,metadataMs:0,failures:0,timeouts:0};
+    stat.requests++;
+    const started=performance.now();
+    try {
+      const job=fetch(address,options);
+      pending.add(job);
+      let response;
+      try{response=await job;}finally{pending.delete(job);}
+      if(!response.ok)stat.failures++;
+      return response;
+    }catch(error){stat.failures++;if(error?.name==="TimeoutError"||error?.name==="AbortError")stat.timeouts++;throw error;}
+    finally{stat.metadataMs+=Math.round(performance.now()-started);}
+  };
+  const youtube=createYouTubeMusicSearch(instrument("YouTube Music"),Date.now,4);
+  const deezer=createDeezerArtwork({fetchImpl:instrument("Deezer")});
+  const audio=createAudioDbArtwork({apiKey:process.env.LOCALTIFY_AUDIODB_API_KEY||"123",fetchImpl:instrument("TheAudioDB")});
+  const lastfm=/^[a-f0-9]{32}$/i.test(process.env.LOCALTIFY_LASTFM_API_KEY||"")?createLastfmClient({apiKey:process.env.LOCALTIFY_LASTFM_API_KEY,fetch:instrument("Last.fm"),artwork:true}):null;
+  const brainz=createMusicBrainzClient({userAgent:"Localtify artwork validation (https://github.com/meshahid973/localtify)",fetchImpl:instrument("MusicBrainz"),timeoutMs:9000});
+  const fanart=createFanartArtwork({apiKey:process.env.LOCALTIFY_FANART_API_KEY,fetchImpl:instrument("Fanart.tv")});
+  const lookup=createArtworkLookup(brainz,Date.now,lastfm?lastfm.trackInfo:undefined,audio?.resolve,
+    async(title,artist,identity,signal)=>{
+      const query=(title+" "+artist).slice(0,160);
+      const songs=await youtube("recording",query,{artwork:true});
+      if(matchMusicArtwork(songs,title,artist).coverUrl||signal?.aborted)return songs;
+      return [...songs,...await youtube("video",query,{artwork:true})];
+    },deezer.resolve,fanart?.resolve);
+  const cases=[];
+  for(const [title,artist] of samples){
+    const start=performance.now();
+    try {
+      const result=await lookup(title,artist);
+      const metadataMs=Math.round(performance.now()-start),imageStart=performance.now();
+      const image=result.coverUrl?await imageAvailable(result.coverUrl).catch(()=>false):false;
+      cases.push({title,artist,metadataMs,imageMs:result.coverUrl?Math.round(performance.now()-imageStart):null,status:result.coverUrl?(image?"ok":"image-unavailable"):"missing"});
+    }catch{cases.push({title,artist,metadataMs:Math.round(performance.now()-start),imageMs:null,status:"temporarily-unavailable"});}
+  }
+  await Promise.allSettled([...pending]);
+  return {cases,providers:counts,note:"Network metadata timing is time to response headers; per-track metadataMs includes parsing, scheduling and matching. No user library data."};
 }
 
 async function main() {
@@ -170,8 +256,16 @@ async function main() {
   }));
   await Promise.all(jobs);
   const sorted=checks.sort((a,b)=>a.provider.localeCompare(b.provider));
+  const baselineArg=process.argv.indexOf("--baseline-root");
+  const baselineRoot=baselineArg>=0?process.argv[baselineArg+1]:"";
+  const resolution=process.argv.includes("--resolution")||baselineRoot?await liveResolution():undefined;
+  const comparison=baselineRoot?{
+    baseline:await controlledResolution(require(path.resolve(baselineRoot,"electron/discover/artwork.cjs")).createArtworkLookup),
+    candidate:await controlledResolution(createArtworkLookup)
+  }:undefined;
+  if(comparison&&[...comparison.baseline,...comparison.candidate].some(row=>row.resolved!==row.expected))throw Error("Controlled artwork identity resolution diverged");
   console.log(JSON.stringify({checkedAt:new Date().toISOString(),sample:{title:expectedTitle,artist:expectedArtist},
-    checks:sorted,note:"Advisory network observation, not a guarantee of future provider availability"},null,2));
+    checks:sorted,resolution,comparison,note:"Advisory network observation, not a guarantee of future provider availability"},null,2));
   // Manual release acceptance must not silently pass without configured keys
   // or when either keyed integration is unable to retrieve usable artwork.
   if(process.argv.includes("--require-keyed")) {

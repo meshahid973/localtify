@@ -103,3 +103,69 @@ test("fallback mode skips the failed Deezer image and reaches catalog releases",
    "https://coverartarchive.org/release/"+id+"/front-250");
  assert.equal(deezer,0);
 });
+
+test("staggered artwork resolution returns a verified faster provider without waiting for a slow one", async () => {
+  const {createArtworkLookup}=require("../../electron/discover/artwork.cjs");
+  let release, youtubeCalls=0, deezerCalls=0, supplementalCalls=0;
+  const lookup=createArtworkLookup({searchRecordings:async()=>{supplementalCalls++;return [];}},Date.now,undefined,undefined,
+    async()=>{youtubeCalls++;return new Promise(resolve=>{release=resolve;});},
+    async()=>{deezerCalls++;return {coverUrl:cover};});
+  const started=performance.now();
+  const values=await Promise.all([lookup("Bang Bang","B.A. Robertson"),lookup("bang bang","b.a. robertson")]);
+  console.log("[artwork-resolution] controlled staggered winner ms="+Math.round(performance.now()-started)+" primary="+youtubeCalls+" hedge="+deezerCalls);
+  assert.equal(values[0].coverUrl,cover);
+  assert.deepEqual(values[0],values[1]);
+  assert.equal(youtubeCalls,1);assert.equal(deezerCalls,1);assert.equal(supplementalCalls,0);
+  assert.equal(typeof release,"function","the slower provider has not completed");
+  release([]);
+});
+test("failed providers release capacity and unsafe candidates cannot win",async()=>{
+  const {firstArtwork}=require("../../electron/discover/artwork.cjs");
+  let calls=0;
+  const result=await firstArtwork([async()=>{throw Error("offline");},async()=>({coverUrl:"https://evil.test/cover.jpg"}),async()=>{calls++;return {coverUrl:cover};}],{staggerMs:5});
+  assert.equal(result.coverUrl,cover);assert.equal(calls,1);
+  await assert.rejects(firstArtwork([async()=>{throw Error("offline");}],{staggerMs:5}),/temporarily unavailable/);
+  assert.deepEqual(await firstArtwork([async()=>({})]),{});
+  assert.deepEqual(await firstArtwork([async()=>{throw Error("must not run");}],{active:()=>false}),{});
+});
+
+test("background artwork cooldown honors Retry-After without blocking explicit catalog queries", async()=>{
+  const {createYouTubeMusicSearch}=require("../../electron/discover/youtube-music.cjs");
+  let now=1000,calls=0;
+  const search=createYouTubeMusicSearch(async()=>{calls++;return calls===1?new Response("",{status:429,headers:{"Retry-After":"90"}}):new Response("{}");},()=>now);
+  await assert.rejects(search("recording","Song",{artwork:true}));
+  await assert.rejects(search("recording","Another",{artwork:true}));
+  assert.equal(calls,1);
+  assert.deepEqual(await search("recording","Manual search"),[]);
+  assert.equal(calls,2);
+  now+=89999;await assert.rejects(search("recording","Another",{artwork:true}));assert.equal(calls,2);
+  now++;assert.deepEqual(await search("recording","Another",{artwork:true}),[]);assert.equal(calls,3);
+});
+test("a cancelled AudioDB consumer never starts its follow-up album request",async()=>{
+  const {createAudioDbArtwork}=require("../../electron/discover/audiodb.cjs");
+  const controller=new AbortController();let calls=0;
+  const lookup=createAudioDbArtwork({apiKey:"123",fetchImpl:async()=>{
+    calls++;controller.abort();
+    return new Response(JSON.stringify({track:[{strTrack:"Song",strArtist:"Artist",strAlbum:"Album",idAlbum:"42"}]}));
+  }});
+  await assert.rejects(lookup.resolve("Song","Artist",controller.signal));
+  assert.equal(calls,1);
+});
+
+test("a failed primary image cannot win the fallback race again",async()=>{
+  const {createArtworkLookup}=require("../../electron/discover/artwork.cjs");
+  const youtube="https://lh3.googleusercontent.com/abc=w256-h256-l90-rj";
+  const lookup=createArtworkLookup(null,Date.now,undefined,undefined,async()=>[{title:"Song",artist:"Artist",coverUrl:youtube}],async()=>({coverUrl:cover}));
+  assert.equal((await lookup("Song","Artist")).coverUrl,youtube);
+  const result=await lookup("Song","Artist",{fallback:true,excluded:[youtube]});
+  assert.equal(result.coverUrl,cover);
+  assert.ok(!result.coverAlternatives?.includes(youtube));
+});
+
+test("primary stage deadlines cancel unstarted hedges and distinguish timeouts from missing art",async()=>{
+  const {firstArtwork}=require("../../electron/discover/artwork.cjs");
+  let signal,release,hedges=0;
+  await assert.rejects(firstArtwork([s=>{signal=s;return new Promise(resolve=>{release=resolve;});},async()=>{hedges++;return {coverUrl:cover};}],{staggerMs:100,timeoutMs:10}),/temporarily unavailable/);
+  assert.equal(signal.aborted,true);assert.equal(hedges,0);
+  release({});
+});

@@ -4,6 +4,7 @@
 // src/shared/youtube/innertube/{innertubeClient,innertubeTrackMapper,
 // innertubeThumbnail,innertubeSearchRanking}.ts. Localtify adaptation:
 // catalog metadata only; no accounts, tokens, playback endpoints or Liner services.
+const { retryAfterMs, providerCooldown, unavailable } = require("./provider-health.cjs");
 const origin = "https://music.youtube.com/youtubei/v1/";
 const clientVersion = "1.20260911.08.00";
 const filters = { video: "EgWKAQIQAWoKEAkQBRAKEAMQBA%3D%3D", recording: "EgWKAQIIAWoKEAkQBRAKEAMQBA%3D%3D", artist: "EgWKAQIgAWoKEAkQBRAKEAMQBA%3D%3D" };
@@ -95,7 +96,11 @@ function mapSearchResponse(body,kind,query,strictQuery=true) {
 }
 async function requestCatalog(fetchImpl,endpoint,payload) {
   const response=await fetchImpl(origin+endpoint+"?prettyPrint=false",{method:"POST",redirect:"error",credentials:"omit",headers:{"content-type":"application/json",accept:"application/json","x-youtube-client-name":"67","x-youtube-client-version":clientVersion,"x-origin":"https://music.youtube.com"},body:JSON.stringify({...payload,context:{client:{clientName:"WEB_REMIX",clientVersion,hl:"en",gl:"US"}}}),signal:AbortSignal.timeout(6500)});
-  if(!response.ok)throw Error("YouTube Music catalog unavailable");
+  if(!response.ok){
+    await response.body?.cancel?.().catch(()=>{});
+    const error=Error("YouTube Music catalog unavailable");
+    error.status=response.status; error.retryAfterMs=retryAfterMs(response.headers); throw error;
+  }
   // Bound decoded response size, even when content-length is absent.
   const max=2*1024*1024;
   if(Number(response.headers?.get("content-length"))>max){await response.body?.cancel?.();throw Error("Oversized music catalog");}
@@ -107,19 +112,20 @@ async function requestCatalog(fetchImpl,endpoint,payload) {
 }
 function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPending=2) {
   const cache=new Map(),pending=new Map();
+  let blockedUntil=0;
   return async (kind,query,options={})=>{
     if(!Object.hasOwn(filters,kind)||typeof query!=="string"||query.trim().length<2||query.length>160)return [];
     const key=JSON.stringify([kind,query.normalize("NFKC").trim().toLowerCase(),options.artwork===true]);
     const hit=cache.get(key);
     if(hit&&now()-hit.at<300000){cache.delete(key);cache.set(key,hit);return hit.items;}
     if(pending.has(key))return pending.get(key);
-    if(pending.size>=maxPending)throw Error("Music search busy");
+    if(pending.size>=maxPending||(options.artwork===true&&now()<blockedUntil))throw unavailable();
     const task=Promise.resolve().then(async()=>{
       const body=await requestCatalog(fetchImpl,"search",{query:query.trim(),params:filters[kind]});
       const items=mapSearchResponse(body,kind,query,options.artwork!==true);
       if(items.length) cache.set(key,{at:now(),items});while(cache.size>128)cache.delete(cache.keys().next().value);
       return items;
-    }).finally(()=>pending.delete(key));
+    }).catch(error=>{if(options.artwork===true)blockedUntil=Math.max(blockedUntil,now()+providerCooldown(error));throw error;}).finally(()=>pending.delete(key));
     pending.set(key,task);return task;
   };
 }

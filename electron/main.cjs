@@ -32,7 +32,7 @@ const shutdown = createAppShutdownRuntime({
   settingsFlush,
   confirm: win => confirmSettingsFlush(win),
   cleanup: async () => {
-    discoverCacheLifecycle?.flush();
+    discoverCacheLifecycle?.close();
     remoteArtworkCache?.close();
     thumbnailRuntime.stop();
     libraryWatcher?.dispose();

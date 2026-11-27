@@ -2,6 +2,7 @@
 
 // Public catalog artwork, no playback, authentication cookies or third-party scraper.
 // Fanart.tv is optional and uses the operator's own API key.
+const { retryAfterMs, providerCooldown, unavailable } = require("./provider-health.cjs");
 const MBID=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 const key=value=>String(value||"").normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}\p{M}]+/gu," ").trim();
 const artistKey=value=>key(String(value||"").replace(/\s+[-–—]\s+Topic$/i,""));
@@ -38,12 +39,13 @@ function matchDeezerArtwork(body,kind,title,artist="") {
   if(!covers.length)return {};
   return {coverUrl:covers[0],...(covers.length>1?{coverAlternatives:covers}:{}),...(durations.length?{durationMs:durations[0]*1000}:{})};
 }
-async function boundedJson(fetchImpl,url,headers={}) {
-  const response=await fetchImpl(url,{method:"GET",credentials:"omit",redirect:"error",headers:{Accept:"application/json",...headers},signal:AbortSignal.timeout(5500)});
+async function boundedJson(fetchImpl,url,headers={},signal) {
+  const response=await fetchImpl(url,{method:"GET",credentials:"omit",redirect:"error",headers:{Accept:"application/json",...headers},signal:signal?AbortSignal.any([signal,AbortSignal.timeout(5500)]):AbortSignal.timeout(5500)});
   if(!response.ok||response.status===429){
     await response.body?.cancel?.().catch(()=>undefined);
     const error=new Error("Artwork provider unavailable");
     error.status=response.status;
+    error.retryAfterMs=retryAfterMs(response.headers);
     throw error;
   }
   const max=512*1024;
@@ -61,24 +63,26 @@ async function boundedJson(fetchImpl,url,headers={}) {
 }
 function cachedLookup(work,now=Date.now) {
   const cached=new Map(),pending=new Map();let blockedUntil=0;
-  return async(...args)=>{
+  const resolve=async(...args)=>{
     const id=JSON.stringify(args.map(v=>String(v||"").normalize("NFKC").trim().toLowerCase()));
     const hit=cached.get(id);
     if(hit&&now()-hit.at<(hit.value.coverUrl?86400000:30000)){cached.delete(id);cached.set(id,hit);return hit.value;}
     cached.delete(id);
     if(pending.has(id))return pending.get(id);
-    if(pending.size>=4||now()<blockedUntil)return {};
+    if(pending.size>=4||now()<blockedUntil)throw unavailable();
     const promise=Promise.resolve().then(()=>work(...args)).then(value=>{
       cached.set(id,{at:now(),value});while(cached.size>256)cached.delete(cached.keys().next().value);return value;
     }).catch(error=>{
       // A forbidden or rate-limited source should not be polled on every
       // navigation. Other artwork providers remain independently available.
-      const cooldown=error?.status===403?300000:error?.status===429?60000:15000;
-      blockedUntil=now()+cooldown;
-      return {};
+      blockedUntil=Math.max(blockedUntil,now()+providerCooldown(error));
+      throw error;
     }).finally(()=>pending.delete(id));
     pending.set(id,promise);return promise;
   };
+  const lookup=(...args)=>resolve(...args).catch(()=>({}));
+  lookup.resolve=resolve;
+  return lookup;
 }
 function createDeezerArtwork({fetchImpl=globalThis.fetch,now=Date.now}={}) {
   return cachedLookup(async(kind,title,artist="")=>{

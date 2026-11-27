@@ -25,16 +25,26 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          fetch-depth: 2
           persist-credentials: false
       - uses: actions/setup-node@v5
         with:
           node-version: 22
       - name: Probe public providers (advisory)
         shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           mkdir -p qa-providers
-          node scripts/live-artwork-check.cjs > qa-providers/live-provider-report.json
-          node -e 'const fs=require("node:fs");const r=JSON.parse(fs.readFileSync("qa-providers/live-provider-report.json","utf8"));if(!Array.isArray(r.checks)||r.checks.length<8)throw Error("Incomplete provider report");for(const c of r.checks)console.log([c.provider,c.status,c.detail||""].join(" | "))'
+          args=(--resolution)
+          if [[ -n "$BASE_SHA" ]]; then
+            baseline="$RUNNER_TEMP/artwork-baseline"
+            mkdir -p "$baseline"
+            git archive "$BASE_SHA" electron/discover electron/runtime/remote-cover.cjs | tar -x -C "$baseline"
+            args+=(--baseline-root "$baseline")
+          fi
+          node scripts/live-artwork-check.cjs "${args[@]}" > qa-providers/live-provider-report.json
+          node -e 'const fs=require("node:fs");const r=JSON.parse(fs.readFileSync("qa-providers/live-provider-report.json","utf8"));if(!Array.isArray(r.checks)||r.checks.length<8)throw Error("Incomplete provider report");for(const c of r.checks)console.log([c.provider,c.status,c.detail||""].join(" | "));console.log(JSON.stringify({resolution:r.resolution,comparison:r.comparison}))'
       - name: Preserve provider results
         if: always()
         uses: actions/upload-artifact@v4
