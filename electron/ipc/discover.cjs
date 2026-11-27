@@ -271,13 +271,13 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
           onProgress:partial=>publish(reuseRecommendationArtwork(partial,previous))});
         result=reuseRecommendationArtwork(result,previous);
         if(!requestActive())result={status:"off"};
-        else if(running?.promise===promise)saved={apiKey,result};
+        else if(running?.promise === promise)saved={apiKey,result};
       }catch(error){
         result=saved?.apiKey===apiKey&&saved.result.status==="ready"?saved.result:
           {status:"error",error:error?.message||"Discover failed. Please try again."};
       }finally{
         jobLive=false;
-        if(running?.promise===promise)running=null;
+        if(running?.promise === promise)running=null;
       }
       publish(result);
       return result;
