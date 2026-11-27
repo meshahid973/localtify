@@ -818,3 +818,14 @@ test("resolved fallback artwork is reused on primary lookup and old misses expir
   assert.equal((await lookup("Track","Artist",{fallback:true,retryPrimary:true})).coverUrl,coverUrl);
   const after=calls; assert.equal((await lookup("Track","Artist",{primaryOnly:true})).coverUrl,coverUrl);assert.equal(calls,after);
 });
+
+test("artwork title formatting tolerates verified artist prefixes and credit joiners, not different versions",()=>{
+  const {matchMusicArtwork,enrichCatalogTrack}=require("../../electron/discover/artwork.cjs");
+  const candidate={id:"ytmusic:abcdefghijk",title:"Artist — Song (Official Music Video)",artist:"Artist, Guest",coverUrl:"https://lh3.googleusercontent.com/abc=w256-h256-l90-rj"};
+  const plain={...candidate,artist:"Artist"};
+  assert.equal(matchMusicArtwork([plain],"Song","Artist").coverUrl,plain.coverUrl);
+  assert.equal(enrichCatalogTrack({title:"Song",artist:"Artist"},[plain]).providerId,plain.id);
+  assert.equal(matchMusicArtwork([{...candidate,title:"Song"}],"Song","Artist feat. Guest").coverUrl,candidate.coverUrl);
+  assert.deepEqual(matchMusicArtwork([{...plain,title:"Song (slowed remix)"}],"Song (slowed)","Artist"),{});
+  assert.deepEqual(matchMusicArtwork([plain],"Song","Artist, Guest"),{});
+});

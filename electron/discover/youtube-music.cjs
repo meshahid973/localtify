@@ -59,7 +59,9 @@ function mapRow(row,kind) {
   const title=text(column(row,0) ?? row.title);
   if(!title)return null;
   const titleRun=runs(column(row,0) ?? row.title)[0];
-  const metadata=runs(column(row,1) ?? row.subtitle);
+  // Adapted from Liner innertubeTrackMapper: metadata can span flex columns.
+  const byline=column(row,1) ?? row.subtitle;
+  const metadata=[...runs(byline),...arr(row.flexColumns).slice(2).flatMap((_,i)=>runs(column(row,i+2)))];
   const endpoints=[row.onTap,titleRun?.navigationEndpoint,row.navigationEndpoint,row.thumbnailOverlay?.musicItemThumbnailOverlayRenderer?.content?.musicPlayButtonRenderer?.playNavigationEndpoint,...arr(row.buttons).flatMap(button=>[button?.buttonRenderer?.command,button?.buttonRenderer?.navigationEndpoint])];
   if(kind==="artist"){
     const endpoint=endpoints.map(e=>e?.browseEndpoint).find(e=>e?.browseId&&e?.browseEndpointContextSupportedConfigs?.browseEndpointContextMusicConfig?.pageType==="MUSIC_PAGE_TYPE_ARTIST");
@@ -71,9 +73,9 @@ function mapRow(row,kind) {
   const id=row?.playlistItemData?.videoId||titleRun?.navigationEndpoint?.watchEndpoint?.videoId||row?.overlay?.musicItemThumbnailOverlayRenderer?.content?.musicPlayButtonRenderer?.playNavigationEndpoint?.watchEndpoint?.videoId||endpoints.map(e=>e?.watchEndpoint?.videoId).find(id=>videoId.test(id||""));
   if(!videoId.test(id||""))return null;
   const artistRuns=metadata.filter(r=>["MUSIC_PAGE_TYPE_ARTIST","MUSIC_PAGE_TYPE_USER_CHANNEL"].includes(kindOf(r)));
-  const artists=artistRuns.map(r=>clean(r.text)).filter(Boolean);
+  const artists=[...new Set(artistRuns.map(r=>clean(r.text)).filter(Boolean))];
   const artistIds=[...new Set(artistRuns.map(r=>browse(r)?.browseId).filter(id=>artistId.test(id||"")))].map(id=>"ytmusic:"+id);
-  const segments=metadata.map(r=>r?.text||"").join("").split("•").map(clean).filter(Boolean);
+  const segments=text(byline).split("•").map(clean).filter(Boolean);
   if(["song","video"].includes(segments[0]?.toLowerCase()))segments.shift();
   const artist=artists.join(", ")||segments.find(v=>!duration(v)&&!/^\d[\d,.]*\s*(?:views|plays)$/i.test(v))||"";
   if(!artist)return null;
@@ -83,7 +85,7 @@ function mapRow(row,kind) {
   const durationMs=[...metadata,...fixed].map(r=>duration(clean(r?.text))).find(Boolean);
   return {id:"ytmusic:"+id,title,artist,album,subtitle:[artist,album].filter(Boolean).join(" · "),url:"https://www.youtube.com/watch?v="+id,durationMs,coverUrl:coverFor(row,id),...(artistIds.length?{artistIds}:{}),...(/^MPREb_[A-Za-z0-9_-]{1,80}$/.test(albumId||"")?{albumId:"ytmusic:"+albumId}:{})};
 }
-function mapSearchResponse(body,kind,query,strictQuery=true,limit=25) {
+function mapSearchResponse(body,kind,query,strictQuery=true,limit=25,filterJunk=true) {
   const tabs=arr(body?.contents?.tabbedSearchResultsRenderer?.tabs);
   const sections=tabs.flatMap(t=>arr(t?.tabRenderer?.content?.sectionListRenderer?.contents));
   const items=sections.flatMap(s=>arr(s?.musicShelfRenderer?.contents).concat(s?.musicCardShelfRenderer?[{musicCardShelfRenderer:s.musicCardShelfRenderer},...arr(s.musicCardShelfRenderer.contents)]:[],arr(s?.itemSectionRenderer?.contents)));
@@ -92,7 +94,7 @@ function mapSearchResponse(body,kind,query,strictQuery=true,limit=25) {
     const row=item?.musicResponsiveListItemRenderer ?? item?.musicCardShelfRenderer;
     if(!row)continue;
     const mapped=mapRow(row,kind);
-    if(!mapped||seen.has(mapped.id)||(kind!=="artist"&&isJunkVideo(mapped.title,query)))continue;
+    if(!mapped||seen.has(mapped.id)||(filterJunk&&kind!=="artist"&&isJunkVideo(mapped.title,query)))continue;
     seen.add(mapped.id);result.push(mapped);
   }
   return result.filter(v=>!strictQuery||matchesQuery(query,v.title,v.artist)).slice(0,limit);
@@ -138,7 +140,7 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
     if(options.signal?.aborted)throw capacity();
     const background=options.artwork===true;
     const key=JSON.stringify([kind,query.normalize("NFKC").trim().toLowerCase()]);
-    const select=items=>items.filter(v=>background||matchesQuery(query,v.title,v.artist)).slice(0,25);
+    const select=items=>items.filter(v=>(kind==="artist"||options.artistCatalog===true||!isJunkVideo(v.title,query))&&(background||matchesQuery(query,v.title,v.artist))).slice(0,options.artistCatalog===true?100:25);
     const hit=cache.get(key);
     if(hit&&now()-hit.at<300000){cache.delete(key);cache.set(key,hit);return select(hit.items);}
     const prior=pending.get(key);
@@ -154,7 +156,7 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
     const job={background,signal:options.signal,resolve,reject,timer:null,promise:null,run:async()=>{
       try{
         const body=await requestCatalog(fetchImpl,"search",{query:query.trim(),params:filters[kind]});
-        const items=mapSearchResponse(body,kind,query,false,100);
+        const items=mapSearchResponse(body,kind,query,false,100,false);
         if(items.length)cache.set(key,{at:now(),items});
         while(cache.size>128)cache.delete(cache.keys().next().value);
         return items;

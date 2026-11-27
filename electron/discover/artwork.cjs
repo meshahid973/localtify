@@ -26,18 +26,26 @@ function lastfmArtwork(track,title,artist) {
 }
 // Reuse the catalog's actual artwork, accounting for formatting differences
 // without stripping version markers (live, remix, slowed, etc.).
+const {sameVersion}=require("./version-tags.cjs");
 const musicKey = value => norm(value).replace(/[^\p{L}\p{N}\p{M}]+/gu," ").trim();
 const titleKey = value => musicKey(norm(value).replace(/\s*[([]\s*(?:official\s+(?:music\s+)?video|official\s+audio|lyric\s+video|official\s+lyric\s+video)\s*[)\]]\s*$/i,""));
 const artistKey = value => musicKey(norm(value).replace(/\s+[-–—]\s+topic$/i,""));
-const equivalentArtist=(a,b)=>artistKey(a)===artistKey(b) && Boolean(artistKey(b));
+// Keep every credited artist; normalize joiners without accepting substring matches.
+const creditKey=value=>musicKey(norm(value).replace(/\s+[-–—]\s+topic$/i,"").replace(/\s+(?:feat\.?|ft\.?|and)\s+|\s*[,＆&]\s*/gi," "));
+const equivalentArtist=(a,b)=>Boolean(artistKey(b))&&(artistKey(a)===artistKey(b)||creditKey(a)===creditKey(b));
+function equivalentTitle(a,b,artist){
+  if(!sameVersion(norm(a),norm(b)))return false;
+  const keys=value=>{
+    const full=norm(value),parts=full.split(/\s+[-–—]\s+/);
+    return [titleKey(full),...(parts.length>1&&equivalentArtist(parts[0],artist)?[titleKey(parts.slice(1).join(" - "))]:[])];
+  };
+  return keys(a).some(key=>key&&keys(b).includes(key));
+}
 function matchMusicArtwork(items,title,artist,identity = {}) {
   const {safeThumbnail}=require("./youtube-music.cjs");
   const wantedArtist=artistKey(artist);
   const wantedTitle=titleKey(title);
-  const artistPrefix=norm(title).split(/\s+-\s+/);
-  const titleKeys=new Set([wantedTitle]);
-  if(artistPrefix.length>1 && artistKey(artistPrefix[0])===wantedArtist) titleKeys.add(titleKey(artistPrefix.slice(1).join(" - ")));
-  const matches=(Array.isArray(items)?items:[]).filter(item=>titleKeys.has(titleKey(item?.title))&&equivalentArtist(item?.artist,artist) &&
+  const matches=(Array.isArray(items)?items:[]).filter(item=>equivalentTitle(item?.title,title,artist)&&equivalentArtist(item?.artist,artist) &&
     (!identity.providerId || item.id === identity.providerId) &&
     (!identity.album || !item.album || norm(item.album) === norm(identity.album)) &&
     (!identity.durationMs || !Number.isFinite(item.durationMs) || Math.abs(item.durationMs-identity.durationMs) <= 5000))
@@ -61,7 +69,7 @@ function enrichCatalogTrack(track, items) {
   // Do not substitute a different version or attach an arbitrary ID from an ambiguous result.
   const exact=(Array.isArray(items)?items:[]).filter(item=>
     /^ytmusic:[A-Za-z0-9_-]{11}$/.test(item?.id||"") &&
-    norm(item.title)===norm(track.title) && equivalentArtist(item.artist,track.artist) &&
+    equivalentTitle(item.title,track.title,track.artist) && equivalentArtist(item.artist,track.artist) &&
     (!identity.providerId||item.id===identity.providerId) &&
     (!identity.album||norm(item.album)===norm(identity.album)) &&
     (!identity.durationMs||(Number.isFinite(item.durationMs)&&Math.abs(item.durationMs-identity.durationMs)<=5000)) &&

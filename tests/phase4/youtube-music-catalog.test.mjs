@@ -70,3 +70,16 @@ test("foreground and artwork queries share a single catalog response",async()=>{
   const [artwork,foreground]=await Promise.all([search("recording","KICK BACK",{artwork:true}),search("recording","kick back")]);
   assert.equal(calls,1);assert.equal(artwork.length,1);assert.deepEqual(foreground,artwork);
 });
+
+test("artist catalog retains requested recording versions without changing ordinary search",async()=>{
+  const search=createYouTubeMusicSearch(async()=>({ok:true,text:async()=>JSON.stringify(response([row("KICK BACK"),row("KICK BACK slowed","abcdefghij2")]))}));
+  const group=await search("recording","Kenshi Yonezu",{artwork:true,artistCatalog:true});
+  assert.equal(group.length,2);
+  const ordinary=await search("recording","Kenshi Yonezu");assert.equal(ordinary.length,1);
+});
+test("catalog mapper reads album and duration from additional columns",()=>{
+  const item=row("KICK BACK");const columns=item.musicResponsiveListItemRenderer.flexColumns;
+  columns[1]=col([linked("Kenshi Yonezu","MUSIC_PAGE_TYPE_ARTIST","UCabcdefghijklmnopqrstuv")]);
+  columns.push(col([linked("KICK BACK","MUSIC_PAGE_TYPE_ALBUM","MPREalbum")]),col([{text:"3:13"}]));
+  const [track]=mapSearchResponse(response([item]),"recording","KICK BACK");assert.equal(track.album,"KICK BACK");assert.equal(track.durationMs,193000);
+});

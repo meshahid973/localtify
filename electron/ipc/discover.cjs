@@ -307,7 +307,7 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
             // artist-level query through the existing public catalog adapter.
             if(source==="recommended"&&artistCatalogBudget>0&&missing.length>=2&&missing.some(track=>!MBID.test(track.recordingId||""))&&searchYouTubeArtwork&&name.length<=160){
               artistCatalogBudget--;
-              extra.push(timed("provider-artist-catalog",()=>searchYouTubeArtwork("recording",name,{artwork:true,signal:controller.signal})).then(rows=>Array.isArray(rows)?rows:[],()=>[]));
+              extra.push(timed("provider-artist-catalog",()=>searchYouTubeArtwork("recording",name,{artwork:true,artistCatalog:true,signal:controller.signal})).then(rows=>Array.isArray(rows)?rows:[],()=>[]));
             }
             if(musicBrainzClient?.searchRecordingBatch&&batchBudget>0){
               batchBudget--;
