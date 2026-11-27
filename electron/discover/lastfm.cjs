@@ -136,7 +136,7 @@ function createLastfmClient({ apiKey, cacheFile, fetch = globalThis.fetch, now =
         const error=errorFor(body.error, body.message);
         if (["bad-key","rate-limited"].includes(error.code) || [11,16].includes(body.error)) {
           blockedError=error;
-          blockedUntil=Math.max(blockedUntil,now()+providerCooldown({code:error.code,retryAfterMs:retryAfterMs(response.headers,now())}));
+          blockedUntil=error.code==="bad-key"?Infinity:Math.max(blockedUntil,now()+providerCooldown({code:error.code,retryAfterMs:retryAfterMs(response.headers,now())}));
         }
         throw error;
       }

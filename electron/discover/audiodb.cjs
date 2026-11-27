@@ -1,5 +1,6 @@
 "use strict";
 const { boundedJson } = require("./extra-artwork.cjs");
+const { setTimeout: wait } = require("node:timers/promises");
 const { providerCooldown, unavailable } = require("./provider-health.cjs");
 const norm = value => String(value||"").normalize("NFKC").trim().replace(/\s+/g," ").toLowerCase();
 const albumImage = value => typeof value==="string" && /^https:\/\/(?:www\.|r2\.)?theaudiodb\.com\/images\/media\/album\/thumb\/[a-z0-9_-]+\.(?:jpg|jpeg|png)(?:\/(?:small|medium))?$/i.test(value) ? value : "";
@@ -12,7 +13,7 @@ function createAudioDbArtwork({apiKey, fetchImpl=globalThis.fetch, now=Date.now}
     const slot=Math.max(now(),nextSlot);
     if(slot-now()>7000)throw unavailable(); // avoid accumulating unbounded delayed work
     nextSlot=slot+2100;
-    if(slot>now())await new Promise(resolve=>setTimeout(resolve,slot-now()));
+    if(slot>now())await wait(slot-now(),undefined,signal?{signal}:undefined);
     if(signal?.aborted||now()<blockedUntil)throw unavailable();
     const url=new URL("https://www.theaudiodb.com/api/v1/json/"+apiKey+"/"+endpoint);
     url.search=new URLSearchParams(params).toString();

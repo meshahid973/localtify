@@ -71,7 +71,7 @@ function createMusicBrainzClient({ userAgent, fetchImpl = fetch, minIntervalMs =
         if (background && Date.now() < backgroundBlockedUntil) throw unavailable();
         lastAt = Date.now();
         const response = await fetchImpl(key, { headers: { "User-Agent": userAgent, Accept: "application/json" }, signal: AbortSignal.timeout(timeoutMs) }).catch((error) => { if(background)backgroundBlockedUntil=Date.now()+15000; throw unreachable(error); });
-        if(response.status===429||response.status===503)backgroundBlockedUntil=Math.max(backgroundBlockedUntil,Date.now()+providerCooldown({status:response.status,retryAfterMs:retryAfterMs(response.headers)}));
+        if(response.status===429||response.status>=500)backgroundBlockedUntil=Math.max(backgroundBlockedUntil,Date.now()+providerCooldown({status:response.status,retryAfterMs:retryAfterMs(response.headers)}));
         // 503 means the rate limit was hit; back off and retry a couple of times.
         const retryDelay=retryAfterMs(response.headers);
         if (response.status === 503 && attempt < 2 && !background && retryDelay<=15000) { await sleep(Math.max(2000 * (attempt + 1), retryDelay)); continue; }

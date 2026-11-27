@@ -161,3 +161,11 @@ test("a failed primary image cannot win the fallback race again",async()=>{
   assert.equal(result.coverUrl,cover);
   assert.ok(!result.coverAlternatives?.includes(youtube));
 });
+
+test("primary stage deadlines cancel unstarted hedges and distinguish timeouts from missing art",async()=>{
+  const {firstArtwork}=require("../../electron/discover/artwork.cjs");
+  let signal,release,hedges=0;
+  await assert.rejects(firstArtwork([s=>{signal=s;return new Promise(resolve=>{release=resolve;});},async()=>{hedges++;return {coverUrl:cover};}],{staggerMs:100,timeoutMs:10}),/temporarily unavailable/);
+  assert.equal(signal.aborted,true);assert.equal(hedges,0);
+  release({});
+});

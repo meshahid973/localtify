@@ -69,7 +69,7 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
   const lookupArtwork = createArtworkLookup(musicBrainzClient, now, async (title, artist) => {
     const settings = getSettings();
     const apiKey = apiKeyFor(settings);
-    if (settings.discoverEnabled !== true || !/^[0-9a-f]{32}$/i.test(apiKey)) return null;
+    if (!active() || !/^[0-9a-f]{32}$/i.test(apiKey)) return null;
     if (!artworkClient || artworkKey !== apiKey) {
       artworkKey = apiKey;
       artworkClient = createLastfmClient({ apiKey, cacheFile: cacheFile ? cacheFile + ".artwork" : "", fetch, now, artwork:true });
@@ -118,9 +118,9 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
     const normalize = value => String(value || "").normalize("NFKC").trim().replace(/\s+/g," ").toLowerCase();
     if (kind === "artist") {
       if (!lookupFanart || !musicBrainzClient.searchCatalog) return {};
-      const items = await musicBrainzClient.searchCatalog("artist",title).catch(()=>[]);
-      if (!items.some(item=>item.id===id && normalize(item.name)===normalize(title))) return {};
-      return getSettings().discoverEnabled === true ? lookupFanart("artist",id).catch(()=>({})) : {};
+      const items = await musicBrainzClient.searchCatalog("artist",title,{background:true});
+      if (!items.some(item=>item?.id===id && normalize(item.name)===normalize(title))) return {};
+      return strict(lookupFanart,"artist",id);
     }
     const items = musicBrainzClient.getRecording ? [await musicBrainzClient.getRecording(id,{background:true})] : await musicBrainzClient.searchRecordings(title,artist,{background:true});
     const match = items.find(item=>item?.id===id &&
@@ -133,9 +133,8 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
     const primary = catalogArtwork("recording",{...match,releases:selected});
     const groups = [...new Set(selected.map(release=>release["release-group"]?.id).filter(value=>MBID.test(value||"")))];
     if (lookupFanart && groups.length===1 && active() && !withoutFailedArtwork(primary,excluded).coverUrl) {
-      const alternate = await strict(lookupFanart,"album",groups[0]).catch(()=>({}));
-      const covers = [...new Set([primary.coverUrl,primary.fallbackCoverUrl,...(primary.coverAlternatives||[]),alternate.coverUrl,...(alternate.coverAlternatives||[])].filter(Boolean))].slice(0,6);
-      if (covers.length) return { ...primary,coverUrl:covers[0],fallbackCoverUrl:covers[1],coverAlternatives:covers };
+      const alternate = withoutFailedArtwork(await strict(lookupFanart,"album",groups[0]),excluded);
+      if(alternate.coverUrl)return {...alternate,...(primary.durationMs?{durationMs:primary.durationMs}:{})};
     }
     return primary;
   }
