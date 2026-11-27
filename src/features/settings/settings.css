@@ -131,7 +131,8 @@
 @media (max-width: 740px) {
   .settingsPage { padding: 18px 0 90px; }
   .settingsPage .settingsTwoColumn, .settingsPage .settingsGrid.twoCols { grid-template-columns: 1fr; }
-  .settingsPage :is(.toggleRow,.rangeRow) { grid-template-columns: 1fr; gap: 7px; padding: 9px 0; }
+  .settingsPage .toggleRow { grid-template-columns: minmax(0,1fr) auto; gap: 12px; padding: 9px 0; }
+  .settingsPage .rangeRow { grid-template-columns: minmax(0,1fr); gap: 7px; padding: 9px 0; }
   .settingsPage .rangeRow input[type="range"] { width: 100%; }
   .settingsPage .settingsCategoryHeader { align-items: start; }
   .settingsPage .settingsCategoryHeader > span { width: 100%; }

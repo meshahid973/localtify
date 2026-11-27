@@ -2,29 +2,21 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { SetStateAction } from "react";
 import type { Song, LibraryDropSide } from "./song.types";
 import { reorderSongList, saveLibraryOrder } from "./library.utils";
+import { lookupLibrarySong } from "../search/incrementalLibraryIndex";
 import { runLocaltifyIdleTask } from "../../app/runtime/idle";
 
 export function useOrderedLibrary(ready: boolean) {
   const [songs, publish] = useState<Song[]>([]);
   const current = useRef<Song[]>([]);
   const savedOrder = useRef<string[]>([]);
-  const lookup = useRef<{ songs: Song[]; byId: Map<string, Song> } | null>(null);
   const setSongs = useCallback((update: SetStateAction<Song[]>) => {
     const next = typeof update === "function" ? update(current.current) : update;
     if (next === current.current) return;
     current.current = next;
-    lookup.current = null;
     publish(next);
   }, []);
   const getSong = useCallback((id: string, hint?: number) => {
-    const list = current.current;
-    if (hint !== undefined && list[hint]?.id === id) return list[hint];
-    if (lookup.current?.songs !== list) {
-      const byId = new Map<string, Song>();
-      for (const song of list) if (!byId.has(song.id)) byId.set(song.id, song);
-      lookup.current = { songs: list, byId };
-    }
-    return lookup.current.byId.get(id);
+    return lookupLibrarySong(current.current, id, hint);
   }, []);
   const persist = useCallback((next: Song[]) => {
     saveLibraryOrder(next);

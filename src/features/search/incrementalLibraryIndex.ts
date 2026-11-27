@@ -14,6 +14,15 @@ export type LibraryIndex = {
   sourceSongs: readonly Song[];
 };
 
+const indexedSongs = new WeakMap<readonly Song[], Map<string, Song>>();
+
+/** Read the existing search index for this snapshot; before React indexes a new snapshot, use the live list. */
+export function lookupLibrarySong(songs: readonly Song[], id: string, hint?: number) {
+  if (hint !== undefined && songs[hint]?.id === id) return songs[hint];
+  const index = indexedSongs.get(songs);
+  return index ? index.get(id) : songs.find(song => song.id === id);
+}
+
 const edits = new WeakMap<readonly Song[], {before: WeakRef<readonly Song[]>; index: number}>();
 
 function artistKeys(song: Song): string[] {
@@ -102,6 +111,9 @@ export function reconcileLibraryIndex(songs: readonly Song[], previous?: Library
     }
   }
 
+  // Only publish an index after reconciliation is complete. Preserve the first-match
+  // behavior for malformed libraries containing duplicate IDs.
+  if (songsById.size === songs.length) indexedSongs.set(songs, songsById);
   if (stableOrder && searchEntries === previous.searchEntries) return previous;
   return {
     songsById, songIndexById, searchEntries,

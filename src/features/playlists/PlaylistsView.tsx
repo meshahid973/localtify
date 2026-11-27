@@ -1,6 +1,6 @@
 import "../../shared/ui/collection-layout.css";
 import "./playlists.css";
-import "./playlist-oled.css";
+import "./playlist-toolbar.css";
 import { isAndroidApp } from "../../app/platform";
 import DailyMixesShelf, { type DailyMixesShelfProps } from "../analysis/DailyMixesShelf";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent } from "react";

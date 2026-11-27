@@ -1020,15 +1020,14 @@ function saveSettings(settings) {
   let tx = settingsWriteTransactions.get(database);
   if (!tx) {
     const stmt = database.prepare(`
-    INSERT INTO settings (key, value)
-    VALUES (?, ?)
-    ON CONFLICT(key) DO UPDATE SET value = excluded.value WHERE settings.value IS NOT excluded.value
-  `);
-
+      INSERT INTO settings (key, value)
+      VALUES (?, ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value WHERE settings.value IS NOT excluded.value
+    `);
     tx = database.transaction((items) => {
-    for (const [key, value] of items) {
-      stmt.run(key, JSON.stringify(value));
-    }
+      for (const [key, value] of items) {
+        stmt.run(key, JSON.stringify(value));
+      }
     });
     settingsWriteTransactions.set(database, tx);
   }

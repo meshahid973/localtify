@@ -22,7 +22,7 @@ function loadTypescript(file) {
   new Function("module", "exports", "require", compiled)(module, module.exports, requireFromSource);
   return module.exports;
 }
-const { reconcileLibraryIndex, patchLibrarySong, replaceLibrarySong } =
+const { reconcileLibraryIndex, patchLibrarySong, replaceLibrarySong, lookupLibrarySong } =
   loadTypescript(path.join(root, "src/features/search/incrementalLibraryIndex.ts"));
 const song = (id, artist = "Artist A", album = "Album A") => ({
   id, title: "Song " + id, artist, album, filePath: "/music/" + id + ".mp3", playCount: 0, liked: false
@@ -159,4 +159,21 @@ test("single-track hint never survives a reorder or an intervening patch", () =>
   assert.deepEqual([...nextIndex.songIndexById.keys()],["c","a","b"]);
   assert.equal(nextIndex.searchEntries[2].song.playCount,3);
   assert.equal(first.searchEntries[1].song.playCount,0);
+});
+
+test("song lookups reuse the indexed snapshot without returning stale tracks", () => {
+  const a = song("a"), b = song("b"), list = [a, b];
+  const first = reconcileLibraryIndex(list);
+  assert.equal(lookupLibrarySong(list, "b", 0), b);
+  const updated = patchLibrarySong(list, "b", { liked: true });
+  assert.equal(lookupLibrarySong(updated, "b"), updated[1]);
+  const next = reconcileLibraryIndex(updated, first);
+  assert.equal(lookupLibrarySong(updated, "b"), next.songsById.get("b"));
+  assert.equal(lookupLibrarySong(list, "b"), b);
+  const removed = [a];
+  reconcileLibraryIndex(removed, next);
+  assert.equal(lookupLibrarySong(removed, "b"), undefined);
+  const duplicate = [a, {...a, title:"duplicate"}];
+  reconcileLibraryIndex(duplicate);
+  assert.equal(lookupLibrarySong(duplicate, "a"), a);
 });

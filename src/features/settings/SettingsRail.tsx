@@ -40,10 +40,12 @@ export default function SettingsRail({
     if (!selected || !rail) return;
     const rect = selected.getBoundingClientRect();
     const bounds = rail.getBoundingClientRect();
-    if (rect.top < bounds.top + 8) rail.scrollTop -= bounds.top + 8 - rect.top;
-    else if (rect.bottom > bounds.bottom - 8) rail.scrollTop += rect.bottom - bounds.bottom + 8;
+    if (rail.scrollHeight > rail.clientHeight) {
+      if (rect.top < bounds.top + 8) rail.scrollTop -= bounds.top + 8 - rect.top;
+      else if (rect.bottom > bounds.bottom - 8) rail.scrollTop += rect.bottom - bounds.bottom + 8;
+    }
     const nav = selected.closest("nav");
-    if (!nav) return;
+    if (!nav || nav.scrollWidth <= nav.clientWidth) return;
     const navBounds = nav.getBoundingClientRect();
     if (rect.left < navBounds.left + 8) nav.scrollLeft -= navBounds.left + 8 - rect.left;
     else if (rect.right > navBounds.right - 8) nav.scrollLeft += rect.right - navBounds.right + 8;
