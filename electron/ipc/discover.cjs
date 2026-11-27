@@ -264,7 +264,7 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
             const missing=tracks.filter(track=>!enrichCatalogTrack(track,cached).coverUrl);
             if(missing.length<2||!musicBrainzClient?.searchRecordingBatch||!jobActive())return cached;
             try{
-              const records=await musicBrainzClient.searchRecordingBatch(name,missing.map(track=>track.title),{background:true});
+              const records=await musicBrainzClient.searchRecordingBatch(name,missing.map(track=>track.title),{background:true,deadlineAt:Date.now()+1500});
               return jobActive()?[...cached,...records]:[];
             }catch{return cached;}
           },

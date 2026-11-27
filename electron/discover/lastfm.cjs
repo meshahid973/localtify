@@ -158,6 +158,7 @@ function createLastfmClient({ apiKey, cacheFile, fetch = globalThis.fetch, now =
 
   const list = (value) => (Array.isArray(value) ? value : value ? [value] : []);
   const artistName = (item) => String(item?.artist?.name ?? item?.artist ?? "").trim();
+  const mbid=value=>typeof value==="string"&&/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(value)?value.toLowerCase():undefined;
   return {
     async similarArtists(artist, limit = 30) {
       const body = await call("artist.getsimilar", { artist, limit: String(limit) });
@@ -166,7 +167,7 @@ function createLastfmClient({ apiKey, cacheFile, fetch = globalThis.fetch, now =
     },
     async topTracks(artist, limit = 3) {
       const body = await call("artist.gettoptracks", { artist, limit: String(limit) });
-      return list(body?.toptracks?.track).map((item) => ({ title: String(item?.name || "").trim(), artist: artistName(item) || artist, url: item?.url || "", ...(Number(item?.duration)>0 && Number.isFinite(Number(item.duration)) ? {durationMs:Number(item.duration)*1000} : {}) }))
+      return list(body?.toptracks?.track).map((item) => ({ title: String(item?.name || "").trim(), artist: artistName(item) || artist, url: item?.url || "", ...(mbid(item?.mbid)?{recordingId:mbid(item.mbid)}:{}), ...(mbid(item?.artist?.mbid)?{artistIds:[mbid(item.artist.mbid)]}:{}), ...(Number(item?.duration)>0 && Number.isFinite(Number(item.duration)) ? {durationMs:Number(item.duration)*1000} : {}) }))
         .filter((item) => item.title).slice(0, limit);
     },
     async searchTracks(title, limit = 35) {

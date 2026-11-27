@@ -720,3 +720,10 @@ test("artist catalog batch reuses existing catalog results and only queries the 
   assert.equal(enrichCatalogTrack(track,[candidate]).coverUrl,"https://coverartarchive.org/release/"+release+"/front-250");
   assert.deepEqual(enrichCatalogTrack(track,[{...candidate,releases:[{id:release,title:"Album"}]}]),track);
 });
+
+test("expired background catalog batch never starts another provider request",async()=>{
+  const {createMusicBrainzClient}=require("../../electron/musicbrainz/client.cjs");let calls=0;
+  const client=createMusicBrainzClient({userAgent:"Localtify tests",fetchImpl:async()=>{calls++;return {ok:true,headers:new Headers(),json:async()=>({recordings:[]})};}});
+  await assert.rejects(client.searchRecordingBatch("Artist",["One","Two"],{background:true,deadlineAt:Date.now()-1}));
+  assert.equal(calls,0);
+});

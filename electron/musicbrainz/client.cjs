@@ -41,7 +41,7 @@ function createMusicBrainzClient({ userAgent, fetchImpl = fetch, minIntervalMs =
     });
   }
 
-  function request(pathname, params = {}, { background = false } = {}) {
+  function request(pathname, params = {}, { background = false, deadlineAt = 0 } = {}) {
     const url = new URL(pathname, API);
     for (const [key, value] of Object.entries({ ...params, fmt: "json" })) url.searchParams.set(key, value);
     const key = url.href;
@@ -57,7 +57,7 @@ function createMusicBrainzClient({ userAgent, fetchImpl = fetch, minIntervalMs =
       if (!background) existing.background = false;
       return existing.promise;
     }
-    if (background && Date.now() < backgroundBlockedUntil) return Promise.reject(unavailable());
+    if ((deadlineAt&&Date.now()>=deadlineAt)||(background && Date.now() < backgroundBlockedUntil)) return Promise.reject(unavailable());
     if (waiting.length >= 128 || (background && waiting.filter(job => job.background).length >= 16)) {
       return Promise.reject(new Error("MusicBrainz request queue is busy. Try again shortly."));
     }
@@ -65,12 +65,13 @@ function createMusicBrainzClient({ userAgent, fetchImpl = fetch, minIntervalMs =
     const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
     const run = async () => {
       for (let attempt = 0; ; attempt += 1) {
-        if (background && Date.now() < backgroundBlockedUntil) throw unavailable();
+        if ((deadlineAt&&Date.now()>=deadlineAt)||(background && Date.now() < backgroundBlockedUntil)) throw unavailable();
         const wait = lastAt + minIntervalMs - Date.now();
+        if(deadlineAt&&Date.now()+Math.max(0,wait)>=deadlineAt)throw unavailable();
         if (wait > 0) await sleep(wait);
-        if (background && Date.now() < backgroundBlockedUntil) throw unavailable();
+        if ((deadlineAt&&Date.now()>=deadlineAt)||(background && Date.now() < backgroundBlockedUntil)) throw unavailable();
         lastAt = Date.now();
-        const response = await fetchImpl(key, { headers: { "User-Agent": userAgent, Accept: "application/json" }, signal: AbortSignal.timeout(timeoutMs) }).catch((error) => { if(background)backgroundBlockedUntil=Date.now()+15000; throw unreachable(error); });
+        const response = await fetchImpl(key, { headers: { "User-Agent": userAgent, Accept: "application/json" }, signal: AbortSignal.timeout(deadlineAt?Math.max(1,Math.min(timeoutMs,deadlineAt-Date.now())):timeoutMs) }).catch((error) => { if(background&&!deadlineAt)backgroundBlockedUntil=Date.now()+15000; throw unreachable(error); });
         if(response.status===429||response.status>=500)backgroundBlockedUntil=Math.max(backgroundBlockedUntil,Date.now()+providerCooldown({status:response.status,retryAfterMs:retryAfterMs(response.headers)}));
         // 503 means the rate limit was hit; back off and retry a couple of times.
         const retryDelay=retryAfterMs(response.headers);

@@ -70,15 +70,18 @@ function mapRow(row,kind) {
   }
   const id=row?.playlistItemData?.videoId||titleRun?.navigationEndpoint?.watchEndpoint?.videoId||row?.overlay?.musicItemThumbnailOverlayRenderer?.content?.musicPlayButtonRenderer?.playNavigationEndpoint?.watchEndpoint?.videoId||endpoints.map(e=>e?.watchEndpoint?.videoId).find(id=>videoId.test(id||""));
   if(!videoId.test(id||""))return null;
-  const artists=metadata.filter(r=>["MUSIC_PAGE_TYPE_ARTIST","MUSIC_PAGE_TYPE_USER_CHANNEL"].includes(kindOf(r))).map(r=>clean(r.text)).filter(Boolean);
+  const artistRuns=metadata.filter(r=>["MUSIC_PAGE_TYPE_ARTIST","MUSIC_PAGE_TYPE_USER_CHANNEL"].includes(kindOf(r)));
+  const artists=artistRuns.map(r=>clean(r.text)).filter(Boolean);
+  const artistIds=[...new Set(artistRuns.map(r=>browse(r)?.browseId).filter(id=>artistId.test(id||"")))].map(id=>"ytmusic:"+id);
   const segments=metadata.map(r=>r?.text||"").join("").split("•").map(clean).filter(Boolean);
   if(["song","video"].includes(segments[0]?.toLowerCase()))segments.shift();
   const artist=artists.join(", ")||segments.find(v=>!duration(v)&&!/^\d[\d,.]*\s*(?:views|plays)$/i.test(v))||"";
   if(!artist)return null;
-  const album=clean(metadata.find(r=>kindOf(r)==="MUSIC_PAGE_TYPE_ALBUM")?.text);
+  const albumRun=metadata.find(r=>kindOf(r)==="MUSIC_PAGE_TYPE_ALBUM");
+  const album=clean(albumRun?.text),albumId=browse(albumRun)?.browseId;
   const fixed=arr(row.fixedColumns).flatMap(c=>runs(c?.musicResponsiveListItemFixedColumnRenderer?.text));
   const durationMs=[...metadata,...fixed].map(r=>duration(clean(r?.text))).find(Boolean);
-  return {id:"ytmusic:"+id,title,artist,album,subtitle:[artist,album].filter(Boolean).join(" · "),url:"https://www.youtube.com/watch?v="+id,durationMs,coverUrl:coverFor(row,id)};
+  return {id:"ytmusic:"+id,title,artist,album,subtitle:[artist,album].filter(Boolean).join(" · "),url:"https://www.youtube.com/watch?v="+id,durationMs,coverUrl:coverFor(row,id),...(artistIds.length?{artistIds}:{}),...(/^MPREb_[A-Za-z0-9_-]{1,80}$/.test(albumId||"")?{albumId:"ytmusic:"+albumId}:{})};
 }
 function mapSearchResponse(body,kind,query,strictQuery=true) {
   const tabs=arr(body?.contents?.tabbedSearchResultsRenderer?.tabs);
