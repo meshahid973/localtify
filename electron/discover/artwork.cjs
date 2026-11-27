@@ -183,26 +183,34 @@ function createArtworkLookup(client,now=Date.now,trackInfo,lookupAudioDb,lookupM
   async function resolve(key,{fallback=false,primaryOnly=false,active=()=>true,excluded=[],retryPrimary=false,configuration=""}={},work) {
     if(!active())return {};
     if(key.length>1024)key="identity:"+artworkDigest(key);
-    const requestKey="failure:"+artworkDigest([key,primaryOnly,retryPrimary,excluded,configuration]);
+    // Version negative entries independently: old false negatives must not suppress a repaired resolver.
+    const requestKey="failure:v2:"+artworkDigest([key,primaryOnly,retryPrimary,excluded,configuration]);
     await cache.hydrate();
     if(!active())return {};
-    const candidate=withoutFailedArtwork(cache.get(key),excluded);
+    let candidate=withoutFailedArtwork(cache.get(key),excluded);
+    // A successfully resolved alternate is reusable on the next primary lookup.
+    // Explicit fallback requests still select independent candidates.
+    if(!candidate.coverUrl&&!fallback&&!excluded.length&&key.endsWith(",false]")){
+      const alternateKey=key.slice(0,-6)+"true]";
+      candidate=withoutFailedArtwork(cache.get(alternateKey),excluded);
+    }
     if(candidate.coverUrl){trace("artwork-cache",{state:"hit"});return candidate;}
-    trace("artwork-cache",{state:"miss"});
-    const negative=cache.get(requestKey);
-    if(negative?.outcome==="missing")return {};
-    if(negative?.outcome==="unavailable")throw unavailable();
     if(pending.has(requestKey)){trace("artwork-cache",{state:"shared"});return pending.get(requestKey);}
+    const negative=cache.get(requestKey);
+    if(negative?.outcome==="missing"){trace("artwork-cache",{state:"negative-missing"});return {};}
+    if(negative?.outcome==="unavailable"){trace("artwork-cache",{state:"negative-unavailable"});throw unavailable();}
+    trace("artwork-cache",{state:"miss"});
     if(fallback ? fallbackRunning>=2 : primaryRunning>=4) throw capacity();
     if(fallback)fallbackRunning++;else primaryRunning++;
     const task=Promise.resolve().then(()=>active()?work():{}).then(value=>{
       if(!active())return {};
       const result=withoutFailedArtwork(value,excluded);
       if(result.coverUrl){cache.set(key,result,86400000);trace("artwork-resolved",{state:result.coverUrl.includes("coverartarchive.org")?"musicbrainz":result.coverUrl.includes("dzcdn.net")?"deezer":result.coverUrl.includes("lastfm")?"lastfm":"other"});}
-      else cache.set(requestKey,{outcome:"missing"},300000);
+      else {cache.set(requestKey,{outcome:"missing"},30000);trace("artwork-resolution",{state:"missing"});}
       return result;
     },error=>{
       if(active() && error?.code !== "ARTWORK_CAPACITY")cache.set(requestKey,{outcome:"unavailable"},15000);
+      trace("artwork-resolution",{state:error?.code==="ARTWORK_CAPACITY"?"busy":"unavailable"});
       throw error;
     }).finally(()=>{pending.delete(requestKey);if(fallback)fallbackRunning--;else primaryRunning--;});
     pending.set(requestKey,task);

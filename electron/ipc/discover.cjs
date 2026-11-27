@@ -73,6 +73,8 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
     const cleanedArtist=artist.replace(/\s+[-–—]\s+Topic$/i,"").trim();
     const query=(title+" "+cleanedArtist).trim().slice(0,160);
     if(!active()||signal?.aborted)return [];
+    const cached=searchYouTubeArtwork.cachedArtist?.(cleanedArtist)||[];
+    if(withoutFailedArtwork(matchMusicArtwork(cached,title,artist,identity),excluded).coverUrl){trace("catalog-artwork-reuse",{state:"hit"});return cached;}
     const songs=await timed("provider-youtube-recording",()=>searchYouTubeArtwork("recording",query,{artwork:true,signal}));
     if(withoutFailedArtwork(matchMusicArtwork(songs,title,artist,identity),excluded).coverUrl)return songs;
     if(!active()||signal?.aborted)return [];
@@ -199,7 +201,7 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
             : lookupArtistArtwork(title.trim(),options.fallback,options.primaryOnly,excluded,options.retryPrimary))
           : await lookupArtwork(title.trim(),artist.trim(),options);
         return requestActive() ? {status:"artwork",...artwork} : {status:"off"};
-      } catch(error) { return !requestActive() ? {status:"off"} : error?.code === "ARTWORK_CAPACITY" ? {status:"artwork",outcome:"busy"} : primaryOnly === true && !providerId ? {status:"artwork",outcome:"unavailable"} : { status: "error", error: "Artwork unavailable." }; }
+      } catch(error) { return !requestActive() ? {status:"off"} : error?.code === "ARTWORK_CAPACITY" ? {status:"artwork",outcome:"busy"} : {status:"artwork",outcome:"unavailable"}; }
     }
     if (payload?.catalog !== undefined) {
       const query = payload.catalog;

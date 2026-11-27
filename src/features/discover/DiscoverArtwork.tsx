@@ -71,6 +71,10 @@ function enqueueArtwork(key: string, fallback: boolean, priority: number, person
     if(--entry.users===0&&!entry.started)entry.cancel();
   }};
 }
+function rememberArtwork(key: string, value: DiscoverArtwork) {
+  cache.set(key,{at:Date.now(),value});
+  while(cache.size>512)cache.delete(cache.keys().next().value!);
+}
 function cachedArtwork(key: string) {
   const hit = cache.get(key);
   if (!hit || Date.now() - hit.at >= 86400000) {
@@ -100,10 +104,11 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
   const ref = useRef<HTMLSpanElement>(null);
   const [near, setNear] = useState(false);
   const [visible,setVisible]=useState(false);
+  const visibleRef=useRef(false);
   useEffect(() => {
     if (!ref.current) return;
     const stopNear=observeArtwork(ref.current,setNear);
-    const stopVisible=observeVisibleArtwork(ref.current,setVisible);
+    const stopVisible=observeVisibleArtwork(ref.current,value=>{visibleRef.current=value;setVisible(value);});
     return ()=>{stopNear();stopVisible();};
   }, []);
   const album = providerId ? artwork?.album || "" : "";
@@ -115,12 +120,13 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
   const [badLocal, setBadLocal] = useState("");
   const [failure, setFailure] = useState<{key:string; urls:string[]}>({key:"",urls:[]});
   const cachedFallback=cachedArtwork(key + ":fallback");
-  const cover = resolved?.key === key ? resolved.value : cachedFallback || cachedArtwork(key);
+  const cover = resolved?.key === key && (resolved.value.coverUrl||resolved.value.fallbackCoverUrl||resolved.value.coverAlternatives?.length) ? resolved.value : cachedFallback || cachedArtwork(key);
   const failed = failure.key === key ? failure.urls : [];
   const directUrls = [artwork?.coverUrl, artwork?.fallbackCoverUrl, ...(artwork?.coverAlternatives ?? []).slice(0,6)].map(safeCover).filter(Boolean);
   const resolvedUrls = [safeCover(cover?.coverUrl), safeCover(cover?.fallbackCoverUrl), ...(cover?.coverAlternatives ?? []).slice(0,6).map(safeCover)];
   const candidates = failed.length ? [...resolvedUrls, ...directUrls] : [...directUrls, ...resolvedUrls];
-  const selected = loaded?.key===key && candidates.includes(loaded.url) && !failed.includes(loaded.url) ? loaded.url : undefined;
+  const selectedSource=loaded?.key===key&&local?.url===loaded.url?local.source:loaded?.key===key?loaded.url:undefined;
+  const selected = selectedSource && candidates.includes(selectedSource) && !failed.includes(selectedSource) ? selectedSource : undefined;
   const src = selected || candidates.find(url => url && !failed.includes(url));
   const needsLookup = lookup && !src;
   // The cache returns a display URL only; the provider URL remains the lookup/download identity.
@@ -152,6 +158,11 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
   const requestKey = exhausted ? key + ":fallback" : key;
   const excludedKey=JSON.stringify(failed.slice(-8).sort());
   const retryPrimary=exhausted && resolved?.key===key && resolved.unavailable===true && !resolved.fallback;
+  useEffect(()=>{
+    if(!near||!needsLookup)return;
+    const job=sharedLookups.get(requestKey+excludedKey+String(retryPrimary));
+    if(job&&!job.started){job.priority=Math.min(job.priority,lookupPriority+(visible?0:4));pumpArtwork();}
+  },[near,needsLookup,requestKey,excludedKey,retryPrimary,lookupPriority,visible]);
   const tooManyFailures=!src&&failed.length>=8;
   const finishedMissing=resolved?.key===key&&resolved.epoch===retryEpoch&&resolved.fallback&&!resolved.value.coverUrl&&!resolved.value.fallbackCoverUrl&&!resolved.value.coverAlternatives?.length;
   useEffect(() => {
@@ -175,9 +186,13 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
       if (!live) return;
       const cached = cachedArtwork(requestKey);
       if (cached && hasCandidate(cached)) { setResolved({ key, value: cached, fallback: exhausted, epoch:retryEpoch }); return; }
-      const request=enqueueArtwork(requestKey+excludedKey+String(retryPrimary),exhausted,lookupPriority+(visible?0:4),person,()=>window.localitfy.getDiscoveries({
-        artwork: {title,artist,kind:person?"artist":"recording",fallback:exhausted,primaryOnly:!exhausted&&!providerId,providerId,album,durationMs,failedUrls:excluded,retryPrimary}
-      }));
+      const request=enqueueArtwork(requestKey+excludedKey+String(retryPrimary),exhausted,lookupPriority+(visibleRef.current?0:4),person,async()=>{
+        const answer=await window.localitfy.getDiscoveries({
+          artwork: {title,artist,kind:person?"artist":"recording",fallback:exhausted,primaryOnly:!exhausted&&!providerId,providerId,album,durationMs,failedUrls:excluded,retryPrimary}
+        });
+        if(answer.status==="artwork"&&hasCandidate(answer))rememberArtwork(requestKey,answer);
+        return answer;
+      });
       attempts++;
       if(attempts>1)discoverTrace("artwork-retry",{count:attempts-1});
       if(!request){
@@ -200,16 +215,12 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
           else if(!exhausted)setResolved({key,value:{},fallback:false,epoch:retryEpoch,unavailable:true});
           return;
         }
-        if(hasCandidate(answer)){
-          cache.set(requestKey,{at:Date.now(),value:answer});
-          while(cache.size>512)cache.delete(cache.keys().next().value!);
-        }
         setResolved({key,value:answer,fallback:exhausted,epoch:retryEpoch,unavailable:answer.outcome==="unavailable"});
       });
     };
     start();
     return () => { live = false; releaseRequest?.(); if (retryTimer !== undefined) window.clearTimeout(retryTimer); };
-  }, [key, title, artist, needsLookup, near, person, exhausted, requestKey, providerId, album, durationMs, excludedKey, retryPrimary, finishedMissing, tooManyFailures, lookupPriority, visible, retryEpoch]);
+  }, [key, title, artist, needsLookup, near, person, exhausted, requestKey, providerId, album, durationMs, excludedKey, retryPrimary, finishedMissing, tooManyFailures, lookupPriority, retryEpoch]);
   return <span ref={ref} className="discoverCover" aria-hidden="true">
     {!imageReady ? (person ? <UserRound size={24} /> : <Disc3 size={24} />) : null}
     {(near || imageReady) && src && displaySrc ? <img key={displaySrc} ref={imageRef} src={displaySrc} alt="" loading={priority ? "eager" : "lazy"} decoding="async" fetchPriority={priority ? "high" : "auto"} referrerPolicy="no-referrer" data-ready={imageReady}

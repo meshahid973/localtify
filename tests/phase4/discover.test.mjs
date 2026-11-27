@@ -806,3 +806,15 @@ test("Discover IPC enriches selected title-and-artist recommendations without re
   assert.equal(result.artists[0].topTracks[0].providerId,mbid);
   assert.equal(result.artists[0].topTracks[0].coverUrl,"https://coverartarchive.org/release/"+release+"/front-250");
 });
+
+test("resolved fallback artwork is reused on primary lookup and old misses expire",async()=>{
+  const {createArtworkLookup}=require("../../electron/discover/artwork.cjs");
+  let clock=1000,calls=0,ready=false;
+  const coverUrl="https://lh3.googleusercontent.com/abc=w256-h256-l90-rj";
+  const lookup=createArtworkLookup(null,()=>clock,undefined,undefined,async()=>{calls++;return ready?[{title:"Track",artist:"Artist",coverUrl}]:[];});
+  assert.deepEqual(await lookup("Track","Artist",{primaryOnly:true}),{});
+  const before=calls; await lookup("Track","Artist",{primaryOnly:true});assert.equal(calls,before);
+  clock+=30001;ready=true;
+  assert.equal((await lookup("Track","Artist",{fallback:true,retryPrimary:true})).coverUrl,coverUrl);
+  const after=calls; assert.equal((await lookup("Track","Artist",{primaryOnly:true})).coverUrl,coverUrl);assert.equal(calls,after);
+});
