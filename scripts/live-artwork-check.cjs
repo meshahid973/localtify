@@ -189,6 +189,25 @@ async function liveResolution(){
   return {cases,providers:counts,note:"Network metadata timing is time to response headers; per-track metadataMs includes parsing, scheduling and matching. No user library data."};
 }
 
+async function liveCatalogBatch(){
+  const {enrichCatalogTrack}=require("../electron/discover/artwork.cjs");
+  const artist="Daft Punk",tracks=["One More Time","Digital Love","Harder, Better, Faster, Stronger"].map(title=>({title,artist}));
+  let requests=0;
+  const client=createMusicBrainzClient({userAgent:"Localtify/0.5.1 (https://github.com/meshahid973/localtify)",timeoutMs:9000,
+    fetchImpl:async(url,options)=>{requests++;return fetch(url,options);}});
+  const start=performance.now();
+  try{
+    const records=await client.searchRecordingBatch(artist,tracks.map(t=>t.title),{background:true});
+    const catalogMs=Math.round(performance.now()-start);
+    const results=await Promise.all(tracks.map(async track=>{
+      const row=enrichCatalogTrack(track,records);
+      const imageStart=performance.now();
+      const image=row.coverUrl?await imageAvailable(row.coverUrl).catch(()=>false):false;
+      return {title:track.title,attached:Boolean(row.coverUrl),image,imageMs:row.coverUrl?Math.round(performance.now()-imageStart):null};
+    }));
+    return {artist,requests,catalogMs,records:records.length,frontMarked:records.filter(row=>row.releases?.some(release=>release["cover-art-archive"]?.front===true)).length,results};
+  }catch{return {artist,requests,catalogMs:Math.round(performance.now()-start),status:"unavailable"};}
+}
 async function main() {
   const jobs=[];
   jobs.push(check("Deezer",async()=>{
@@ -312,8 +331,9 @@ async function main() {
   }:undefined;
   if(comparison&&[...comparison.baseline,...comparison.candidate].some(row=>row.resolved!==row.expected))throw Error("Controlled artwork identity resolution diverged");
   const cacheComparison=baselineRoot?{baseline:await controlledCache(baselineRoot),candidate:await controlledCache(path.resolve(__dirname,".."))}:undefined;
+  const catalogBatch=process.argv.includes("--resolution")||baselineRoot?await liveCatalogBatch():undefined;
   console.log(JSON.stringify({checkedAt:new Date().toISOString(),sample:{title:expectedTitle,artist:expectedArtist},
-    checks:sorted,resolution,comparison,cacheComparison,note:"Advisory network observation, not a guarantee of future provider availability"},null,2));
+    checks:sorted,resolution,comparison,cacheComparison,catalogBatch,note:"Advisory network observation, not a guarantee of future provider availability"},null,2));
   // Manual release acceptance must not silently pass without configured keys
   // or when either keyed integration is unable to retrieve usable artwork.
   if(process.argv.includes("--require-keyed")) {

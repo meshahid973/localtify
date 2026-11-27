@@ -79,7 +79,14 @@ export default function DiscoverView({ settings, updateSetting, sendToDownloads,
       if (requestVersion !== requestVersionRef.current) return;
       if(next.status==="ready"&&next.partial){
         // Keep an existing complete shelf visible during refresh; cold opening publishes early.
-        setResult(current=>current?.status==="ready"&&!current.partial?current:next);
+        setResult(current=>{
+          if(current?.status!=="ready"||current.partial)return next;
+          const newArtists=new Map(next.artists.map(artist=>[artist.name,artist]));
+          const incoming=new Set(next.tracks.map(trackId));
+          return {...next,
+            artists:[...current.artists.map(artist=>newArtists.get(artist.name)||artist),...next.artists.filter(artist=>!current.artists.some(old=>old.name===artist.name))],
+            tracks:[...current.tracks.filter(track=>!incoming.has(trackId(track))),...next.tracks]};
+        });
         const complete=await window.localitfy.getDiscoveries();
         if(requestVersion===requestVersionRef.current)setResult(current=>complete.status==="error"&&current?.status==="ready"?current:complete);
       }else setResult(current=>next.status==="error"&&current?.status==="ready"?current:next);

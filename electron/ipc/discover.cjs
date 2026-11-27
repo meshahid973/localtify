@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { randomUUID, createHash } = require("node:crypto");
 const { createLastfmClient, createLastfmResponseCache } = require("../discover/lastfm.cjs");
-const { discover, withoutOwned } = require("../discover/recommend.cjs");
+const { discover, withoutOwned, reuseRecommendationArtwork } = require("../discover/recommend.cjs");
 const { catalogArtwork, createArtworkLookup, matchArtistArtwork, matchMusicArtwork, firstArtwork, withoutFailedArtwork, enrichCatalogTrack } = require("../discover/artwork.cjs");
 const { rankCatalog, searchTerms } = require("../discover/catalog.cjs");
 const { safeDisplayCover } = require("../runtime/remote-cover.cjs");
@@ -248,31 +248,35 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
     if (running?.apiKey === apiKey) return choose(running).then(answer);
     if (payload?.refresh !== true && saved?.apiKey === apiKey && now() - saved.result.generatedAt < RESULT_TTL_MS) return answer(saved.result);
     const client = createLastfmClient({ apiKey, cacheFile, ...(cacheFile?{responseCache:catalogResponses}:{}), fetch, now });
-    let publish;
+    let publish, jobLive=true;
+    const jobActive=()=>jobLive&&requestActive();
     const initial=new Promise(resolve=>{publish=resolve;});
     const promise = Promise.resolve().then(async()=>{
       let result;
+      const previous=saved?.apiKey===apiKey&&now()-saved.result.generatedAt<86400000?saved.result:null;
       try {
-        result=await discover({...current,client,now:now(),active:requestActive,
+        result=await discover({...current,client,now:now(),active:jobActive,
           // Reuse existing catalog data without widening unofficial endpoint usage.
           // Additional batch requests use the documented MusicBrainz search API.
           catalog:async(name,tracks)=>{
-            if(!requestActive())return [];
+            if(!jobActive())return [];
             const cached=[...(searchYouTubeMusic?.cachedArtist?.(name)||[]),...(searchYouTubeArtwork?.cachedArtist?.(name)||[])];
             const missing=tracks.filter(track=>!enrichCatalogTrack(track,cached).coverUrl);
-            if(missing.length<2||!musicBrainzClient?.searchRecordingBatch||!requestActive())return cached;
+            if(missing.length<2||!musicBrainzClient?.searchRecordingBatch||!jobActive())return cached;
             try{
               const records=await musicBrainzClient.searchRecordingBatch(name,missing.map(track=>track.title),{background:true});
-              return requestActive()?[...cached,...records]:[];
+              return jobActive()?[...cached,...records]:[];
             }catch{return cached;}
           },
-          onProgress:partial=>publish(partial)});
+          onProgress:partial=>publish(reuseRecommendationArtwork(partial,previous))});
+        result=reuseRecommendationArtwork(result,previous);
         if(!requestActive())result={status:"off"};
         else if(running?.promise===promise)saved={apiKey,result};
       }catch(error){
         result=saved?.apiKey===apiKey&&saved.result.status==="ready"?saved.result:
           {status:"error",error:error?.message||"Discover failed. Please try again."};
       }finally{
+        jobLive=false;
         if(running?.promise===promise)running=null;
       }
       publish(result);

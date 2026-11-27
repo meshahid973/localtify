@@ -178,4 +178,24 @@ function withoutOwned(result, { songs, hiddenArtists = [] }) {
     tracks: result.tracks.filter((track) => !ownedTracks.has(trackKey(track.artist, track.title)) && !hidden({ artist: track.artist })) };
 }
 
-module.exports = { discover, withoutOwned, libraryTaste, titleKey };
+// Refresh may leave the same exact recommendation without a catalog match.
+// Retain its previous validated artwork only when identity has not changed.
+function reuseRecommendationArtwork(result,previous){
+  if(result?.status!=="ready"||previous?.status!=="ready")return result;
+  const identity=track=>JSON.stringify([key(track.title),key(track.artist),track.url]);
+  const old=new Map([...previous.tracks,...previous.artists.flatMap(artist=>artist.topTracks)].map(track=>[identity(track),track]));
+  const reuse=track=>{
+    if(safeDisplayCover(track.coverUrl))return track;
+    const before=old.get(identity(track));
+    if(!before||!safeDisplayCover(before.coverUrl)||
+      (track.providerId&&before.providerId!==track.providerId)||
+      (track.album&&key(track.album)!==key(before.album))||
+      (track.durationMs&&(!before.durationMs||Math.abs(track.durationMs-before.durationMs)>5000)))return track;
+    const alternatives=(before.coverAlternatives||[]).filter(safeDisplayCover).slice(0,6);
+    return {...track,coverUrl:before.coverUrl,providerId:track.providerId||before.providerId,
+      album:track.album||before.album,durationMs:track.durationMs||before.durationMs,
+      ...(safeDisplayCover(before.fallbackCoverUrl)?{fallbackCoverUrl:before.fallbackCoverUrl}:{}),...(alternatives.length?{coverAlternatives:alternatives}:{})};
+  };
+  return {...result,artists:result.artists.map(artist=>({...artist,topTracks:artist.topTracks.map(reuse)})),tracks:result.tracks.map(reuse)};
+}
+module.exports = { discover, withoutOwned, libraryTaste, titleKey, reuseRecommendationArtwork };
