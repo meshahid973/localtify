@@ -79,7 +79,7 @@ public class LocaltifyNativePlugin extends Plugin {
     public void resolveRemoteArtwork(PluginCall call) {
         try {
             artworkRequests.execute(() -> {
-                try { call.resolve(artworkCache.resolve(call.getString("url"),artworkRequests)); }
+                try { call.resolve(Boolean.TRUE.equals(call.getBoolean("cacheOnly",false)) ? artworkCache.peek(call.getString("url")) : artworkCache.resolve(call.getString("url"),artworkRequests)); }
                 catch (Exception error) { call.resolve(new JSObject()); }
             });
         } catch (java.util.concurrent.RejectedExecutionException busy) { call.resolve(new JSObject()); }

@@ -209,6 +209,15 @@ function createRemoteArtworkCache({ dir, maxBytes = 128 * 1024 * 1024, maxEntrie
     pending.set(url,task);
     return task;
   }
+  // Display consumers can check existing fresh bytes without starting a fetch.
+  async function peek(url) {
+    if (closed || !eligible(url)) return "";
+    try {
+      await init();
+      const hit = await withLock(()=>cached(url));
+      return !closed && hit && hit.row.expiresAt > now() ? hit.file : "";
+    } catch { return ""; }
+  }
   async function resolve(url) {
     if (closed || !eligible(url)) return "";
     try {
@@ -220,7 +229,7 @@ function createRemoteArtworkCache({ dir, maxBytes = 128 * 1024 * 1024, maxEntrie
       return await refresh(url,hit?.row);
     } catch { return ""; }
   }
-  return {resolve, remainingTtl(url){
+  return {resolve, peek, remainingTtl(url){
     const row = rows.get(url);
     if (!row || closed) return 0;
     const timestamp = now();

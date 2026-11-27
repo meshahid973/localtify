@@ -242,6 +242,16 @@ final class RemoteArtworkCache {
             else if(n.endsWith(".part")&&now-file.lastModified()>3600000L)file.delete();
         }
     }
+    synchronized JSObject peek(String url) throws Exception {
+        if(!eligible(url))return new JSObject();
+        if(!initialized){prune();initialized=true;}
+        String key=hash(url.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        JSONObject previous=row(key);
+        long now=System.currentTimeMillis();
+        if(previous.optLong("expires")<=now||!validFile(previous))return new JSObject();
+        touch(key,previous,now);
+        return result(previous.optString("file"),previous.optLong("expires"));
+    }
     JSObject resolve(String url, java.util.concurrent.Executor executor) throws Exception {
         if(!eligible(url))return new JSObject();
         String key=hash(url.getBytes(java.nio.charset.StandardCharsets.UTF_8));

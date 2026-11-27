@@ -147,9 +147,9 @@ export function createAndroidBridge(): Bridge {
       return saved;
     },
     // Desktop cache tokens are not transferable; the phone owns its artwork files.
-    resolveRemoteArtwork: async (url: string) => {
+    resolveRemoteArtwork: async (url: string, cacheOnly = false) => {
       if (phoneLibrary.effectiveSettings().discoverEnabled !== true) return null;
-      const result = await LocaltifyNative.resolveRemoteArtwork({ url }).catch(() => null);
+      const result = await LocaltifyNative.resolveRemoteArtwork({ url, cacheOnly }).catch(() => null);
       return result?.url && phoneLibrary.effectiveSettings().discoverEnabled === true ? { url: result.url, cacheTtlMs: result.cacheTtlMs } : null;
     },
     cancelCoverThumbnail: async () => false,

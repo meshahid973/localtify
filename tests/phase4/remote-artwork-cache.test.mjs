@@ -87,3 +87,25 @@ test("stale artwork is served only during an explicit revalidation window and va
     assert.equal(await cache.resolve(a),"");assert.equal(calls,1);
   }finally{await cache.close();await fs.rm(dir,{recursive:true,force:true});}
  });
+
+test("display cache peeks never fetch, including misses, expiry, saturation and restart", async () => {
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),"localtify-art-peek-"));
+  let calls=0,clock=1000;
+  const fetchImpl=async()=>{calls++;return new Response(bytes,{headers:{"content-type":"image/png","cache-control":"public,max-age=1,stale-while-revalidate=4"}});};
+  try{
+    let cache=createRemoteArtworkCache({dir,fetchImpl,maxEntries:1,now:()=>clock});
+    assert.deepEqual(await Promise.all([cache.peek(a),cache.peek(a)]),["",""]);
+    assert.equal(calls,0);
+    const file=await cache.resolve(a);
+    assert.ok(file);assert.equal(calls,1);
+    assert.equal(await cache.peek(a),file);
+    await cache.close();
+    cache=createRemoteArtworkCache({dir,fetchImpl,maxEntries:1,now:()=>clock});
+    assert.equal(await cache.peek(a),file);assert.equal(calls,1);
+    clock=2100;
+    assert.equal(await cache.peek(a),"");assert.equal(calls,1);
+    assert.ok(await cache.resolve(b));assert.equal(calls,2);
+    assert.equal(await cache.peek(a),"");assert.equal(calls,2);
+    await cache.close();
+  }finally{await fs.rm(dir,{recursive:true,force:true});}
+});

@@ -1356,9 +1356,9 @@ app.whenReady().then(async () => {
     dir: path.join(app.getPath("userData"), "disposable-remote-artwork-v1"),
     maxBytes: Math.max(16, Math.min(512, Number(process.env.LOCALTIFY_ARTWORK_CACHE_MB) || 128)) * 1024 * 1024
   });
-  ipcRouter.handle("covers:resolve-remote", async (_event, url) => {
+  ipcRouter.handle("covers:resolve-remote", async (_event, url, cacheOnly = false) => {
     if (getSettings().discoverEnabled !== true) return null;
-    const file = await remoteArtworkCache.resolve(url);
+    const file = await (cacheOnly === true ? remoteArtworkCache.peek(url) : remoteArtworkCache.resolve(url));
     if (!file || getSettings().discoverEnabled !== true) return null;
     const local = safeMediaUrl(file);
     return local ? { url: local, cacheTtlMs: remoteArtworkCache.remainingTtl(url) } : null;
