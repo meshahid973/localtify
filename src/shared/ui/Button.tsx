@@ -1,5 +1,6 @@
 import { forwardRef } from "react";
 import "./controls.css";
+import { OpticalButton } from "../appearance/OpticalButton";
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?:
@@ -33,16 +34,19 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       ...rest
     },
     ref,
-  ) => (
-    <button
-      ref={ref}
-      type={type}
-      className={`ltButton ${variantClasses[variant]} ${sizeClasses[size]} ${className}`.trim()}
-      {...rest}
-    >
-      {children}
-    </button>
-  ),
+  ) => {
+    return (
+      <OpticalButton
+        ref={ref}
+        type={type}
+        className={`ltButton ${variantClasses[variant]} ${sizeClasses[size]} ${className}`.trim()}
+        primary={variant === "primary" || variant === "glass-primary"}
+        {...rest}
+      >
+        {children}
+      </OpticalButton>
+    );
+  },
 );
 
 Button.displayName = "Button";

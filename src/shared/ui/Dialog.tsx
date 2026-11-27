@@ -2,6 +2,9 @@ import { useRef, type ReactNode, type MouseEvent, type PointerEvent } from "reac
 import { createPortal } from "react-dom";
 import { motion } from "motion/react";
 import { useAppReducedMotion } from "../hooks/useAppReducedMotion";
+import { useAppearance } from "../appearance/appearance";
+import { GlassCard } from "../../vendor/liquid-glass/glass-card";
+import { panelOptics } from "../appearance/OpticalCard";
 import { useModalFocus } from "../hooks/useModalFocus";
 
 type Props = {
@@ -10,12 +13,15 @@ type Props = {
   label?: string; labelledBy?: string; describedBy?: string;
   role?: "dialog" | "alertdialog"; portal?: boolean; dismissible?: boolean;
   animated?: boolean;
+  glassTint?: number;
+  glassBlur?: number;
 };
 
 export default function Dialog({ open, onClose, children, className, backdropClassName,
   label, labelledBy, describedBy, role = "dialog", portal = true,
-  dismissible = true, animated = true }: Props) {
+  dismissible = true, animated = true, glassTint = .66, glassBlur = 2 }: Props) {
   const dialogRef = useModalFocus<HTMLDivElement>(open);
+  const { kit } = useAppearance();
   const reduced = useAppReducedMotion();
   const pointerStart = useRef<{ x: number; y: number; target: EventTarget | null } | null>(null);
   if (!open) return null;
@@ -31,8 +37,7 @@ export default function Dialog({ open, onClose, children, className, backdropCla
         Math.hypot(event.clientX - start.x, event.clientY - start.y) > 6) return;
     onClose();
   };
-  const body = <div className={backdropClassName} onPointerDown={onPointerDown} onClick={onBackdropClick}>
-    <motion.div ref={dialogRef} tabIndex={-1} role={role} aria-modal="true" aria-label={label}
+  const dialog = <motion.div ref={dialogRef} tabIndex={-1} role={role} aria-modal="true" aria-label={label}
       aria-labelledby={labelledBy} aria-describedby={describedBy} className={className}
       initial={reduced || !animated ? false : { opacity: 0, scale: .97, y: 10 }}
       animate={animated && !reduced ? { opacity: 1, scale: 1, y: 0 } : undefined}
@@ -42,7 +47,9 @@ export default function Dialog({ open, onClose, children, className, backdropCla
         event.preventDefault(); event.stopPropagation(); onClose();
       } }}>
       {children}
-    </motion.div>
+    </motion.div>;
+  const body = <div className={backdropClassName} onPointerDown={onPointerDown} onClick={onBackdropClick}>
+    <GlassCard asChild optical={!!kit} className={kit ? "ltOpticalCard rounded-[inherit]" : undefined} tint={glassTint} blur={glassBlur} optics={panelOptics}>{dialog}</GlassCard>
   </div>;
   return portal ? createPortal(body, document.querySelector(".app") || document.body) : body;
 }

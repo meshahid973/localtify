@@ -5,6 +5,7 @@ import type { Settings } from "../settings.types";
 import WatchedFoldersSettings from "../../library/WatchedFoldersSettings";
 import PhoneSyncSettings from "../../sync/PhoneSyncSettings";
 import { isAndroidApp, computerName } from "../../../app/platform";
+import Button from "../../../shared/ui/Button";
 
 const AndroidSyncSettings = lazy(() => import("../../../platform/android/AndroidSyncSettings"));
 
@@ -35,15 +36,15 @@ export default function LibrarySettings(p: LibrarySettingsProps) {
   const preview = p.metadataCleanPreview;
   return <section className="settingsCategoryPage settingsLibraryClean" aria-label="Library settings">
     <header className="settingsCategoryHeader"><h4>{phone ? `Sync with your ${computerName()}` : "Library"}</h4></header>
-    {phone ? <div id="settings-library-sync"><Suspense fallback={<p role="status">Loading sync…</p>}><AndroidSyncSettings /></Suspense></div> : <>
+    {phone ? <div id="settings-library-sync" tabIndex={-1} role="region" aria-label="Phone sync"><Suspense fallback={<p role="status">Loading sync…</p>}><AndroidSyncSettings /></Suspense></div> : <>
       <div id="settings-library-folders"><WatchedFoldersSettings settings={p.settings} updateSetting={p.updateSetting} /></div>
       <div id="settings-library-sync"><PhoneSyncSettings /></div>
       <SettingSection title="Artwork" id="settings-library-artwork" className="settingsArtworkSection">
         <div className="settingsActionRow">
-          <button className="settingsActionButton" type="button" disabled={p.pixelArtBusy || !p.songs.length}
+          <Button variant="secondary" size="sm" disabled={p.pixelArtBusy || !p.songs.length}
             onClick={() => { if (window.confirm("Replace all song covers with random artwork?")) void p.randomizeAllCovers(); }}>
             {p.pixelArtBusy ? "Updating covers…" : "Shuffle artwork"}
-          </button>
+          </Button>
         </div>
       </SettingSection>
       <details id="settings-library-cleanup" className="settingsDisclosure settingsMaintenanceDisclosure">
@@ -60,14 +61,14 @@ export default function LibrarySettings(p: LibrarySettingsProps) {
             </button>)}
           </div>
           <div className="settingsActionRow metadataCleanerActionRowV440">
-            <button className="settingsActionButton settingsPrimaryAction" type="button" disabled={p.libraryScanBusy}
-              onClick={p.cleanLibraryMetadataAction}>Preview cleanup</button>
-            <button className="settingsActionButton" type="button" disabled={p.libraryScanBusy || !p.metadataUndoCount}
-              onClick={() => void p.undoLastMetadataCleanAction?.()}>Undo{p.metadataUndoCount ? ` (${p.metadataUndoCount})` : ""}</button>
-            <button className="settingsActionButton" type="button" disabled={p.libraryScanBusy}
-              onClick={() => void p.repairMovedSongsAction()}>Relink files</button>
-            <button className="settingsActionButton" type="button" disabled={p.libraryScanBusy}
-              onClick={p.rebuildSearchIndexAction}>Rebuild search</button>
+            <Button size="sm" disabled={p.libraryScanBusy}
+              onClick={p.cleanLibraryMetadataAction}>Preview cleanup</Button>
+            <Button variant="ghost" size="sm" disabled={p.libraryScanBusy || !p.metadataUndoCount}
+              onClick={() => void p.undoLastMetadataCleanAction?.()}>Undo{p.metadataUndoCount ? ` (${p.metadataUndoCount})` : ""}</Button>
+            <Button variant="secondary" size="sm" disabled={p.libraryScanBusy}
+              onClick={() => void p.repairMovedSongsAction()}>Relink files</Button>
+            <Button variant="secondary" size="sm" disabled={p.libraryScanBusy}
+              onClick={p.rebuildSearchIndexAction}>Rebuild search</Button>
           </div>
           {preview ? <div className="metadataCleanerPreviewBoxV425 metadataCleanerPreviewBoxV440" role="status" aria-live="polite">
             <div className="metadataCleanerPreviewHeadV425 metadataCleanerPreviewHeadV440">
@@ -81,10 +82,10 @@ export default function LibrarySettings(p: LibrarySettingsProps) {
               </div>)}
             </div>
             <div className="metadataCleanerPreviewActionsV425 metadataCleanerPreviewActionsV440">
-              <button className="settingsActionButton settingsPrimaryAction" type="button" disabled={p.libraryScanBusy || !(preview.changedCount || 0)}
-                onClick={() => void p.applyMetadataCleanPreviewAction?.()}>Apply changes</button>
-              <button className="settingsActionButton" type="button" disabled={p.libraryScanBusy}
-                onClick={() => p.cancelMetadataCleanPreviewAction?.()}>Cancel</button>
+              <Button size="sm" disabled={p.libraryScanBusy || !(preview.changedCount || 0)}
+                onClick={() => void p.applyMetadataCleanPreviewAction?.()}>Apply changes</Button>
+              <Button variant="secondary" size="sm" disabled={p.libraryScanBusy}
+                onClick={() => p.cancelMetadataCleanPreviewAction?.()}>Cancel</Button>
             </div>
           </div> : null}
           {p.libraryScanMessage ? <p className="settingsHintText" role="status">{p.libraryScanMessage}</p> : null}

@@ -1,5 +1,7 @@
+import { TransportButton, TransportGroup } from "./TransportGroup";
 import { Slider } from "../../../shared/ui/Slider";
-import { Fragment } from "react";
+import { VolumeSlider } from "./VolumeSlider";
+import { Fragment, lazy, Suspense } from "react";
 import type { CSSProperties, Dispatch, DragEventHandler, MouseEvent as ReactMouseEvent, MutableRefObject, PointerEventHandler, SetStateAction } from "react";
 import { ListMusic, MicVocal, Repeat2, Shuffle, SkipBack, SkipForward, Volume2, VolumeX } from "lucide-react";
 import "../player.css";
@@ -13,8 +15,9 @@ import type { Song } from "../../library/song.types";
 import type { Settings } from "../../settings/settings.types";
 import type { CoverColorSyncMode } from "../../settings/theme.types";
 import type { RepeatMode } from "../player.types";
-import { DevicePicker } from "../../connect/DevicePicker";
 import type { ConnectControls } from "../../connect/usePlaybackConnect";
+
+const DevicePicker = lazy(() => import("../../connect/DevicePicker").then(module => ({ default: module.DevicePicker })));
 
 export type PlayerBarProps = {
   ambientStyle: CSSProperties;
@@ -43,7 +46,7 @@ export type PlayerBarProps = {
   playNext: (automatic?: boolean, source?: string) => unknown;
   playPrevious: () => unknown;
   previewSeek: (value: string, input: HTMLInputElement) => unknown;
-  previewVolume: (value: string, input: HTMLInputElement) => unknown;
+  previewVolume: (value: string, input?: HTMLInputElement) => unknown;
   progressDurationLabelRefs: MutableRefObject<Array<HTMLSpanElement | null>>;
   progressInputRefs: MutableRefObject<Array<HTMLInputElement | null>>;
   progressRangeStyle: CSSProperties;
@@ -81,7 +84,6 @@ export default function PlayerBar(props: PlayerBarProps) {
   const {
     ambientStyle,
     commitSeek,
-    commitVolume,
     currentDuration,
     currentSong,
     displayedProgress,
@@ -95,7 +97,6 @@ export default function PlayerBar(props: PlayerBarProps) {
     isPlaying,
     isSeeking,
     isShuffle,
-    isVolumeDragging,
     nowPlayingContextLabel,
     nowPlayingSongMotionClass,
     nowPlayingTransitionKey,
@@ -105,7 +106,6 @@ export default function PlayerBar(props: PlayerBarProps) {
     playNext,
     playPrevious,
     previewSeek,
-    previewVolume,
     progressDurationLabelRefs,
     progressInputRefs,
     progressRangeStyle,
@@ -121,7 +121,6 @@ export default function PlayerBar(props: PlayerBarProps) {
     repeatMode,
     revealNowPlaying,
     setIsShuffle,
-    setIsVolumeDragging,
     settings,
     startPlayerResize,
     startSeekPreview,
@@ -130,9 +129,6 @@ export default function PlayerBar(props: PlayerBarProps) {
     toggleQueuePanel,
     toggleRepeat,
     toggleMute,
-    volumeDraft,
-    volumeDraftRef,
-    volumeRangeStyle,
     connect
   } = props;
   return (
@@ -221,8 +217,8 @@ export default function PlayerBar(props: PlayerBarProps) {
             </div>
 
             <div className="playerCenter">
-              <div className="controlRow">
-                <button
+              <TransportGroup className="controlRow" active={!props.immersiveOpen}>
+                <TransportButton
                   type="button"
                   className={isShuffle ? "circleButton active" : "circleButton"}
                   onClick={() => setIsShuffle((value) => !value)}
@@ -230,17 +226,17 @@ export default function PlayerBar(props: PlayerBarProps) {
                   aria-pressed={isShuffle}
                 >
                   <Shuffle className="playerControlIcon" size={15} strokeWidth={2.15} aria-hidden="true" />
-                </button>
-                <button type="button" className="circleButton" onClick={playPrevious} aria-label="previous song">
+                </TransportButton>
+                <TransportButton type="button" className="circleButton" onClick={playPrevious} aria-label="previous song">
                   <SkipBack className="playerControlIcon" size={17} strokeWidth={2.15} aria-hidden="true" />
-                </button>
-                <button type="button" className={`circleButton main ${playButtonBurst ? `playButtonBurst playButtonBurst${playButtonBurst % 2}` : ""}`} onClick={togglePlay} aria-label={isPlaying ? "pause" : "play"}>
+                </TransportButton>
+                <TransportButton type="button" className={`circleButton main ${playButtonBurst ? `playButtonBurst playButtonBurst${playButtonBurst % 2}` : ""}`} onClick={togglePlay} aria-label={isPlaying ? "pause" : "play"}>
                   <PlayerPlayPauseMorphIcon playing={isPlaying} />
-                </button>
-                <button type="button" className="circleButton" onClick={() => playNext(true)} aria-label="next song">
+                </TransportButton>
+                <TransportButton type="button" className="circleButton" onClick={() => playNext(true)} aria-label="next song">
                   <SkipForward className="playerControlIcon" size={17} strokeWidth={2.15} aria-hidden="true" />
-                </button>
-                <button
+                </TransportButton>
+                <TransportButton
                   className={`circleButton repeatButton ${repeatMode !== "off" ? `active repeat-${repeatMode}` : ""}`}
                   onClick={toggleRepeat}
                   type="button"
@@ -251,8 +247,8 @@ export default function PlayerBar(props: PlayerBarProps) {
                 >
                   <Repeat2 className="playerControlIcon" size={16} strokeWidth={2.15} aria-hidden="true" />
                   {repeatButtonStateText ? <span className="repeatStateMark" aria-hidden="true">{repeatButtonStateText}</span> : null}
-                </button>
-              </div>
+                </TransportButton>
+              </TransportGroup>
 
               <div className="progressRow progressResetSweep" key={`progress-${nowPlayingTransitionKey}-${Boolean(props.immersiveOpen)}`}>
                 <span ref={(node) => { progressTimeLabelRefs.current[1] = props.immersiveOpen ? null : node; }}>{formatTime(displayedTime)}</span>
@@ -284,7 +280,7 @@ export default function PlayerBar(props: PlayerBarProps) {
 
             <div className="playerRight">
               <div className="playerRightTools">
-                {connect ? <DevicePicker controls={connect} variant="bar" /> : null}
+                {connect ? <Suspense fallback={null}><DevicePicker controls={connect} variant="bar" /></Suspense> : null}
                 {lyricsOpen !== undefined ? (
                   <button
                     type="button"
@@ -326,34 +322,7 @@ export default function PlayerBar(props: PlayerBarProps) {
                       <VolumeX className="playerControlIcon" size={17} strokeWidth={2.2} aria-hidden="true" />
                     )}
                   </button>
-                  <Slider
-                    min="0"
-                    max="100"
-                    step="1"
-                    value={volumeDraft}
-                    style={volumeRangeStyle}
-                    aria-label="volume level"
-                    onPointerDown={(event) => {
-                      event.currentTarget.setPointerCapture?.(event.pointerId);
-                      volumeDraftRef.current = Number(event.currentTarget.value);
-                      setIsVolumeDragging(true);
-                      previewVolume(event.currentTarget.value, event.currentTarget);
-                    }}
-                    onInput={(event) => previewVolume(event.currentTarget.value, event.currentTarget)}
-                    onChange={(event) => previewVolume(event.currentTarget.value, event.currentTarget)}
-                    onPointerUp={(event) => {
-                      event.currentTarget.releasePointerCapture?.(event.pointerId);
-                      commitVolume(event.currentTarget.value);
-                    }}
-                    onPointerCancel={(event) => {
-                      event.currentTarget.releasePointerCapture?.(event.pointerId);
-                      commitVolume(event.currentTarget.value);
-                    }}
-                    onKeyUp={(event) => commitVolume(event.currentTarget.value)}
-                    onBlur={(event) => {
-                      if (isVolumeDragging) commitVolume(event.currentTarget.value);
-                    }}
-                  />
+                  <VolumeSlider player={props} label="volume level" optical={!props.immersiveOpen} />
                 </div>
               </div>
             </div>

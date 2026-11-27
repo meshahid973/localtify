@@ -55,13 +55,12 @@ export type PlaybackUrlCacheEntry = {
   mtimeMs?: number;
 };
 
-export type ImportAnimationPhase = "idle" | "picking" | "scanning" | "success" | "error";
+export type ImportAnimationPhase = "idle" | "scanning" | "success" | "error";
 export type ImportAnimationState = {
   active: boolean;
   phase: ImportAnimationPhase;
   message: string;
   count: number;
-  total: number;
   preview: Song[];
 };
 

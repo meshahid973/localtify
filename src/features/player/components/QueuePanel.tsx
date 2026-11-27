@@ -1,4 +1,6 @@
-import { IconButton } from "../../../shared/ui/IconButton";
+import { GlassButtonGroup, GlassButtonGroupItem } from "../../../vendor/liquid-glass/glass-button-group";
+import { controlOptics, useAppearance } from "../../../shared/appearance/appearance";
+import "../../../shared/ui/icon-button.css";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, SetStateAction } from "react";
 import { GripVertical, ListX, Repeat, Repeat1, X } from "lucide-react";
@@ -58,6 +60,7 @@ export default function QueuePanel({
   openSongContextMenu,
   unavailable
 }: QueuePanelProps) {
+  const { kit } = useAppearance();
   const panelRef = useRef<HTMLElement | null>(null);
   const openerRef = useRef<HTMLElement | null>(null);
   const closeRef = useRef(onClose);
@@ -141,17 +144,18 @@ export default function QueuePanel({
     <aside ref={panelRef} id="localtify-play-queue" className="queuePanel ltOverlaySurface" role="dialog" aria-label="play queue" tabIndex={-1}>
       <header className="queuePanelHead">
         <strong>queue</strong>
-        <div className="queuePanelHeadActions">
+        <GlassButtonGroup optical={!!kit} size="sm" material="clear" tint={.48} optics={controlOptics} backdrop=".queuePanel"
+          className={kit ? "queuePanelHeadActions ltOpticalQueueActions" : "queuePanelHeadActions"} aria-label="Queue actions">
           {entries.length ? (
-            <button type="button" className="queuePanelTextButton" onClick={clearQueue}>
+            <GlassButtonGroupItem className="queuePanelTextButton" onClick={clearQueue}>
               <ListX size={14} strokeWidth={2.4} aria-hidden="true" />
               <span>clear</span>
-            </button>
+            </GlassButtonGroupItem>
           ) : null}
-          <IconButton type="button" className="queuePanelIconButton" onClick={closeAndRestoreFocus} aria-label="close queue">
+          <GlassButtonGroupItem className="ltIconButton queuePanelIconButton" onClick={closeAndRestoreFocus} aria-label="close queue" title="close queue">
             <X size={16} strokeWidth={2.4} aria-hidden="true" />
-          </IconButton>
-        </div>
+          </GlassButtonGroupItem>
+        </GlassButtonGroup>
       </header>
 
       <div className="queuePanelBody">
@@ -218,9 +222,9 @@ export default function QueuePanel({
                       </>} />
                   </button>
                   <span className="queuePanelDuration">{formatTime(song.duration || 0)}</span>
-                  <IconButton type="button" className="queuePanelIconButton" onClick={() => removeQueueItem(index)} aria-label={`remove ${song.title} from queue`} title="remove from queue">
+                  <button type="button" className="ltIconButton queuePanelIconButton" onClick={() => removeQueueItem(index)} aria-label={`remove ${song.title} from queue`} title="remove from queue">
                     <X size={14} strokeWidth={2.4} aria-hidden="true" />
-                  </IconButton>
+                  </button>
                 </li>
               ))}
             </ol>

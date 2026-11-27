@@ -1,10 +1,13 @@
-import { useEffect } from "react";
-import { useModalFocus } from "../../../shared/hooks/useModalFocus";
-import { Heart, HeartOff, Save, Trash2, X } from "lucide-react";
+import { useRef, useState, type FormEvent } from "react";
+import { Heart, Save, Trash2, X } from "lucide-react";
+import Button from "../../../shared/ui/Button";
+import Dialog from "../../../shared/ui/Dialog";
+import { IconButton } from "../../../shared/ui/IconButton";
 import { Cover } from "../../covers/Cover";
 import { formatTime } from "../../../shared/utils/format";
 import type { Playlist } from "../../playlists/playlist.types";
 import type { Song } from "../song.types";
+import "./song-editor.css";
 
 export type SongEditorModalProps = {
   song: Song | null;
@@ -19,76 +22,85 @@ export type SongEditorModalProps = {
   toggleSongPlaylist: (playlistId: string, songId: string) => unknown;
   toggleLike: (songId: string) => unknown;
   askRemoveSong: (songId: string) => unknown;
-  saveEditor: () => unknown;
+  saveEditor: () => Promise<boolean>;
 };
 
-export default function SongEditorModal(props: SongEditorModalProps) {
-  const { song } = props;
-  const dialogRef = useModalFocus(Boolean(song));
-  useEffect(() => {
-    document.body.classList.toggle("localtifyEditorModalOpen", Boolean(song));
-    return () => document.body.classList.remove("localtifyEditorModalOpen");
-  }, [song]);
-
+export default function SongEditorModal({
+  song, onClose, editTitle, setEditTitle, editArtist, setEditArtist, editAlbum, setEditAlbum,
+  playlists, toggleSongPlaylist, toggleLike, askRemoveSong, saveEditor
+}: SongEditorModalProps) {
+  const [saving, setSaving] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
+  const busy = useRef(false);
   if (!song) return null;
-  const {
-    onClose,
-    editTitle, setEditTitle, editArtist, setEditArtist, editAlbum, setEditAlbum,
-    playlists, toggleSongPlaylist, toggleLike, askRemoveSong, saveEditor
-  } = props;
+
+  const editablePlaylists = playlists.filter(playlist => !playlist.rules);
+  const membershipCount = editablePlaylists.filter(playlist => playlist.songIds.includes(song.id)).length;
+
+  async function handleSave(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy.current) return;
+    busy.current = true;
+    setSaving(true);
+    setSaveFailed(false);
+    try {
+      if (!await saveEditor()) setSaveFailed(true);
+    } catch {
+      setSaveFailed(true);
+    } finally {
+      busy.current = false;
+      setSaving(false);
+    }
+  }
 
   return (
-    <div className="modalWrap editorModalWrap" onClick={onClose}>
-      <div ref={dialogRef} tabIndex={-1} className="editorModal editorModalMotion" role="dialog" aria-modal="true" aria-labelledby="song-editor-dialog-title" onClick={(event) => event.stopPropagation()}>
-        <div className="modalHead editorModalHead">
-          <div>
-            <p className="eyebrow">song details</p>
-            <h3 id="song-editor-dialog-title">edit track</h3>
-          </div>
-          <div className="editorHeaderActions">
-            <button className="closeModalButton editorCloseButton" type="button" onClick={onClose} aria-label="Close edit track dialog">
-              <X size={18} strokeWidth={2.4} />
-            </button>
-          </div>
-        </div>
-        <div className="editorGrid editorGridBetter">
-          <aside className="editorCoverBlock editorCoverBlockBetter">
-            <div className="editorCoverShell"><Cover song={song} className="editorCover" /></div>
-            <div className="editorMiniStats" aria-label="song quick stats">
-              <span><strong>{formatTime(song.duration || 0)}</strong><small>duration</small></span>
-              <span><strong>{song.playCount || 0}</strong><small>plays</small></span>
-            </div>
+    <Dialog open onClose={onClose} dismissible={!saving} portal={false} glassTint={.84} glassBlur={6}
+      backdropClassName="songEditorBackdrop" className="songEditor" labelledBy="song-editor-dialog-title">
+      <header className="songEditorHeader">
+        <h2 id="song-editor-dialog-title">Edit track</h2>
+        <IconButton onClick={onClose} disabled={saving} aria-label="Close edit track dialog"><X size={18} aria-hidden="true" /></IconButton>
+      </header>
+      <form onSubmit={handleSave} aria-busy={saving}>
+        <div className="songEditorBody">
+          <aside className="songEditorArtwork" aria-label="Artwork and track stats">
+            <Cover song={song} className="songEditorCover" priority="high" />
+            <dl className="songEditorStats">
+              <div><dt>Duration</dt><dd>{formatTime(song.duration || 0)}</dd></div>
+              <div><dt>Plays</dt><dd>{song.playCount || 0}</dd></div>
+            </dl>
           </aside>
-          <div className="editorFields editorFieldsBetter">
-            <section className="editorCard editorFormCard">
-              <div className="editorSectionTitle"><strong>metadata</strong><span>what shows inside the app</span></div>
-              <div className="editorLabelGrid">
-                <label><span>title</span><input value={editTitle} onChange={(event) => setEditTitle(event.currentTarget.value)} /></label>
-                <label><span>artist</span><input value={editArtist} onChange={(event) => setEditArtist(event.currentTarget.value)} placeholder="artist name" /></label>
-                <label><span>album</span><input value={editAlbum} onChange={(event) => setEditAlbum(event.currentTarget.value)} /></label>
-              </div>
-            </section>
-            <section className="editorCard editorPlaylistCard">
-              <div className="editorSectionTitle"><strong>playlists</strong><span>add this song to one of your mixes</span></div>
-              {playlists.some((playlist) => !playlist.rules) ? (
-                <div className="editorPlaylistChips">
-                  {playlists.filter((playlist) => !playlist.rules).map((playlist) => {
-                    const added = playlist.songIds.includes(song.id);
-                    return <button key={playlist.id} className={`editorPlaylistChip ${added ? "active" : ""}`} type="button" onClick={() => toggleSongPlaylist(playlist.id, song.id)}>{playlist.name}</button>;
-                  })}
+          <div className="songEditorFields">
+            <label>Title<input value={editTitle} readOnly={saving} onChange={event => setEditTitle(event.currentTarget.value)} /></label>
+            <label>Artist<input value={editArtist} readOnly={saving} onChange={event => setEditArtist(event.currentTarget.value)} /></label>
+            <label>Album<input value={editAlbum} readOnly={saving} onChange={event => setEditAlbum(event.currentTarget.value)} /></label>
+            <details className="songEditorPlaylists">
+              <summary><span>Playlists</span><span>{membershipCount ? `${membershipCount} selected` : "None selected"}</span></summary>
+              {editablePlaylists.length ? <>
+                <p>Playlist changes apply immediately.</p>
+                <div className="songEditorPlaylistList">
+                  {editablePlaylists.map(playlist => (
+                    <label key={playlist.id}>
+                      <input type="checkbox" checked={playlist.songIds.includes(song.id)} disabled={saving}
+                        onChange={() => void toggleSongPlaylist(playlist.id, song.id)} />
+                      <span>{playlist.name}</span>
+                    </label>
+                  ))}
                 </div>
-              ) : <p className="settingsHintText">No playlists yet. Create one from the playlists page or the + button on a song.</p>}
-            </section>
-            <div className="editorActions editorActionsBetter">
-              <button className="softButton editorIconButton" onClick={() => toggleLike(song.id)}>
-                {song.liked ? <HeartOff size={15} strokeWidth={2.4} /> : <Heart size={15} strokeWidth={2.4} />}<span>{song.liked ? "unlike" : "like"}</span>
-              </button>
-              <button className="dangerButton editorIconButton" onClick={() => askRemoveSong(song.id)}><Trash2 size={15} strokeWidth={2.4} /><span>remove song</span></button>
-              <button className="heroMain editorIconButton" onClick={saveEditor}><Save size={15} strokeWidth={2.4} /><span>save changes</span></button>
-            </div>
+              </> : <p>No editable playlists yet.</p>}
+            </details>
           </div>
         </div>
-      </div>
-    </div>
+        {saveFailed ? <p className="songEditorError" role="alert">Couldn’t save changes. Try again.</p> : null}
+        <footer className="songEditorActions">
+          <Button variant="ghost" className="songEditorRemove" onClick={() => askRemoveSong(song.id)} disabled={saving}>
+            <Trash2 size={15} aria-hidden="true" /> Remove track
+          </Button>
+          <Button variant="secondary" aria-pressed={Boolean(song.liked)} disabled={saving} onClick={() => toggleLike(song.id)}>
+            <Heart size={15} fill={song.liked ? "currentColor" : "none"} aria-hidden="true" /> Like
+          </Button>
+          <Button type="submit" disabled={saving}><Save size={15} aria-hidden="true" /> {saving ? "Saving…" : "Save changes"}</Button>
+        </footer>
+      </form>
+    </Dialog>
   );
 }

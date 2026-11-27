@@ -1,4 +1,6 @@
+import { TransportButton, TransportGroup } from "./TransportGroup";
 import { Slider } from "../../../shared/ui/Slider";
+import { VolumeSlider } from "./VolumeSlider";
 import { IconButton } from "../../../shared/ui/IconButton";
 import { Fragment, lazy, memo, Suspense, useEffect, useRef, useState } from "react";
 import { Eye, EyeOff, Heart, ListMusic, Maximize, Minimize, Minimize2, MicVocal, Image, Columns2, Repeat2, Shuffle, SkipBack, SkipForward, Volume2, VolumeX } from "lucide-react";
@@ -64,7 +66,6 @@ export default function ImmersivePlayer({ player, song, queue, lyrics, backgroun
     togglePlay, playNext, playPrevious, setIsShuffle, toggleRepeat, toggleLike,
     displayedProgress, displayedTime, currentDuration, progressInputRefs, progressTimeLabelRefs, progressDurationLabelRefs,
     progressRangeStyle, startSeekPreview, previewSeek, commitSeek, isSeeking,
-    volumeDraft, volumeDraftRef, setIsVolumeDragging, isVolumeDragging, previewVolume, commitVolume, volumeRangeStyle,
     settings, toggleMute, connect, ambientStyle, effectiveAmbient, nowPlayingContextLabel, queuePanelOpen, toggleQueuePanel,
     lyricsOpen, toggleLyrics
   } = player;
@@ -140,28 +141,21 @@ export default function ImmersivePlayer({ player, song, queue, lyrics, backgroun
         </div>
       </div>
 
-      <div className="immersiveTransport">
-        <IconButton type="button" className="immersiveIcon" aria-label="Shuffle" aria-pressed={isShuffle} onClick={() => setIsShuffle(value => !value)}><Shuffle size={20} aria-hidden="true" /></IconButton>
-        <IconButton type="button" className="immersiveIcon" aria-label="Previous song" onClick={playPrevious}><SkipBack size={26} aria-hidden="true" /></IconButton>
-        <IconButton type="button" className="immersivePlay" aria-label={isPlaying ? "Pause" : "Play"} onClick={togglePlay}><PlayerPlayPauseMorphIcon playing={isPlaying} /></IconButton>
-        <IconButton type="button" className="immersiveIcon" aria-label="Next song" onClick={() => playNext(true)}><SkipForward size={26} aria-hidden="true" /></IconButton>
-        <IconButton type="button" className="immersiveIcon" aria-label={repeatButtonAriaLabel} aria-pressed={repeatMode !== "off"} onClick={toggleRepeat}>
+      <TransportGroup className="immersiveTransport">
+        <TransportButton type="button" className="ltIconButton immersiveIcon" aria-label="Shuffle" title="Shuffle" aria-pressed={isShuffle} onClick={() => setIsShuffle(value => !value)}><Shuffle size={20} aria-hidden="true" /></TransportButton>
+        <TransportButton type="button" className="ltIconButton immersiveIcon" aria-label="Previous song" title="Previous song" onClick={playPrevious}><SkipBack size={26} aria-hidden="true" /></TransportButton>
+        <TransportButton type="button" className="ltIconButton immersivePlay" aria-label={isPlaying ? "Pause" : "Play"} title={isPlaying ? "Pause" : "Play"} onClick={togglePlay}><PlayerPlayPauseMorphIcon playing={isPlaying} /></TransportButton>
+        <TransportButton type="button" className="ltIconButton immersiveIcon" aria-label="Next song" title="Next song" onClick={() => playNext(true)}><SkipForward size={26} aria-hidden="true" /></TransportButton>
+        <TransportButton type="button" className="ltIconButton immersiveIcon" aria-label={repeatButtonAriaLabel} title={repeatButtonAriaLabel} aria-pressed={repeatMode !== "off"} onClick={toggleRepeat}>
           <Repeat2 size={20} aria-hidden="true" />{repeatButtonStateText ? <span className="immersiveRepeatMark" aria-hidden="true">{repeatButtonStateText}</span> : null}
-        </IconButton>
-      </div>
+        </TransportButton>
+      </TransportGroup>
 
       <div className="immersiveTools" hidden={minimal}>
         <div className="immersiveVolume">
           <IconButton type="button" className="immersiveIcon" onClick={toggleMute}
             aria-label={settings.volume > 0 ? "Mute volume" : "Restore volume"}>{settings.volume > 0 ? <Volume2 size={18} aria-hidden="true" /> : <VolumeX size={18} aria-hidden="true" />}</IconButton>
-          <Slider min="0" max="100" step="1" value={volumeDraft} style={volumeRangeStyle} aria-label="Volume level"
-            onPointerDown={event => { event.currentTarget.setPointerCapture?.(event.pointerId); volumeDraftRef.current = Number(event.currentTarget.value); setIsVolumeDragging(true); previewVolume(event.currentTarget.value, event.currentTarget); }}
-            onInput={event => previewVolume(event.currentTarget.value, event.currentTarget)}
-            onChange={event => previewVolume(event.currentTarget.value, event.currentTarget)}
-            onPointerUp={event => { event.currentTarget.releasePointerCapture?.(event.pointerId); commitVolume(event.currentTarget.value); }}
-            onPointerCancel={event => commitVolume(event.currentTarget.value)}
-            onKeyUp={event => commitVolume(event.currentTarget.value)}
-            onBlur={event => { if (isVolumeDragging) commitVolume(event.currentTarget.value); }} />
+          <VolumeSlider player={player} label="Volume level" optical={!minimal} />
         </div>
         <div className="immersiveActions">
           {connect && !minimal ? <DevicePicker controls={connect} variant="bar" /> : null}

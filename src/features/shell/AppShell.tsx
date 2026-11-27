@@ -1,3 +1,5 @@
+import { AppearanceProvider } from "../../shared/appearance/AppearanceProvider";
+import "../../shared/appearance/appearance.css";
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useStableCallback } from "../../shared/hooks/useStableCallback";
 import { AppReducedMotionContext } from "../../shared/hooks/useAppReducedMotion";
@@ -25,7 +27,9 @@ import type { Song } from "../library/song.types";
 import type { LocalAlbumEntry } from "../albums/album.types";
 import { useDownloadTagPrompt } from "../tagging/useDownloadTagPrompt";
 import SidebarNav from "./SidebarNav";
+import { OpticalButton } from "../../shared/appearance/OpticalButton";
 import { libraryViews } from "./navigation.constants";
+import { LibrarySectionNavigation } from "./LibrarySectionNavigation";
 import "./library-navigation.css";
 import { isAndroidApp } from "../../app/platform";
 import {
@@ -102,7 +106,7 @@ export default function AppShell(props: AppShellProps) {
   const detail = nav.detail;
   const { isSeeking, isVolumeDragging, draggedSongId, isPlaying } = playerBar;
   const { isThreeAm } = home;
-  const playerBackground = effectiveTheme === "light" && settings.playerBackgroundStyle === "oledBlack" ? "flat" : settings.playerBackgroundStyle || "coverBlur";
+  const playerBackground = effectiveTheme === "oled" ? "oledBlack" : effectiveTheme === "light" && settings.playerBackgroundStyle === "oledBlack" ? "flat" : settings.playerBackgroundStyle || "coverBlur";
   const homeBanner = effectiveTheme === "light" && settings.homeBannerType === "cleanBlack" ? "none" : settings.homeBannerType || "dynamic";
   const cardBackground = effectiveTheme === "light" && settings.mediaCardBackground === "oledFlat" ? "solid" : settings.mediaCardBackground || "glassy";
   // The active track owns shell artwork; the mounted entity is a fallback.
@@ -117,7 +121,7 @@ export default function AppShell(props: AppShellProps) {
   // A paused current track remains the listening context; navigation never interrupts its backdrop.
   const trackSources = useMemo(() => trackArtworkSources(home.currentSong), [home.currentSong]);
   const workspaceSources = useMemo(() => resolveWorkspaceArtwork(trackSources, sources, Boolean(detail) && view !== "home"), [trackSources, sources, detail, view]);
-  const artworkEnabled = effectiveCoverColorSyncMode !== "off" && !isAppBackgrounded;
+  const artworkEnabled = effectiveTheme !== "oled" && effectiveCoverColorSyncMode !== "off" && !isAppBackgrounded;
   const { actions, menu } = useCollectionActions(nav, collections, modals.queuePanel.openSongContextMenu);
   const pageProps = { songs: library.songs, currentId: home.currentId, isPlaying, toggleLike: modals.songContextMenu.toggleLike, openPlaylistPicker: modals.songContextMenu.openPlaylistPicker };
   const openSimilarSongs = useStableCallback((songIds: string[], key: string, title: string) => {
@@ -136,6 +140,8 @@ export default function AppShell(props: AppShellProps) {
 
 
   return (
+    <AppearanceProvider enabled={settings.liquidGlass === true} tone={effectiveTheme === "light" ? "light" : "dark"}
+      reducedMotion={settings.reducedMotion} backgrounded={isAppBackgrounded} controlsNeeded={!isAndroidApp() || view === "settings"}>
     <MotionConfig reducedMotion={settings.reducedMotion ? "always" : "user"}>
     <AppReducedMotionContext.Provider value={settings.reducedMotion}>
     <AppActionsContext.Provider value={actions}>
@@ -160,7 +166,9 @@ export default function AppShell(props: AppShellProps) {
       }
       data-platform={platformId}
       data-linux={platformId === "linux" ? "on" : "off"}
-      data-theme={effectiveTheme}
+      data-theme={effectiveTheme === "oled" ? "dark" : effectiveTheme}
+      data-oled={effectiveTheme === "oled" ? "true" : undefined}
+      data-liquid-glass={settings.liquidGlass === true ? "true" : undefined}
       data-anime-visuals={settings.animeVisuals || screensaverPreviewActive || screensaverVisible ? "on" : "off"}
       data-gif-visuals={settings.gifVisualsMode}
       data-corners={settings.softCorners ? "soft" : "sharp"}
@@ -205,7 +213,8 @@ export default function AppShell(props: AppShellProps) {
         </div>
       ) : null}
 
-      {appToast ? <div className="appToast error" key={appToast.id} role="alert">{appToast.message}</div> : null}
+      {appToast ? <div className={`appToast ${appToast.kind}`} key={appToast.id}
+        role={appToast.kind === "error" ? "alert" : "status"}>{appToast.message}</div> : null}
 
       <ImportProgress state={importAnimation} />
 
@@ -226,10 +235,10 @@ export default function AppShell(props: AppShellProps) {
             />
 
             <div className="sidebarBottom">
-              <button className="mainAction importMainAction iconTextButton" onClick={importSongs} aria-label="Import music">
+              <OpticalButton type="button" className="mainAction importMainAction iconTextButton" onClick={importSongs} aria-label="Import music">
                 <FolderPlus className="buttonInlineIcon" size={17} strokeWidth={2.1} aria-hidden="true" />
                 <span className="buttonLabel">import music</span>
-              </button>
+              </OpticalButton>
             </div>
 
             <button
@@ -249,11 +258,7 @@ export default function AppShell(props: AppShellProps) {
               className={`pageTransition pageTransition-${view}`}
               data-view={view}
             >
-              {libraryViews.includes(view) ? <nav className="librarySectionNav" aria-label="Library sections">
-                {([["library", "Songs"], ["albums", "Albums"], ["artists", "Artists"], ["genres", "Genres"], ["playlists", "Playlists"], ["liked", "Liked"]] as const).map(([id, label]) =>
-                  <button key={id} type="button" data-library-section={id} aria-current={view === id ? "page" : undefined} onClick={() => nav.go(id)}>{label}</button>
-                )}
-              </nav> : null}
+              {libraryViews.includes(view) ? <LibrarySectionNavigation view={view} go={nav.go} /> : null}
               <PageErrorBoundary key={view + ":" + (detail?.id ?? "")}>
               {view === "home" ? <HomeView {...home} /> : null}
 
@@ -298,6 +303,7 @@ export default function AppShell(props: AppShellProps) {
     </AppActionsContext.Provider>
     </AppReducedMotionContext.Provider>
     </MotionConfig>
+    </AppearanceProvider>
   );
 }
 
@@ -351,7 +357,7 @@ function ShellDialogs({ modals, menu, actions, albums, collections, downloads, t
 
       {modals.whatsNew.open?<Suspense fallback={null}><WhatsNewModal {...modals.whatsNew} /></Suspense>:null}
 
-      {modals.songEditor.song ? <Suspense fallback={null}><SongEditorModal {...modals.songEditor} /></Suspense> : null}
+      {modals.songEditor.song ? <Suspense fallback={null}><SongEditorModal key={modals.songEditor.song.id} {...modals.songEditor} /></Suspense> : null}
 
       {modals.playlistPicker.song ? <Suspense fallback={null}><PlaylistPickerModal {...modals.playlistPicker} /></Suspense> : null}
 

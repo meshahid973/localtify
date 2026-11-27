@@ -1145,11 +1145,17 @@ function createWindow() {
     }
   });
   const thumbnailWindow = mainWindow;
-  const syncThumbnailQueue = () => coverThumbnailQueue.setPaused(
-    thumbnailWindow.isDestroyed() || !thumbnailWindow.isVisible() || thumbnailWindow.isMinimized()
-  );
-  for (const event of ["show", "hide", "minimize", "restore"]) thumbnailWindow.on(event, syncThumbnailQueue);
-  syncThumbnailQueue();
+  const syncWindowVisibility = () => {
+    if (thumbnailWindow.isDestroyed()) return;
+    const visible = thumbnailWindow.isVisible() && !thumbnailWindow.isMinimized();
+    coverThumbnailQueue.setPaused(!visible);
+    if (!thumbnailWindow.webContents.isDestroyed() && thumbnailWindow.webContents.getURL()) {
+      thumbnailWindow.webContents.send("window:visibility", visible);
+    }
+  };
+  for (const event of ["show", "hide", "minimize", "restore"]) thumbnailWindow.on(event, syncWindowVisibility);
+  thumbnailWindow.webContents.on("did-finish-load", syncWindowVisibility);
+  syncWindowVisibility();
   attachLocaltifyDevToolsShortcuts(mainWindow);
   applyWindowTranslucencyToWindow(mainWindow, windowTranslucency);
   const rendererIndexPath = isDev ? "" : getRendererIndexPath();
@@ -1339,7 +1345,7 @@ app.whenReady().then(async () => {
       const afterSongs = listSongsShaped();
       console.log(`[localitfy import] selected=${validAudioFiles.length}, changed=${changedCount}, after=${afterSongs.length}`);
       return afterSongs;
-    } catch (error) { console.log("[localitfy import error]", error?.stack || error?.message); return listSongsShaped(); }
+    } catch (error) { console.log("[localitfy import error]", error?.stack || error?.message); throw new Error("Could not import music"); }
   });
   ipcRouter.handle("library:repair-missing-metadata", async (_event, payload = {}) => { try { return await repairMissingSongMetadata(payload); } catch (error) { console.log("[localtify metadata repair error]", error?.stack || error?.message || error); return { ok: false, error: error?.message || "metadata repair failed", songs: listSongsShaped() }; } });
   libraryWatcher = startLibraryWatch(ipcRouter, { dialog, isAudioFile, getSongs, getSettings, listSongsShaped,

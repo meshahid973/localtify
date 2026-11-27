@@ -2,6 +2,8 @@
 @import "tailwindcss/theme.css";
 @import "tailwindcss/utilities.css";
 @source "../vendor/beui";
+@source "../vendor/liquid-glass";
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 @theme inline {
   --color-primary: var(--lt-accent);
   --color-primary-foreground: var(--lt-bg);

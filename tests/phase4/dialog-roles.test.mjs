@@ -7,8 +7,8 @@ const read = (file) => fs.readFileSync(file, "utf8");
 test("track editing and removal overlays expose labeled, modal dialog roles", () => {
   const editor = read("src/features/library/components/SongEditorModal.tsx");
   const remove = read("src/features/library/components/DeleteSongModal.tsx");
-  assert.match(editor, /className="editorModal editorModalMotion" role="dialog" aria-modal="true" aria-labelledby="song-editor-dialog-title"/);
-  assert.match(editor, /<h3 id="song-editor-dialog-title">edit track<\/h3>/);
+  assert.match(editor, /<Dialog\b[^>]*labelledBy="song-editor-dialog-title"/);
+  assert.match(editor, /id="song-editor-dialog-title">Edit track</);
   assert.match(remove, /<Dialog\b[\s\S]*?className="deleteModal cartoonPop"\s+role="alertdialog" labelledBy="delete-song-dialog-title" describedBy="delete-song-dialog-description"/);
   const dialog = read("src/shared/ui/Dialog.tsx");
   assert.match(dialog, /role=\{role\} aria-modal="true" aria-label=\{label\}/);

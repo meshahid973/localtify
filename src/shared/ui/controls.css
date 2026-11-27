@@ -68,8 +68,8 @@
 }
 
 .app :is(button, a, input, textarea, select, [role="button"]):not([data-embedded-field]):focus-visible{
-  outline: 2px solid var(--lt-accent) !important;
-  outline-offset: 3px !important;
+  outline: var(--lt-control-focus-outline, 2px solid var(--lt-accent)) !important;
+  outline-offset: var(--lt-control-focus-offset, 3px) !important;
 }
 
 .app :is(.mainAction, .softButton, .iconAction, .closeModalButton, .settingsActionButton, .settingsTinyButton) {

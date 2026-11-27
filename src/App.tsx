@@ -42,7 +42,6 @@ import type { PlaybackSource, PlaybackSourceRef } from "./features/player/playba
 import { makeShuffledPlayableSongs } from "./features/player/shuffleSongs";
 import { resolveAutoTransitionTarget } from "./features/player/resolveAutoTransitionTarget";
 import { useNavigationHistory } from "./features/shell/useNavigationHistory";
-import { revealSidebarSettingsPanel } from "./features/shell/sidebarLayout";
 import CatBuddy from "./CatBuddy";
 import { prepareBootstrap } from "./app/runtime/prepareBootstrap";
 import { useLibraryActions } from "./features/library/useLibraryActions";
@@ -160,6 +159,7 @@ function MainModeApp() {
   const startupResumePositionRef = useRef<{ songId: string; time: number } | null>(null);
   const bootedRef = useRef(false);
   const importOverlayTimerRef = useRef<number | null>(null);
+  const importingSongsRef = useRef(false);
   const secretBufferRef = useRef("");
   const secretTimeoutRef = useRef<number | null>(null);
   const playButtonBurstTimerRef = useRef<number | null>(null);
@@ -188,7 +188,7 @@ function MainModeApp() {
   const {songs, setSongs, getSong, moveSong} = useOrderedLibrary(ready);
   const flushPlaylistsRef = useRef<() => Promise<boolean>>(async () => true);
   const flushSongEditsRef = useRef<() => Promise<boolean>>(async () => true);
-  const { appToast, showAppToast } = useAppToast();
+  const { appToast, showAppToast, showFeedbackToast } = useAppToast();
   const {
     settings, setSettings, settingsRef, settingsSaveError, retrySettingsSave,
     settingsCategory, setSettingsCategory,
@@ -209,6 +209,8 @@ function MainModeApp() {
   const [heroMotion, setHeroMotion] = useState<"idle" | "expanding" | "compacting">("idle");
   const [homeEntranceSettled, setHomeEntranceSettled] = useState(false);
   const [view, setView] = useState<View>("home");
+  const [settingsReveal, setSettingsReveal] = useState<{ category: SettingsCategory; id: string } | null>(null);
+  const clearSettingsReveal = useCallback(() => setSettingsReveal(null), []);
   const [isAppBackgrounded, setIsAppBackgrounded] = useState(() => (typeof document === "undefined" ? false : document.hidden));
   const isAppBackgroundedRef = useRef(isAppBackgrounded);
   const [diagnosticsCopied, setDiagnosticsCopied] = useState(false);
@@ -392,7 +394,9 @@ function MainModeApp() {
     setSettingsSearch(value);
   }
 
-  function openSettingsPanel(category: SettingsCategory = "appearance") {
+  function openSettingsPanel(category: SettingsCategory = "appearance", target?: string) {
+    if (target) setSettingsSearch("");
+    setSettingsReveal(target ? { category, id: target } : null);
     setSettingsCategory(category);
     setEditorSong(null);
     setDeleteTarget(null);
@@ -400,12 +404,12 @@ function MainModeApp() {
   }
 
   function openSidebarSettings() {
-    openSettingsPanel("appearance");
-    revealSidebarSettingsPanel(settings.reducedMotion);
+    openSettingsPanel("appearance", "settings-appearance-tabs");
   }
 
   function changeView(nextView: View, _source: "nav" | "onboarding" | "settings" | "unknown" = "nav") {
     setLyricsOpen(false);
+    if (nextView !== "settings") clearSettingsReveal();
     if (nextView === "covers") nextView = "library";
 
     startTransition(() => {
@@ -2769,6 +2773,8 @@ function MainModeApp() {
   }
 
   async function importSongs() {
+    if (importingSongsRef.current || libraryScanBusy) return;
+    importingSongsRef.current = true;
     const beforeCount = songs.length;
     const previousSongIds = new Set<string>(songs.map((song) => song.id));
     const previousSongSources = new Set<string>(songs.map(stableSongSourceKey).filter((source): source is string => Boolean(source)));
@@ -2785,26 +2791,13 @@ function MainModeApp() {
     setImportAnimation(
       createImportAnimationState({
         active: true,
-        phase: "picking",
-        message: "waiting for your local files...",
-        count: 0,
-        total: Math.max(1, songs.length),
-        preview: songs.slice(0, 10)
+        phase: "scanning",
+        message: "Choose audio files to read their tags and add them to your library."
       })
     );
     showAppToast("scanning local music...", "work");
 
     try {
-      setImportAnimation((current) =>
-        createImportAnimationState({
-          ...current,
-          active: true,
-          phase: "scanning",
-          message: "reading titles, covers, folders, and metadata...",
-          total: Math.max(1, songs.length)
-        })
-      );
-
       const imported = applyLibraryOrder(sanitizeSongList(await window.localitfy.importSongs()));
 
       playbackUrlCacheRef.current.clear();
@@ -2828,51 +2821,31 @@ function MainModeApp() {
         return !previousSongIds.has(song.id) && (!sourceKey || !previousSongSources.has(sourceKey));
       });
       const addedCount = importedNewSongs.length;
-      const previewSongs = (importedNewSongs.length ? importedNewSongs : imported.slice(-12)).slice(0, 12);
 
       if (addedCount > 0) {
         setImportAnimation(
           createImportAnimationState({
             active: true,
             phase: "success",
-            message: `found ${addedCount} new song${addedCount === 1 ? "" : "s"}`,
+            message: `${addedCount} new track${addedCount === 1 ? "" : "s"} added to your library.`,
             count: addedCount,
-            total: imported.length,
-            preview: previewSongs
+            preview: importedNewSongs.slice(0, 5)
           })
         );
         setStatusText(`imported ${addedCount} new song${addedCount === 1 ? "" : "s"}`);
         showAppToast(`imported ${addedCount} new song${addedCount === 1 ? "" : "s"}`, "success");
         changeView("library", "unknown");
         hideImportAnimation(1500);
-      } else if (imported.length > 0) {
-        setImportAnimation(
-          createImportAnimationState({
-            active: true,
-            phase: "success",
-            message: "library checked — no duplicates added",
-            count: 0,
-            total: imported.length,
-            preview: previewSongs
-          })
-        );
-        setStatusText("no new songs added, maybe they were already imported");
-        showAppToast("no new songs added", "info");
-        hideImportAnimation(1200);
       } else {
         setImportAnimation(
           createImportAnimationState({
             active: true,
-            phase: "success",
-            message: "no songs imported",
-            count: 0,
-            total: 0,
-            preview: []
+            phase: "success"
           })
         );
         setStatusText("no songs imported");
         showAppToast("no songs imported", "info");
-        hideImportAnimation(950);
+        hideImportAnimation(1500);
       }
     } catch (error) {
       console.error("[localitfy import failed]", error);
@@ -2880,17 +2853,16 @@ function MainModeApp() {
         createImportAnimationState({
           active: true,
           phase: "error",
-          message: "import failed safely — your library was not deleted",
-          count: 0,
-          total: songs.length,
-          preview: songs.slice(0, 8)
+          message: "Try importing again. If the problem continues, check that the files are accessible."
         })
       );
-      setPlayerError("import failed. check the terminal for the real error.");
+      setPlayerError("Couldn’t import music.");
+      setLibraryScanMessage("Couldn’t import music.");
       setStatusText("import failed");
       showAppToast("import failed safely", "error");
       hideImportAnimation(1700);
     } finally {
+      importingSongsRef.current = false;
       setLibraryScanBusy(false);
     }
   }
@@ -4039,9 +4011,11 @@ function MainModeApp() {
   function previewVolume(value: string | number, input?: HTMLInputElement | null) {
     const safePercent = clamp(Number(value), 0, 100);
     volumeDraftRef.current = safePercent;
-    paintVolumeDraft(safePercent);
-    paintRangeProgress(input, safePercent);
-    input?.style.setProperty("--volume-percent", `${safePercent}%`);
+    if (input) {
+      paintVolumeDraft(safePercent);
+      paintRangeProgress(input, safePercent);
+      input.style.setProperty("--volume-percent", `${safePercent}%`);
+    }
     applyLiveVolumePercent(safePercent);
   }
 
@@ -4299,7 +4273,7 @@ function MainModeApp() {
   });
 
   async function saveEditor() {
-    if (!editorSong) return;
+    if (!editorSong) return false;
 
     const saved = await saveSongEdit(editorSong.id, {
       title: editTitle.trim() || "untitled",
@@ -4308,6 +4282,7 @@ function MainModeApp() {
     });
 
     if (saved) setEditorSong(current => current?.id === editorSong.id ? null : current);
+    return saved;
   }
 
   function dismissOnboarding() {
@@ -4541,6 +4516,8 @@ function MainModeApp() {
   }), [settings.heroExpanded, settings.volume, settings.homeSectionOrder, settings.homeHiddenSections]);
   const homeOpenAnalysis = useStableCallback(() => { setSettingsSearch(""); setSettingsCategory("experimental"); changeView("settings"); });
   const homeOpenMixes = useStableCallback(() => nav.go("playlists"));
+  const homeOpenPhoneSync = useStableCallback(() => openSettingsPanel("library", "settings-library-sync"));
+  const homeResume = useStableCallback(() => { if (!(connect.remote?.playing ?? isPlaying)) togglePlay(); });
   const homePlaySongs = useStableCallback(playCollectionSongs);
   const homeSelectSong = useStableCallback(selectSong);
   const homeShuffle = useStableCallback(shuffleLibrarySongsAction);
@@ -4664,10 +4641,12 @@ function MainModeApp() {
       nowPlayingTransitionKey,
       openAnalysisSettings: homeOpenAnalysis,
       openDailyMixes: homeOpenMixes,
+      openPhoneSync: homeOpenPhoneSync,
       openSimilarSongs: setSimilarRequest,
       playableSongCount: playableSongs.length,
       playerError,
       playSongs: homePlaySongs,
+      resumePlayback: homeResume,
       selectSong: homeSelectSong,
       songs, songsById,
       settings: homeSettings,
@@ -4761,19 +4740,23 @@ function MainModeApp() {
     analytics: {
       importSongs,
       songs,
+      onRecapCopied: () => showFeedbackToast("Recap copied", "success"),
       onSelectSong: (id: string) => void selectSong(id, true)
     },
     settingsView: {
       renderSettingsCategoryContent,
       settingsSaveError, retrySettingsSave,
+      reveal: settingsReveal,
+      onRevealed: clearSettingsReveal,
       settingsRail: {
         tabs: visibleSettingsTabs,
         analysisSupported,
         activeCategory: settingsCategory,
         search: settingsSearch,
         resultLabel: settingsSearchResultLabel,
-        onSearchChange: handleSettingsSearchInput,
-        onCategoryChange: setSettingsCategory
+        onSearchChange: value => { clearSettingsReveal(); handleSettingsSearchInput(value); },
+        onCategoryChange: category => { clearSettingsReveal(); setSettingsCategory(category); },
+        onOpenControl: openSettingsPanel,
       },
       settingsCategory
     },

@@ -1,3 +1,4 @@
+import { OpticalCard } from "../../../shared/appearance/OpticalCard";
 import { Check } from "lucide-react";
 import SidebarTabsSettings from "./SidebarTabsSettings";
 import { isAndroidApp } from "../../../app/platform";
@@ -24,10 +25,12 @@ export default function AppearanceSettings(props: AppearanceSettingsProps) {
       <header className="settingsCategoryHeader">
         <div><h4>Appearance</h4></div>
       </header>
-      <div id="settings-appearance-theme" className="settingsPanelCard">
+      <OpticalCard id="settings-appearance-theme" className="settingsPanelCard">
         <div className="settingsPanelHeader"><div><strong>Theme</strong></div></div>
+        <ToggleRow label="Liquid Glass" help="Use optical glass on interface controls." checked={settings.liquidGlass === true}
+          onChange={value => void updateSetting("liquidGlass", value)} />
         <div className="settingsModeGrid" role="group" aria-label="App theme">
-          {(["light", "dark"] as const).map(mode => (
+          {(["light", "dark", "oled"] as const).map(mode => (
             <button key={mode} type="button" className="settingsModeButton" aria-pressed={selected === mode}
               onClick={() => void updateSetting("theme", mode)}>
               <span className="settingsModePreview" data-preview-mode={mode} aria-hidden="true">
@@ -35,11 +38,11 @@ export default function AppearanceSettings(props: AppearanceSettingsProps) {
                 <span className="settingsModePreviewBody"><i/><span><i/><i/><i/></span><i/></span>
                 {selected === mode ? <span className="settingsModeCheck"><Check size={14}/></span> : null}
               </span>
-              <strong>{mode === "light" ? "Light" : "Dark"}</strong>
+              <strong>{mode === "light" ? "Light" : mode === "oled" ? "OLED" : "Dark"}</strong>
             </button>
           ))}
         </div>
-      </div>
+      </OpticalCard>
 
       <div id="settings-appearance-ambience" className="settingsPanelCard settingsCoverTintCard">
         <div className="settingsPanelHeader"><div><strong>Artwork ambience</strong></div></div>
@@ -71,13 +74,16 @@ export default function AppearanceSettings(props: AppearanceSettingsProps) {
         </details>
       </div>
 
-      {!phone ? <div id="settings-appearance-sidebar" className="settingsPanelCard">
-        <div className="settingsPanelHeader"><div><strong>Sidebar layout</strong></div></div>
-        <SettingsChoiceGroup compact label="Sidebar layout" value={settings.sidebarBehavior}
+      <div id="settings-appearance-sidebar" className="settingsPanelCard">
+        <div className="settingsPanelHeader"><div><strong>Navigation</strong></div></div>
+        {!phone ? <SettingsChoiceGroup compact label="Sidebar layout" value={settings.sidebarBehavior}
           options={[{ value: "slim", label: "Collapsed" }, { value: "fixed", label: "Expanded" }, { value: "hover", label: "On hover" }]}
-          onChange={mode => void updateSetting("sidebarBehavior", mode)} />
-      </div> : null}
-
+          onChange={mode => void updateSetting("sidebarBehavior", mode)} /> : null}
+        <details id="settings-appearance-tabs" className="settingsDisclosure settingsSidebarDisclosure">
+          <summary>{phone ? "Arrange tabs" : "Arrange sidebar"}</summary>
+          <div className="settingsDisclosureBody"><SidebarTabsSettings settings={settings} updateSetting={updateSetting} /></div>
+        </details>
+      </div>
 
       <div id="settings-appearance-home" className="settingsPanelCard">
         <div className="settingsPanelHeader"><div><strong>Home & library</strong></div></div>
@@ -109,10 +115,6 @@ export default function AppearanceSettings(props: AppearanceSettingsProps) {
           options={[{value:"none",label:"Off"},{value:"loadingOnly",label:"Only while loading"},{value:"everywhere",label:"Everywhere"}]}
           onChange={value => void updateSetting("gifVisualsMode", value)} />
       </div>
-      <details id="settings-appearance-tabs" className="settingsDisclosure settingsSidebarDisclosure">
-        <summary>{phone ? "Arrange tabs" : "Arrange sidebar"}</summary>
-        <div className="settingsDisclosureBody"><SidebarTabsSettings settings={settings} updateSetting={updateSetting} /></div>
-      </details>
     </section>
   );
 }

@@ -6,6 +6,7 @@ import { useAppReducedMotion } from "../hooks/useAppReducedMotion";
 import { Check, ChevronDown } from "lucide-react";
 import "./ArcDropdownMenu.css";
 import "./surface.css";
+import { useAppearance } from "../appearance/appearance";
 import { useMenuTypeahead } from "../hooks/useMenuTypeahead";
 
 /**
@@ -33,7 +34,17 @@ const EDGE_GAP = 12;
 const MENU_PADDING = 5;
 const THEME_VARS = ["--lt-text", "--lt-muted", "--lt-accent", "--lt-surface", "--lt-surface-raised", "--lt-surface-soft", "--lt-bg-elevated", "--lt-glass-background", "--lt-glass-blur", "--lt-fill", "--lt-gap-control", "--lt-menu-item-height", "--lt-border", "--lt-bg"] as const;
 
-export function ArcDropdownMenu<T extends string>({
+export function ArcDropdownMenu<T extends string>(props: ArcDropdownMenuProps<T>) {
+  const { kit } = useAppearance();
+  if (kit) return <kit.GlassSelect label={props.ariaLabel} value={props.value} options={[...props.items]} disabled={props.disabled}
+    className={`ltOpticalSelect ${props.className || ""}`} onValueChange={value => {
+      const item = props.items.find(entry => entry.value === value && !entry.disabled);
+      if (item) props.onValueChange(item.value);
+    }} />;
+  return <LegacyArcDropdownMenu {...props} />;
+}
+
+function LegacyArcDropdownMenu<T extends string>({
   ariaLabel, value, items, onValueChange, className = "", disabled = false
 }: ArcDropdownMenuProps<T>) {
   const menuId = useId();

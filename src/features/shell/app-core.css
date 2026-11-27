@@ -352,76 +352,6 @@ button:disabled{
   gap: 14px;
 }
 
-.editorModal{
-  width: min(980px, calc(100vw - 40px));
-  max-height: calc(100vh - 78px);
-  overflow: auto;
-  padding: 20px;
-
-  background-size: 38px 38px;
-  box-shadow: var(--shadow);
-
-  width: min(760px, calc(100vw - 40px));
-}
-
-.editorFields input{
-  height: 40px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  color: var(--text);
-  background: var(--lt-surface);
-  outline: none;
-  color-scheme: inherit;
-}
-
-.editorActions{
-  display: flex;
-  flex-wrap: wrap;
-
-  margin-top: 14px;
-
-  justify-content: flex-end;
-}
-
-.editorGrid{
-  display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
-  gap: 18px;
-}
-
-.editorCoverBlock{
-  display: grid;
-  align-content: start;
-  gap: 10px;
-}
-
-.editorCover{
-  width: 240px;
-  height: 240px;
-  border-radius: 14px;
-  font-size: 92px;
-  font-weight: 700;
-}
-
-.editorFields{
-  display: grid;
-  gap: 12px;
-}
-
-.editorFields label{
-  display: grid;
-  gap: 6px;
-}
-
-.editorFields label span{
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.editorFields input{
-  padding: 0 12px;
-}
-
 .emptyState{
   min-height: 180px;
   display: grid;
@@ -668,10 +598,6 @@ button:disabled{
 .circleButton:not(.playerBar *),
 .iconAction{
   transition-duration: 120ms;
-}
-.editorModal{
-  background: var(--lt-bg-elevated);
-  border-color: var(--lt-border);
 }
 
 :root{
@@ -1479,9 +1405,7 @@ button { transition: color var(--lt-control-motion) ease, background-color var(-
 .content::before,
 .content::after,
 .app,
-.content,
-.editorModal,
-.editorModal::before{
+.content{
   background-image: none !important;
   background-size: auto !important;
 }
@@ -1489,8 +1413,7 @@ button { transition: color var(--lt-control-motion) ease, background-color var(-
 .app,
 .app .content,
 .app .panel,
-.app .coverPage,
-.app .editorModal{
+.app .coverPage{
   background-image: none !important;
   background-size: auto !important;
 }

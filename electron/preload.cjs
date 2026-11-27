@@ -3,6 +3,13 @@ const { contextBridge, ipcRenderer } = require("electron");
 // A menu command that reopened the window is fetched once and given to one subscriber.
 let appMenuReady = null;
 let appMenuReadyDelivered = false;
+let windowVisible;
+const visibilitySubscribers = new Set();
+ipcRenderer.on("window:visibility", (_event, visible) => {
+  if (typeof visible !== "boolean" || visible === windowVisible) return;
+  windowVisible = visible;
+  for (const callback of visibilitySubscribers) callback(visible);
+});
 
 contextBridge.exposeInMainWorld("localitfy", {
   bootstrap: (options) => ipcRenderer.invoke("app:bootstrap", options),
@@ -157,6 +164,11 @@ contextBridge.exposeInMainWorld("localitfy", {
   getGpuStatus: () => ipcRenderer.invoke("localitfy:gpu-status"),
 
   minimizeWindow: () => ipcRenderer.invoke("window:minimize"),
+  onWindowVisibility: (callback) => {
+    visibilitySubscribers.add(callback);
+    if (windowVisible !== undefined) callback(windowVisible);
+    return () => { visibilitySubscribers.delete(callback); };
+  },
   toggleMaximizeWindow: () => ipcRenderer.invoke("window:toggle-maximize"),
   closeWindow: () => ipcRenderer.invoke("window:close"),
 

@@ -28,7 +28,7 @@ export const Cover = memo(function Cover({ song, className, priority = "auto", p
   // Readiness is tied to the URL that actually loaded. A song update that keeps the same URL must not
   // hide the image again: the mounted <img> would never fire another load event.
   const [loadedSrc, setLoadedSrc] = useState("");
-  const isImmediateCover = priority === "high" || (priority === "auto" && /\b(heroArt|smallArt|importCoverArt|editorCover)\b/.test(className));
+  const isImmediateCover = priority === "high" || (priority === "auto" && /\b(heroArt|smallArt)\b/.test(className));
   const coverLoadingMode = isImmediateCover ? "eager" : "lazy";
   const coverFetchPriority = isImmediateCover ? "high" : "low";
   const useFullCover = isImmediateCover && !preferThumbnail;

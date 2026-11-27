@@ -601,6 +601,7 @@ declare global {
       sendPlayerCommand: (command: LocalitfyPlayerCommand) => Promise<{ ok: boolean; command?: LocalitfyPlayerCommand }> | Promise<boolean>;
 
       minimizeWindow: () => Promise<boolean>;
+      onWindowVisibility?: (callback: (visible: boolean) => void) => () => void;
       toggleMaximizeWindow: () => Promise<boolean>;
       closeWindow: () => Promise<boolean>;
 

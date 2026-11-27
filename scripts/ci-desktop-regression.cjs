@@ -1,5 +1,5 @@
 "use strict";
-const {app,BrowserWindow,session,nativeImage}=require("electron");
+const {app,BrowserWindow,session,nativeImage,ipcMain}=require("electron");
 const fs=require("node:fs"),os=require("node:os"),path=require("node:path"),http=require("node:http");
 const {spawnSync}=require("node:child_process");
 const assert=require("node:assert/strict");
@@ -11,6 +11,15 @@ fs.mkdirSync(path.join(dir,"localitfy"),{recursive:true});
 app.setPath("userData",path.join(dir,"localitfy"));
 const root=path.resolve(__dirname,"..");
 const version=JSON.parse(fs.readFileSync(path.join(root,"package.json"),"utf8")).version;
+const scrollTracks=Number(process.env.LOCALTIFY_QA_SCROLL_TRACKS||0);
+assert.ok([0,10000,50000,100000].includes(scrollTracks),"Supported scroll fixtures are 10k, 50k, or 100k tracks");
+const glassFallback=process.env.LOCALTIFY_QA_GLASS_FALLBACK==="1";
+// Hosted CI has no guaranteed physical GPU. This override is test-only.
+if(process.env.LOCALTIFY_QA_SOFTWARE_GL==="1"){
+  app.commandLine.appendSwitch("use-angle","swiftshader");
+  app.commandLine.appendSwitch("enable-unsafe-swiftshader");
+}
+const liquidGlassToggle="Array.from(document.querySelectorAll('.toggleRow')).find(row=>row.textContent.includes('Liquid Glass'))?.querySelector('input')";
 function wav(name){
   const samples=48000*20,buf=Buffer.alloc(44+samples*2);
   buf.write("RIFF",0);buf.writeUInt32LE(buf.length-8,4);buf.write("WAVEfmt ",8);buf.writeUInt32LE(16,16);
@@ -39,6 +48,26 @@ const seed=spawnSync(process.execPath,["-e",
   "const db=require(process.argv[1]);db.initDatabase(process.argv[2]);const songs=JSON.parse(process.argv[3]);db.insertSongs(songs);for(let i=0;i<180;i++){const startedAt=Date.now()-i*86400000-60000,msListened=1000+(i%7)*4000;db.recordPlayEvent({id:'qa-listen-'+i,sessionId:'qa-session',songId:songs[i%songs.length].id,startedAt,updatedAt:startedAt+msListened,endedAt:startedAt+msListened,msListened,outcome:'ended',contextType:'library',contextId:null});}db.savePlaylists([{id:'qa-playlist',name:'qa playlist',songIds:songs.map(s=>s.id),createdAt:Date.now()}]);db.saveSettings({startWithWindows:false,idleScreensaverEnabled:false,discordRpcEnabled:false,reducedMotion:false,discoverEnabled:true,lyricsEnabled:true,lyricsOnlineLookup:false,coverColorSyncMode:'strong',homeBannerType:'dynamic',showAmbientGradient:true,playerBackgroundStyle:'coverBlur',homeHiddenSections:['dailyMixes','likedSongs','rediscover','notPlayedYet']});",
   path.join(root,"electron/db.cjs"),path.join(app.getPath("userData"),"localitfy.sqlite"),JSON.stringify(songs)],{env:{...process.env,ELECTRON_RUN_AS_NODE:"1"},encoding:"utf8"});
 if(seed.status!==0)throw Error("Synthetic database seed failed: "+seed.stderr);
+if(scrollTracks){
+  const scrollSeed=spawnSync(process.execPath,["-e",`
+    const fs=require("node:fs"),path=require("node:path"),db=require(process.argv[1]);
+    db.initDatabase(process.argv[2]);
+    const song=JSON.parse(process.argv[3]),count=Number(process.argv[4]);
+    const folder=path.join(path.dirname(song.filePath),"scroll-fixture");
+    fs.mkdirSync(folder);
+    for(let start=12;start<count;start+=1000){
+      const batchSource=path.join(folder,"seed-"+start+".wav");
+      fs.copyFileSync(song.filePath,batchSource);
+      const tracks=Array.from({length:Math.min(1000,count-start)},(_,offset)=>{
+        const index=start+offset,filePath=path.join(folder,"scroll-"+index+".wav");
+        fs.linkSync(batchSource,filePath);
+        return {...song,id:"scroll-"+index,title:"Track "+index,filePath,liked:false,playCount:0};
+      });
+      db.insertSongs(tracks);
+    }
+  `,path.join(root,"electron/db.cjs"),path.join(app.getPath("userData"),"localitfy.sqlite"),JSON.stringify(songs[0]),String(scrollTracks)],{env:{...process.env,ELECTRON_RUN_AS_NODE:"1"},encoding:"utf8"});
+  if(scrollSeed.status!==0)throw Error("Large-library seed failed: "+scrollSeed.stderr);
+}
 const recoveryStore=require("../electron/download-jobs.cjs").createDownloadJobStore(app.getPath("userData"));
 const recoveryJob=recoveryStore.prepare({source:"youtube",url:"https://www.youtube.com/watch?v=abcdefghijk",folder:dir,options:{autoAdd:false}});
 recoveryStore.update(recoveryJob.id,{status:"downloading",progress:37,message:"Recover this interrupted download"});
@@ -137,6 +166,337 @@ server.listen(5173,async()=>{
     await until(()=>win.webContents.executeJavaScript("!document.querySelector('.appCrashBoundary') && !!document.querySelector('.appShell')").catch(()=>false),"desktop shell",35000,16);
     const reloadMs=performance.now()-reloadStarted;
     win.setSize(1280,800);await sleep(700);
+    if(glassFallback){
+      await win.webContents.executeJavaScript(`(()=>{
+        const getContext=HTMLCanvasElement.prototype.getContext;
+        HTMLCanvasElement.prototype.getContext=function(type,...options){
+          return type==="webgl2" ? null : getContext.call(this,type,...options);
+        };
+      })()`);
+      assert.equal(await win.webContents.executeJavaScript("!!document.createElement('canvas').getContext('webgl2')"),false,"WebGL2 is disabled");
+      await win.webContents.executeJavaScript("document.querySelector('.sidebar [data-nav-id=settings]').click()");
+      await until(()=>win.webContents.executeJavaScript(`Boolean(${liquidGlassToggle})`),"fallback appearance toggle");
+      await win.webContents.executeJavaScript(`${liquidGlassToggle}.click()`);
+      await until(()=>win.webContents.executeJavaScript("document.querySelector('.app')?.dataset.liquidGlass==='true' && Boolean(document.querySelector('.ltOpticalCard'))"),"glass CSS fallback");
+      assert.equal(await win.webContents.executeJavaScript("document.querySelectorAll('[data-glass-ready]').length"),0);
+      await screenshot(win,"glass-no-webgl-settings");
+      await win.webContents.executeJavaScript("document.querySelector('.sidebar [data-nav-id=library]').click()");
+      await until(()=>win.webContents.executeJavaScript("Boolean(document.querySelector('.libraryPage .songRow'))"),"fallback Library");
+      await win.webContents.executeJavaScript("document.querySelector('.songButton').click()");
+      await until(()=>win.webContents.executeJavaScript("Array.from(document.querySelectorAll('audio')).some(audio=>!audio.paused && audio.currentTime>0)"),"fallback playback");
+      assert.ok(await win.webContents.executeJavaScript("Boolean(document.querySelector('.playerBar input[aria-label=\"volume level\"]'))"),"native volume stays usable without a canvas");
+      await screenshot(win,"glass-no-webgl-library");
+      clearTimeout(watchdog);server.close();app.exit(0);
+      return;
+    }
+    if(scrollTracks){
+      const runScroll=async()=>{
+        const start=performance.now();
+        await win.webContents.executeJavaScript("document.querySelector('.sidebar [data-nav-id=library]').click()");
+        await until(()=>win.webContents.executeJavaScript(`Number(document.querySelector('.libraryCount')?.textContent.split(' ')[0])===${scrollTracks} && !!document.querySelector('.songRow')`),"large Library ready",60000,16);
+        const navigationMs=performance.now()-start;
+        const scrolling=await win.webContents.executeJavaScript(`(async()=>{
+          const content=document.querySelector('.content');
+          const frame=()=>new Promise(resolve=>requestAnimationFrame(resolve));
+          const height=content.scrollHeight-content.clientHeight;
+          content.scrollTop=0;
+          let previous=await frame(),mounts=0,canvases=0;
+          const deltas=[];
+          for(let index=1;index<=120;index++){
+            content.scrollTop=Math.round(index*height/120);
+            const time=await frame();
+            deltas.push(time-previous);
+            previous=time;
+            mounts=Math.max(mounts,document.querySelectorAll('.libraryPage .songRow').length);
+            canvases=Math.max(canvases,document.querySelectorAll('.libraryPage .songRow canvas').length);
+          }
+          deltas.sort((left,right)=>left-right);
+          return {height,mounts,canvases,p50Ms:deltas[59],p95Ms:deltas[113],maxMs:deltas.at(-1)};
+        })()`);
+        assert.ok(scrolling.height>10000 && scrolling.mounts>0 && scrolling.mounts<100 && scrolling.canvases===0,`large Library remains virtualized: ${JSON.stringify(scrolling)}`);
+        return {navigationMs,scrolling};
+      };
+      const disabled=await runScroll();
+      let enabled;
+      if(process.env.LOCALTIFY_QA_LIQUID_GLASS==="1"){
+        await win.webContents.executeJavaScript("document.querySelector('.sidebar [data-nav-id=settings]').click()");
+        await until(()=>win.webContents.executeJavaScript(`Boolean(${liquidGlassToggle})`),"large fixture appearance toggle");
+        await win.webContents.executeJavaScript(`${liquidGlassToggle}.click()`);
+        await until(()=>win.webContents.executeJavaScript("Boolean(document.querySelector('[data-glass-ready]'))"),"large fixture optics");
+        enabled=await runScroll();
+      }
+      const result={scrollTracks,startupMs,reloadMs,disabled,enabled};
+      fs.writeFileSync(path.join(output,"large-library-scroll.json"),JSON.stringify(result,null,2));
+      console.log("[desktop-scroll]",JSON.stringify(result));
+      clearTimeout(watchdog);server.close();app.exit(0);
+      return;
+    }
+    if(process.env.LOCALTIFY_QA_LIQUID_GLASS==="1"){
+      if(process.env.LOCALTIFY_QA_SOFTWARE_GL==="1"){
+        win.webContents.debugger.attach("1.3");
+        await win.webContents.debugger.sendCommand("Emulation.setEmulatedMedia",{features:[{name:"prefers-reduced-motion",value:"no-preference"}]});
+      }
+      const capabilities=await win.webContents.executeJavaScript(`(()=>{
+        const canvas=document.createElement("canvas"), context=canvas.getContext("webgl2");
+        const ext=context?.getExtension("WEBGL_debug_renderer_info");
+        const renderer=ext?context.getParameter(ext.UNMASKED_RENDERER_WEBGL):null;
+        const result={webgl2:!!context,reducedMotion:matchMedia("(prefers-reduced-motion: reduce)").matches,hidden:document.hidden,renderer};
+        context?.getExtension("WEBGL_lose_context")?.loseContext();return result;
+      })()`);
+      console.log("[glass-capabilities]",JSON.stringify({capabilities,features:app.getGPUFeatureStatus()}));
+      assert.ok(capabilities.webgl2&&!capabilities.reducedMotion,"optical QA requires WebGL2 and no reduced-motion preference");
+      win.webContents.on("console-message",(_event,details,legacyMessage)=>{
+        const message=typeof details==="object"?details.message:legacyMessage;
+        if(typeof message==="string"&&/liquid glass|webgl|shader|\buncaught\b/i.test(message))console.log("[glass-renderer]",message);
+      });
+      const tracks=["Paper Boats","Night Bus","Blue Hour","Soft Focus"].map(title=>({title,artist:"Fixture Artist",url:"https://www.last.fm/music/Fixture+Artist"}));
+      ipcMain.removeHandler("discover:get");
+      ipcMain.handle("discover:get",(event,payload)=>{
+        assert.equal(event.sender,win.webContents);
+        if(payload?.artwork)return {status:"artwork"};
+        return {status:"ready",generatedAt:Date.now(),seeds:["Test Artist"],tracks:[],artists:[{name:"Fixture Artist",url:tracks[0].url,because:["Test Artist"],seedCount:1,topTracks:tracks}]};
+      });
+      const openView=async view=>{
+        const selector=["artists","genres","playlists","albums","liked"].includes(view)?`.librarySectionNav [data-library-section="${view}"]`:`.sidebar [data-nav-id="${view}"]`;
+        await until(()=>win.webContents.executeJavaScript(`Boolean(document.querySelector(${JSON.stringify(selector)}))`),"glass navigation target "+view);
+        await win.webContents.executeJavaScript(`document.querySelector(${JSON.stringify(selector)}).click()`);
+        await until(()=>win.webContents.executeJavaScript(`(()=>{const page=document.querySelector('.pageTransition[data-view="${view}"]');return !!page?.firstElementChild&&!page.querySelector('.collectionLoading')&&Number(getComputedStyle(page).opacity)>=.99})()`),"glass view "+view);
+      };
+      const toggle=liquidGlassToggle;
+      await openView("settings");
+      await until(()=>win.webContents.executeJavaScript("Boolean(document.querySelector('[data-preview-mode=light]')?.closest('button'))"),"initial appearance theme picker");
+      await win.webContents.executeJavaScript("document.querySelector('[data-preview-mode=light]').closest('button').click()");
+      await until(()=>win.webContents.executeJavaScript("document.querySelector('[data-preview-mode=light]')?.closest('button')?.getAttribute('aria-pressed')==='true'"),"initial light theme");
+      await openView("library");
+      await win.webContents.executeJavaScript("document.querySelector('.songButton').click()");
+      await until(()=>win.webContents.executeJavaScript("[...document.querySelectorAll('audio')].some(audio=>!audio.paused&&audio.currentTime>0)"),"fixture playback");
+      await win.webContents.executeJavaScript("document.querySelector('.playerBar .circleButton.main[aria-label=pause]').click()");
+      await until(()=>win.webContents.executeJavaScript("document.querySelector('audio').paused"),"fixture paused");
+      const beforeEnable=await metrics("before first enable, library idle",5);
+      await openView("settings");
+      await until(()=>win.webContents.executeJavaScript(`Boolean(${toggle})`).catch(()=>false),"Liquid Glass switch");
+      const before=await win.webContents.executeJavaScript("document.querySelector('.app').dataset.liquidGlass");
+      assert.equal(before,undefined,"Liquid Glass defaults off");
+      await win.webContents.executeJavaScript(`(()=>{
+        const getContext=HTMLCanvasElement.prototype.getContext;
+        const contexts=new Set();
+        window.qaGlassContexts=contexts;
+        HTMLCanvasElement.prototype.getContext=function(type,...args){
+          const context=getContext.call(this,type,...args);
+          if(type==="webgl2"&&context) contexts.add(context);
+          return context;
+        };
+      })()`);
+      const switchStarted=performance.now();
+      await win.webContents.executeJavaScript(`${toggle}.click()`);
+      await until(()=>win.webContents.executeJavaScript("document.querySelector('.app').dataset.liquidGlass==='true'"),"glass setting activates without reload");
+      try {
+        await until(()=>win.webContents.executeJavaScript("Boolean(document.querySelector('[data-glass-ready]'))"),"glass first optical paint",35000,16);
+      } catch(error) {
+        console.error("[glass-state]",await win.webContents.executeJavaScript("JSON.stringify({app:document.querySelector('.app')?.dataset,visibility:document.visibilityState,reducedMotion:matchMedia('(prefers-reduced-motion: reduce)').matches,hosts:document.querySelectorAll('[data-glass-host]').length,canvas:document.querySelectorAll('[data-glass-host] canvas').length,contexts:[...window.qaGlassContexts].map(c=>({kind:c.canvas.dataset.glassRenderer,lost:c.isContextLost(),width:c.canvas.width,height:c.canvas.height}))})"));
+        await screenshot(win,"glass-activation-failure");
+        throw error;
+      }
+      const firstOpticalPaintMs=performance.now()-switchStarted;
+      await until(()=>win.webContents.executeJavaScript("window.localitfy.getSettings().then(settings=>settings.liquidGlass===true)"),"glass persists in the settings store");
+      for(const mode of ["oled","dark","light"]){
+        await openView("settings");
+        await until(()=>win.webContents.executeJavaScript(`Boolean(document.querySelector('[data-preview-mode="${mode}"]'))`),"glass theme picker");
+        await win.webContents.executeJavaScript(`document.querySelector('[data-preview-mode="${mode}"]').closest('button').click()`);
+        await until(()=>win.webContents.executeJavaScript(`document.querySelector('[data-preview-mode="${mode}"]')?.closest('button')?.getAttribute('aria-pressed')==='true'`),"glass theme "+mode);
+        if(mode==="oled") {
+          assert.equal(await win.webContents.executeJavaScript("getComputedStyle(document.querySelector('.app')).backgroundColor"),"rgb(0, 0, 0)","OLED is pure black");
+          assert.equal(await win.webContents.executeJavaScript("document.querySelector('.workspaceArtworkBackdrop')"),null,"OLED keeps artwork out of its workspace foundation");
+        }
+        for(const view of ["settings","home","library","liked","albums","artists","genres","playlists","discover","downloads","analytics"]){
+          await openView(view);
+          if(view==="discover") await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('section[aria-labelledby=discover-recommended] li').length===4"),"populated Discover recommendations");
+          if(mode==="dark"&&view==="library") {
+            const palette=await win.webContents.executeJavaScript(`(()=>{
+              const app=document.querySelector(".app"), player=document.querySelector(".playerBar"), group=player.querySelector(".ltOpticalTransport");
+              const probe=document.createElement("span");probe.style.color="var(--glass-tint)";probe.hidden=true;group.append(probe);
+              const attributes=[["data-cover-sync","strong"],["data-ambient","strong"],["data-player-background","coverBlur"]];
+              const prior=attributes.map(([name])=>[name,app.getAttribute(name)]);
+              const ambient=player.getAttribute("data-ambient"), previous=player.style.getPropertyValue("--cover-average");
+              try {
+                attributes.forEach(([name,value])=>app.setAttribute(name,value));player.setAttribute("data-ambient","true");
+                player.style.setProperty("--cover-average","#b16d36");const warm=getComputedStyle(probe).color;
+                player.style.setProperty("--cover-average","#3678b1");const cool=getComputedStyle(probe).color;
+                return {warm,cool};
+              } finally {
+                probe.remove();prior.forEach(([name,value])=>value===null?app.removeAttribute(name):app.setAttribute(name,value));
+                ambient===null?player.removeAttribute("data-ambient"):player.setAttribute("data-ambient",ambient);
+                previous?player.style.setProperty("--cover-average",previous):player.style.removeProperty("--cover-average");
+              }
+            })()`);
+            assert.notEqual(palette.warm,palette.cool,"transport tint follows artwork palette");
+          }
+          await screenshot(win,`glass-${mode}-${view}`);
+          if(mode==="dark"&&view==="library") {
+            const bounds=await win.webContents.executeJavaScript("(()=>{const r=document.querySelector('.ltOpticalTransport').getBoundingClientRect();return {x:Math.round(r.left+40),y:Math.round(r.top+4),width:Math.max(1,Math.round(r.width-80)),height:5}})()");
+            const band=(await win.webContents.capturePage()).crop(bounds).toBitmap();
+            const values=[];
+            for(let i=0;i<band.length;i+=4)values.push((band[i]+band[i+1]+band[i+2])/3);
+            values.sort((a,b)=>a-b);
+            assert.ok(values[Math.floor(values.length/2)]>10,"artwork-aware transport must not render a black capsule");
+          }
+          if(view==="downloads") {
+            for(const [menuKind,selector] of [["tools",".downloadsTools button"],["row",".downloadsRowMenu button"]]) {
+              const triggerPoint=await win.webContents.executeJavaScript(`(()=>{
+                const trigger=document.querySelector(${JSON.stringify(selector)});
+                trigger.scrollIntoView({block:"nearest"});
+                const r=trigger.getBoundingClientRect();
+                return {x:Math.round(r.left+r.width/2),y:Math.round(r.top+r.height/2)};
+              })()`);
+              win.webContents.sendInputEvent({type:"mouseMove",...triggerPoint});
+              win.webContents.sendInputEvent({type:"mouseDown",button:"left",clickCount:1,...triggerPoint});
+              win.webContents.sendInputEvent({type:"mouseUp",button:"left",clickCount:1,...triggerPoint});
+              await until(()=>win.webContents.executeJavaScript(`(()=>{
+                const trigger=document.querySelector(${JSON.stringify(selector)});
+                const menu=document.querySelector('.ltOpticalMenu[data-open]:not([data-ending-style])'),item=menu?.querySelector('[role=menuitem]:not([data-disabled])');
+                if(!menu||!item||trigger?.getAttribute('aria-expanded')!=='true')return false;
+                const list=menu.querySelector('[data-glass-list]'),r=item.getBoundingClientRect(),at=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);
+                if(!list||menu.hasAttribute('data-glass-off'))return false;
+                const listStyle=getComputedStyle(list),menuStyle=getComputedStyle(menu),itemStyle=getComputedStyle(item);
+                return Number(menuStyle.getPropertyValue('--glass-out'))>=.99 &&
+                  menuStyle.outlineStyle==='none' && itemStyle.outlineStyle==='none' && getComputedStyle(trigger).outlineStyle==='none' &&
+                  Number(listStyle.opacity)>.95 && listStyle.clipPath==='none' &&
+                  Number(itemStyle.opacity)>.95 && item.contains(at) && (r.width>0&&r.height>0);
+              })()`),"settled readable "+menuKind+" menu without decorative outline");
+              await screenshot(win,`glass-${mode}-downloads-${menuKind}-menu`);
+              win.webContents.sendInputEvent({type:"keyDown",keyCode:"Escape"});
+              win.webContents.sendInputEvent({type:"keyUp",keyCode:"Escape"});
+              await until(()=>win.webContents.executeJavaScript(`!document.querySelector('.ltOpticalMenu[data-open]') && !Array.from(document.querySelectorAll('.ltOpticalMenu')).some(menu=>menu.getClientRects().length>0) && document.querySelector(${JSON.stringify(selector)})?.getAttribute('aria-expanded')!=='true'`),"dismiss download glass menu");
+            }
+          }
+        }
+      }
+      await openView("home");
+      await win.webContents.executeJavaScript("document.querySelector('button[aria-label=\"Customize Home\"]').click()");
+      await until(()=>win.webContents.executeJavaScript("Boolean(document.querySelector('.ltOpticalPopoverPanel'))"),"official Home glass popover");
+      await screenshot(win,"glass-home-popover");
+      await win.webContents.executeJavaScript("Array.from(document.querySelectorAll('[role=dialog] button')).find(button=>button.textContent==='Done').click()");
+      await openView("library");
+      win.setSize(860,760);
+      await until(()=>win.webContents.executeJavaScript("innerWidth<=860"),"compact desktop viewport");
+      const transport=await win.webContents.executeJavaScript(`(()=>{
+        const group=document.querySelector('.playerBar .ltOpticalTransport');
+        const seek=document.querySelector('.progressRow').getBoundingClientRect();
+        return {width:group.getBoundingClientRect().width,seek:seek.width,buttons:group.querySelectorAll('button').length};
+      })()`);
+      assert.ok(transport.width<transport.seek && transport.buttons===5,`compact transport elides empty space: ${JSON.stringify(transport)}`);
+      await screenshot(win,"glass-compact-library");
+      win.setSize(1280,800);
+      await win.webContents.executeJavaScript("document.querySelector('.immersiveEntry').click()");
+      await until(()=>win.webContents.executeJavaScript("Boolean(document.querySelector('.immersiveTransport[data-glass-ready]'))"),"immersive optical transport");
+      await screenshot(win,"glass-immersive-player");
+      await win.webContents.executeJavaScript("document.querySelector('[aria-label=\"Close immersive player\"]').click()");
+      const volume=".playerBar .ltOpticalVolume";
+      const sliderInput=`document.querySelector('${volume} input[type=range], ${volume} [role=slider]')`;
+      await until(()=>win.webContents.executeJavaScript(`Boolean(${sliderInput})`),"official volume slider");
+      await win.webContents.executeJavaScript(`${sliderInput}.focus()`);
+      win.webContents.sendInputEvent({type:"keyDown",keyCode:"End"});
+      win.webContents.sendInputEvent({type:"keyUp",keyCode:"End"});
+      await until(()=>win.webContents.executeJavaScript("window.localitfy.getSettings().then(settings=>settings.volume===1)"),"optical volume keyboard commit");
+      const track=await win.webContents.executeJavaScript(`(()=>{const {x,y,width,height}=document.querySelector('${volume} [data-slot="slider-track"]').getBoundingClientRect();return {x:Math.round(x+width/2),y:Math.round(y+height/2)}})()`);
+      win.webContents.sendInputEvent({type:"mouseDown",button:"left",clickCount:1,...track});
+      win.webContents.sendInputEvent({type:"mouseUp",button:"left",clickCount:1,...track});
+      await until(()=>win.webContents.executeJavaScript("window.localitfy.getSettings().then(settings=>Math.abs(settings.volume-.5)<.04)"),"optical volume pointer commit");
+      win.webContents.sendInputEvent({type:"mouseMove",x:12,y:100});
+      const playingAudio="Array.from(document.querySelectorAll('audio')).some(audio=>!audio.paused && audio.currentTime>0)";
+      const enabledField="document.querySelector('.app')?.dataset.liquidGlass==='true'";
+      const surfaceCount="document.querySelectorAll('[data-glass-host] canvas').length";
+      const sample=async enabled=>{
+        const label=enabled?"enabled":"disabled";
+        await win.webContents.executeJavaScript("document.querySelector('.playerBar .circleButton.main[aria-label=pause]')?.click()");
+        await until(()=>win.webContents.executeJavaScript(`!(${playingAudio})`),"idle "+label);
+        await sleep(1500);
+        const idleStats=await metrics(label+" settled library idle",5);
+        const surfaces=await win.webContents.executeJavaScript(surfaceCount);
+        await win.webContents.executeJavaScript("document.querySelector('.songButton').click()");
+        await until(()=>win.webContents.executeJavaScript(playingAudio),"active glass sample playback");
+        await sleep(800);
+        const activeStats=await metrics(label+" library playback",5);
+        assert.ok(await win.webContents.executeJavaScript(playingAudio),"audio remains active during the visible sample");
+        try {
+          win.hide();
+          assert.equal(win.isVisible(),false,"the benchmark window is hidden");
+          if(enabled) await until(()=>win.webContents.executeJavaScript(`${surfaceCount}===0`),"hidden optical surfaces unmount");
+          const hiddenStats=await metrics(label+" hidden playback",5);
+          assert.ok(await win.webContents.executeJavaScript(playingAudio),"audio remains active while hidden");
+          return {surfaces,idleStats,activeStats,hiddenStats};
+        } finally {
+          win.show();
+          win.focus();
+        }
+      };
+      const enabledStats=await sample(true);
+      await openView("settings");
+      await win.webContents.executeJavaScript(`${toggle}.click()`);
+      await until(()=>win.webContents.executeJavaScript("!document.querySelector('.app').dataset.liquidGlass && !document.querySelector('[data-glass-host] canvas')"),"disabling releases mounted glass surfaces");
+      await openView("library");
+      await until(()=>win.webContents.executeJavaScript("Array.from(window.qaGlassContexts, context=>context.canvas.width===1&&context.canvas.height===1).every(Boolean)"),"retired renderer buffers shrink");
+      const contextSizesAfterDisable=await win.webContents.executeJavaScript("Array.from(window.qaGlassContexts, context=>[context.canvas.width,context.canvas.height])");
+      assert.ok(contextSizesAfterDisable.length>0 && contextSizesAfterDisable.every(([w,h])=>w===1&&h===1),"shared drawing buffers shrink after disabling");
+      // Do not retain old canvas/context references in the memory sample.
+      await win.webContents.executeJavaScript("window.qaGlassContexts.clear()");
+      const disabledStats=await sample(false);
+      await openView("settings");
+      await win.webContents.executeJavaScript(`${toggle}.click()`);
+      await until(()=>win.webContents.executeJavaScript("window.localitfy.getSettings().then(settings=>settings.liquidGlass===true)"),"re-enabled preference saved");
+      await until(()=>win.webContents.executeJavaScript("Boolean(document.querySelector('[data-glass-ready]'))"),"optics return after re-enable");
+      await openView("library");
+      await until(()=>win.webContents.executeJavaScript("Boolean(document.querySelector('.ltOpticalVolume canvas[data-glass-control-ready]'))"),"separate control renderer ready");
+      const lose=async kind=>{
+        const result=await win.webContents.executeJavaScript(`(()=>{
+          const kind=${JSON.stringify(kind)};
+          const context=[...window.qaGlassContexts].find(c=>c.canvas.dataset.glassRenderer===kind&&!c.isContextLost());
+          const extension=context?.getExtension("WEBGL_lose_context");
+          if(!extension)return false;
+          window.qaLostContext=context;
+          extension.loseContext();
+          return true;
+        })()`);
+        if(!result)return false;
+        await until(()=>win.webContents.executeJavaScript("window.qaLostContext.isContextLost()"),kind+" lost");
+        await until(()=>win.webContents.executeJavaScript(`[...window.qaGlassContexts].some(c=>c.canvas.dataset.glassRenderer===${JSON.stringify(kind)}&&c!==window.qaLostContext&&!c.isContextLost())`),kind+" replacement renderer");
+        return true;
+      };
+      const controlCanLose=await lose("controls");
+      if(controlCanLose) await until(()=>win.webContents.executeJavaScript("Boolean(document.querySelector('.ltOpticalVolume canvas[data-glass-control-ready]'))"),"Three.js slider recovers after forced loss");
+      // Keep a real open form and its focus through loss and recovery.
+      await win.webContents.executeJavaScript(`(()=>{const row=document.querySelector('.libraryPage .songRow[data-library-song-id=qa-0]');row.focus();row.dispatchEvent(new KeyboardEvent('keydown',{key:'F10',shiftKey:true,bubbles:true,cancelable:true}));})()`);
+      await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.songContextMenu')"),"glass dialog context menu");
+      await win.webContents.executeJavaScript("[...document.querySelectorAll('.songContextMenu [role=menuitem]')].find(e=>e.textContent.trim()==='add to playlist').click()");
+      await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.playlistPickerModal input[aria-label=\x22New playlist name\x22]')"),"glass dialog open");
+      await win.webContents.executeJavaScript(`(()=>{
+        window.qaDialog=document.querySelector('.playlistPickerModal');
+        window.qaDialogInput=window.qaDialog.querySelector('input[aria-label="New playlist name"]');
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(window.qaDialogInput,'retained draft');
+        window.qaDialogInput.dispatchEvent(new Event('input',{bubbles:true}));
+        window.qaDialogInput.focus();
+      })()`);
+      try {
+        win.hide();
+        await until(()=>win.webContents.executeJavaScript("!window.qaDialog.hasAttribute(\x27data-glass-host\x27)"),"hidden dialog suspends optics");
+      } finally {win.show();win.focus();}
+      await until(()=>win.webContents.executeJavaScript("window.qaDialog===document.querySelector(\x27.playlistPickerModal\x27) && window.qaDialogInput.value===\x27retained draft\x27 && window.qaDialog.hasAttribute(\x27data-glass-ready\x27)"),"dialog survives hide and restore");
+      await win.webContents.executeJavaScript("window.qaDialogInput.focus()");
+      const canLose=await lose("core");
+      if(canLose) {
+        await until(()=>win.webContents.executeJavaScript("Boolean(document.querySelector('.playlistPickerModal[data-glass-ready]'))"),"core renderer recovers while dialog stays open");
+        const retained=await win.webContents.executeJavaScript("window.qaDialog===document.querySelector('.playlistPickerModal') && window.qaDialogInput.isConnected && window.qaDialogInput.value==='retained draft' && window.qaDialog.contains(document.activeElement)");
+        assert.equal(retained,true,"dialog, unsaved input and focus survive core renderer replacement");
+        await screenshot(win,"glass-dialog-after-context-loss");
+      }
+      await win.webContents.executeJavaScript("document.querySelector('.playlistPickerModal').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");
+      await until(()=>win.webContents.executeJavaScript("!document.querySelector('.playlistPickerModal')"),"recovered dialog closes");
+      win.reload();
+      await until(()=>win.webContents.executeJavaScript(enabledField).catch(()=>false),"appearance survives renderer reload");
+      fs.writeFileSync(path.join(output,"glass-runtime.json"),JSON.stringify({firstOpticalPaintMs,beforeEnable,enabledStats,disabledStats,contextSizesAfterDisable,contextRecovery:canLose?"passed":"extension unavailable",controlsRecovery:controlCanLose?"passed":"extension unavailable"},null,2));
+      clearTimeout(watchdog);server.close();app.exit(0);
+      return;
+    }
     assert.equal(await win.webContents.executeJavaScript("document.querySelector('.app').dataset.sidebarBehavior"), "slim", "fresh installs use collapsed navigation");
     const originalMinSize=win.getMinimumSize();
     await win.webContents.executeJavaScript("document.querySelector('.sidebar [data-nav-id=library]').click()");
@@ -397,7 +757,7 @@ server.listen(5173,async()=>{
     const playingArtwork = await win.webContents.executeJavaScript("document.querySelector('.workspaceArtworkBackdrop .artworkBackdropLayer[data-visible=true] img').src");
     await screenshot(win,"home-next-track");
     await win.webContents.executeJavaScript("document.querySelector('.sidebar [data-nav-id=settings]').click()");
-    await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('.settingsModeButton').length===2 && document.querySelector('.app').dataset.workspaceArtwork==='on'").catch(()=>false),"two appearance modes");
+    await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('.settingsModeButton').length===3 && document.querySelector('.app').dataset.workspaceArtwork==='on'").catch(()=>false),"appearance controls");
     assert.equal(await win.webContents.executeJavaScript("document.querySelector('.workspaceArtworkBackdrop .artworkBackdropLayer[data-visible=true] img')?.src"),playingArtwork,"navigation preserves active cover");
     for(const mode of ["light","dark"]){
       await win.webContents.executeJavaScript(`document.querySelector('.settingsModeButton:has([data-preview-mode="${mode}"])').click()`);
@@ -482,7 +842,7 @@ server.listen(5173,async()=>{
        // next opens Settings. Restore selection after exercising Discover.
        const appearanceRestored=await win.webContents.executeJavaScript("(()=>{const b=[...document.querySelectorAll('.settingsCategoryButton')].find(b=>b.textContent.includes('Appearance'));if(!b)return false;b.click();return true})()");
        assert.equal(appearanceRestored,true,"Appearance category must stay reachable");
-       await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('.settingsModeButton').length===2").catch(()=>false),"Appearance after Discover "+mode);
+       await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('.settingsModeButton').length===3").catch(()=>false),"Appearance after Discover "+mode);
       // Keep full 860/1280 coverage; exercise original wide-desktop layout
       // only for the player and the two recently redesigned pages.
       for (const width of [1280,860,1920]) {
@@ -617,7 +977,7 @@ server.listen(5173,async()=>{
       // The active Discover category is remembered when returning to Settings.
       const appearanceSelected=await win.webContents.executeJavaScript("(()=>{const button=[...document.querySelectorAll('.settingsCategoryButton')].find(button=>button.textContent.includes('Appearance'));if(!button)return false;button.click();return true;})()");
       assert.equal(appearanceSelected,true,"Appearance remains reachable from Settings");
-      await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('.settingsModeButton').length===2").catch(()=>false),"appearance navigation");
+      await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('.settingsModeButton').length===3").catch(()=>false),"appearance navigation");
       const searched = await win.webContents.executeJavaScript("(()=>{const e=document.querySelector('#settings-section-search');if(!e)return false;Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,'crossfade');e.dispatchEvent(new Event('input',{bubbles:true}));return true})()");
       assert.ok(searched,"Settings control search must be accessible");
       await until(()=>win.webContents.executeJavaScript("Array.from(document.querySelectorAll('.settingsControlResult')).some(el=>el.textContent.includes('Crossfade'))").catch(()=>false),"crossfade control search");
@@ -677,7 +1037,7 @@ server.listen(5173,async()=>{
       await screenshot(win,"settings-library-"+mode);
        const appearanceForNextTheme = await win.webContents.executeJavaScript("(()=>{const button=[...document.querySelectorAll('.settingsCategoryButton')].find(item=>item.textContent.includes('Appearance'));if(!button)return false;button.click();return true;})()");
        assert.equal(appearanceForNextTheme,true,"Appearance must be accessible after Lyrics");
-       await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('.settingsModeButton').length===2").catch(()=>false),"restore Appearance for next theme");
+       await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('.settingsModeButton').length===3").catch(()=>false),"restore Appearance for next theme");
 
     }
     // Render the actual title-bar update banner and remote What's New flow without installing a fake package.

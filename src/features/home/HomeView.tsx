@@ -1,3 +1,5 @@
+import { OpticalButton } from "../../shared/appearance/OpticalButton";
+import { useAppearance } from "../../shared/appearance/appearance";
 import { IconButton } from "../../shared/ui/IconButton";
 import "./home.css";
 import { Fragment, lazy, Suspense, useCallback, useMemo, useState, type CSSProperties, type ReactNode } from "react";
@@ -33,10 +35,12 @@ export type HomeViewProps = {
   nowPlayingTransitionKey: string;
   openAnalysisSettings: () => unknown;
   openDailyMixes: () => unknown;
+  openPhoneSync: () => unknown;
   openSimilarSongs: (request: SimilarSeedRequest) => unknown;
   playableSongCount: number;
   playerError: string | null;
   playSongs: (songIds: string[], label: string) => unknown;
+  resumePlayback: () => unknown;
   selectSong: (songId: string, shouldPlay?: boolean) => unknown;
   songs: readonly Song[];
   songsById: Map<string, Song>;
@@ -63,9 +67,11 @@ export default function HomeView(props: HomeViewProps) {
     nowPlayingTransitionKey,
     openAnalysisSettings,
     openDailyMixes,
+    openPhoneSync,
     playableSongCount,
     playerError,
     playSongs,
+    resumePlayback,
     selectSong,
     songs,
     settings,
@@ -75,6 +81,7 @@ export default function HomeView(props: HomeViewProps) {
   } = props;
 
   const actions = useAppActions();
+  const { kit } = useAppearance();
   const day = useHomeDay();
   const android = isAndroidApp();
   const needsPhoneSync = android && songs.length === 0;
@@ -100,7 +107,7 @@ export default function HomeView(props: HomeViewProps) {
 
   const startListening = () => {
     if (currentSong?.id) {
-      void selectSong(currentSong.id, true);
+      void resumePlayback();
       return;
     }
     shuffleLibrarySongsAction();
@@ -124,10 +131,10 @@ export default function HomeView(props: HomeViewProps) {
           {isThreeAm && settings.volume > 0.8 ? <div className="homeInlineNotice">volume is above 80% · late night ears deserve mercy.</div> : null}
 
           <div className="homeJumpActions">
-            <button className="homeStartButton" type="button" onClick={needsPhoneSync ? () => actions.nav.go("settings", "nav") : startListening} disabled={!needsPhoneSync && !currentSong && playableSongCount === 0}>
+            <OpticalButton primary className="homeStartButton" type="button" onClick={needsPhoneSync ? openPhoneSync : startListening} disabled={!needsPhoneSync && !currentSong && playableSongCount === 0}>
               {needsPhoneSync ? <Smartphone size={12} aria-hidden="true" /> : <SolidIcon name="play" size={13} />}
               <span>{needsPhoneSync ? "Set up phone sync" : android ? (currentSong ? "Play" : "Shuffle music") : currentSong ? "Play track" : "Start Listening"}</span>
-            </button>
+            </OpticalButton>
             {!needsPhoneSync ? <IconButton className="homeRoundButton" type="button" onClick={shuffleLibrarySongsAction} disabled={playableSongCount < 2} aria-label="shuffle library" title="Shuffle library">
               <Shuffle size={14} strokeWidth={2.2} aria-hidden="true" />
             </IconButton> : null}
@@ -187,7 +194,18 @@ export default function HomeView(props: HomeViewProps) {
     <div className="homePage" style={ambientStyle}>
       <header className="homeTopBar">
         <h1>Home</h1>
-        <button
+        {kit ? <kit.GlassPopover open={customizeOpen} onOpenChange={setCustomizeOpen}>
+          <kit.GlassPopoverTrigger className="homeCustomizeButton" aria-label="Customize Home" title="Customize Home">
+            <SlidersHorizontal size={19} strokeWidth={1.9} aria-hidden="true" />
+          </kit.GlassPopoverTrigger>
+          <kit.GlassPopoverContent over="edge" align="end" aria-label="Customize Home">
+            <Suspense fallback={null}>
+              <HomeCustomizePanel embedded sectionOrder={settings.homeSectionOrder} hiddenSections={settings.homeHiddenSections}
+                updateHomeLayout={updateHomeLayout} onClose={closeCustomize} />
+            </Suspense>
+            <kit.GlassPopoverClose>Done</kit.GlassPopoverClose>
+          </kit.GlassPopoverContent>
+        </kit.GlassPopover> : <><button
           className={`homeCustomizeButton ${customizeOpen ? "active" : ""}`}
           type="button"
           onClick={() => setCustomizeOpen((open) => !open)}
@@ -207,7 +225,7 @@ export default function HomeView(props: HomeViewProps) {
             onClose={closeCustomize}
           />
           </Suspense>
-        ) : null}
+        ) : null}</>}
       </header>
 
       {needsPhoneSync ? sections.jumpBack : visibleSections.length ? visibleSections.map((id) => <Fragment key={id}>{sections[id]}</Fragment>) : (

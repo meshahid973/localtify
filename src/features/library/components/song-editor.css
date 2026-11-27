@@ -1,0 +1,178 @@
+.songEditorBackdrop {
+  position: fixed;
+  inset: var(--localtify-titlebar-height, 36px) 0 0;
+  z-index: 2147482499;
+  display: grid;
+  place-items: center;
+  padding: var(--lt-space-4);
+  background: var(--lt-overlay-scrim);
+}
+
+.app[data-platform="android"] .songEditorBackdrop {
+  inset: 0;
+  padding-block: max(var(--lt-space-4), var(--safe-area-inset-top, 0px))
+    max(var(--lt-space-4), var(--safe-area-inset-bottom, 0px));
+}
+
+.songEditor {
+  --glass-tint: var(--lt-bg-elevated);
+  width: min(100%, 680px);
+  max-height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: clip;
+  padding: clamp(14px, 3vw, 24px);
+  border: 1px solid var(--lt-border);
+  border-radius: var(--lt-radius-panel);
+  background: var(--lt-bg-elevated);
+  color: var(--lt-text);
+  box-shadow: var(--lt-shadow-menu);
+}
+
+.songEditorHeader,
+.songEditorActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--lt-space-2);
+}
+
+.songEditorHeader {
+  flex: none;
+  justify-content: space-between;
+  margin-bottom: var(--lt-space-4);
+}
+
+.songEditorHeader h2 {
+  margin: 0;
+  font-size: var(--lt-text-title);
+  letter-spacing: -.025em;
+}
+
+.songEditor form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.songEditorBody {
+  display: grid;
+  align-content: start;
+  grid-template-columns: clamp(116px, 22vw, 178px) minmax(0, 1fr);
+  gap: var(--lt-space-5);
+  min-height: 0;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  padding: 3px;
+}
+
+.songEditorArtwork { min-width: 0; }
+
+.songEditorCover {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: var(--lt-radius-item);
+  overflow: hidden;
+}
+
+.songEditorStats {
+  display: grid;
+  gap: var(--lt-space-2);
+  margin: var(--lt-space-3) 0 0;
+  font-size: var(--lt-text-sm);
+}
+
+.songEditorStats div,
+.songEditorPlaylists summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--lt-space-2);
+}
+
+.songEditorStats dt,
+.songEditorPlaylists summary span:last-child,
+.songEditorPlaylists p { color: var(--lt-muted); }
+
+.songEditorStats dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.songEditorFields { display: grid; gap: var(--lt-space-3); min-width: 0; }
+
+.songEditorFields > label {
+  display: grid;
+  gap: var(--lt-space-1);
+  color: var(--lt-muted);
+  font-size: var(--lt-text-sm);
+}
+
+.songEditorFields > label input {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--lt-control-height);
+  padding: 0 var(--lt-space-3);
+  border: 1px solid var(--lt-border);
+  border-radius: var(--lt-control-radius);
+  background: var(--lt-surface-soft);
+  font: inherit;
+  font-size: var(--lt-text-base, 13px);
+}
+
+.songEditorPlaylists { border-top: 1px solid var(--lt-border); }
+.songEditorPlaylists summary { min-height: 42px; align-items: center; cursor: pointer; list-style: none; }
+.songEditorPlaylists summary::-webkit-details-marker { display: none; }
+.songEditorPlaylists summary::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border: solid currentColor;
+  border-width: 0 1px 1px 0;
+  rotate: -45deg;
+}
+.songEditorPlaylists[open] summary::before { rotate: 45deg; }
+.songEditorPlaylists summary span:first-of-type { margin-inline-end: auto; }
+.songEditorPlaylists summary span:last-child,
+.songEditorPlaylists p { font-size: var(--lt-text-sm); }
+.songEditorPlaylists p { margin: 0 0 var(--lt-space-2); }
+.songEditorPlaylistList {
+  display: grid;
+  max-height: 144px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.songEditorPlaylistList label {
+  display: flex;
+  align-items: center;
+  gap: var(--lt-space-2);
+  min-height: 34px;
+}
+.songEditorPlaylistList input { flex: none; accent-color: var(--lt-accent); }
+.songEditorPlaylistList span { overflow-wrap: anywhere; }
+
+.songEditorActions {
+  flex: none;
+  justify-content: flex-end;
+  border-top: 1px solid var(--lt-border);
+  margin-top: var(--lt-space-4);
+  padding-top: var(--lt-space-3);
+}
+
+.songEditorActions .songEditorRemove {
+  color: var(--lt-danger);
+  margin-inline-end: auto;
+}
+
+.songEditorActions [aria-pressed="true"] svg { color: var(--lt-danger); }
+
+.songEditorError { color: var(--lt-danger); }
+
+@media (max-width: 540px) {
+  .songEditorBody { grid-template-columns: minmax(0, 1fr); gap: var(--lt-space-4); }
+  .songEditorArtwork { display: grid; grid-template-columns: 74px minmax(0, 1fr); align-items: center; gap: var(--lt-space-3); }
+  .songEditorStats { margin: 0; }
+  .songEditorActions .ltButton { padding-inline: var(--lt-space-2); }
+}

@@ -649,7 +649,7 @@ export function TabsTrigger({
   );
 }
 
-export function TabsContent({ value, children, className }: { value: string; children: ReactNode; className?: string }) {
+export function TabsContent({ value, children, className, selectorLabel }: { value: string; children: ReactNode; className?: string; selectorLabel?: string }) {
   const { value: current, registerPanel, unregisterPanel, tabId, panelId } = useTabs();
   const reduce = useReducedMotion();
   const active = current === value;
@@ -659,8 +659,9 @@ export function TabsContent({ value, children, className }: { value: string; chi
   }, [registerPanel, unregisterPanel, value]);
   const a11y = {
     id: panelId(value),
-    role: "tabpanel",
-    "aria-labelledby": tabId(value),
+    role: selectorLabel ? "region" : "tabpanel",
+    "aria-label": selectorLabel,
+    "aria-labelledby": selectorLabel ? undefined : tabId(value),
   } as const;
   // Keep the same React element type when selected state changes. Replacing
   // div with motion.div remounts the entire panel and loses child state.

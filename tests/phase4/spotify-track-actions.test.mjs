@@ -9,13 +9,14 @@ const css = fs.readFileSync("src/features/downloads/downloads.css", "utf8");
 test("Spotify selection and retry remain separate native controls without nested buttons", () => {
   const parsed = ts.createSourceFile("DownloadsView.tsx", view, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const nestedButtons = [];
+  const buttonTags = new Set(["button", "OpticalButton", "Button"]);
   function visit(node, inButton = false) {
     if (ts.isJsxElement(node)) {
-      const isButton = node.openingElement.tagName.getText(parsed) === "button";
+      const isButton = buttonTags.has(node.openingElement.tagName.getText(parsed));
       if (isButton && inButton) nestedButtons.push(parsed.getLineAndCharacterOfPosition(node.pos).line + 1);
       for (const child of node.children) visit(child, inButton || isButton);
     } else if (ts.isJsxSelfClosingElement(node)) {
-      if (node.tagName.getText(parsed) === "button" && inButton)
+      if (buttonTags.has(node.tagName.getText(parsed)) && inButton)
         nestedButtons.push(parsed.getLineAndCharacterOfPosition(node.pos).line + 1);
     } else ts.forEachChild(node, (child) => visit(child, inButton));
   }
@@ -43,7 +44,7 @@ test("Spotify selection and retry preserve focus, narrow layout and disabled act
 });
 
 test("MusicBrainz album previews keep Spotify authentication and link inputs out of the active panel", () => {
-  assert.match(view, /catalogSelection\s*\?\s*<button[^>]*onClick=\{clearSpotify\}>Back to Spotify import<\/button>/);
+  assert.match(view, /catalogSelection\s*\?\s*<OpticalButton[^>]*onClick=\{clearSpotify\}>Back to Spotify import<\/OpticalButton>/);
   assert.match(view, /\{!catalogSelection \? <>\s*<label className="downloadsInputLabel" htmlFor="downloads-spotify-link">Spotify link<\/label>/);
   assert.match(view, /\{catalogSelection \? <p className="downloadsCatalogHint"/);
   assert.match(view, /disabled=\{working \|\| spotifyFetchBusy\} onClick=\{clearSpotify\}/);

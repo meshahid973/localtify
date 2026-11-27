@@ -90,14 +90,3 @@ export function toggleSidebarItemHidden(hidden: unknown, view: View): View[] {
   if (view === "library" || !sidebarGroupForView(view)) return current;
   return current.includes(view) ? current.filter((id) => id !== view) : [...current, view];
 }
-
-/** Scrolls Settings to the sidebar panel once the lazily mounted settings page has rendered it. */
-export function revealSidebarSettingsPanel(reducedMotion: boolean) {
-  let attempts = 0;
-  const reveal = () => {
-    const panel = document.getElementById("settings-sidebar-tabs");
-    if (panel) panel.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
-    else if (attempts++ < 20) window.setTimeout(reveal, 50);
-  };
-  window.setTimeout(reveal, 50);
-}

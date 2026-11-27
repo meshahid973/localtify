@@ -1,3 +1,4 @@
+import { TransportButton, TransportGroup } from "./TransportGroup";
 import { Slider } from "../../../shared/ui/Slider";
 import { Fragment, lazy, Suspense, useEffect, useRef, useState } from "react";
 import type { TouchEvent as ReactTouchEvent } from "react";
@@ -223,26 +224,26 @@ export default function PhonePlayer(props: PhonePlayerProps) {
             </span>
           </div>
 
-          <div className="phonePlayerControls">
-            <button type="button" className={`phoneIconButton phoneToggle ${isShuffle ? "active" : ""}`} onClick={() => setIsShuffle((value) => !value)}
+          <TransportGroup className="phonePlayerControls">
+            <TransportButton type="button" className={`phoneIconButton phoneToggle ${isShuffle ? "active" : ""}`} onClick={() => setIsShuffle((value) => !value)}
               aria-label={isShuffle ? "turn shuffle off" : "turn shuffle on"} aria-pressed={isShuffle}>
               <Shuffle size={22} strokeWidth={2.2} aria-hidden="true" />
-            </button>
-            <button type="button" className="phoneIconButton phoneSkip" onClick={playPrevious} aria-label="previous song">
+            </TransportButton>
+            <TransportButton type="button" className="phoneIconButton phoneSkip" onClick={playPrevious} aria-label="previous song">
               <SkipBack size={30} strokeWidth={2} fill="currentColor" aria-hidden="true" />
-            </button>
-            <button type="button" className="phonePlayButton" onClick={togglePlay} aria-label={isPlaying ? "pause" : "play"}>
+            </TransportButton>
+            <TransportButton type="button" className="phonePlayButton" onClick={togglePlay} aria-label={isPlaying ? "pause" : "play"}>
               <PlayerPlayPauseMorphIcon playing={isPlaying} />
-            </button>
-            <button type="button" className="phoneIconButton phoneSkip" onClick={() => playNext(true)} aria-label="next song">
+            </TransportButton>
+            <TransportButton type="button" className="phoneIconButton phoneSkip" onClick={() => playNext(true)} aria-label="next song">
               <SkipForward size={30} strokeWidth={2} fill="currentColor" aria-hidden="true" />
-            </button>
-            <button type="button" className={`phoneIconButton phoneToggle ${repeatMode !== "off" ? "active" : ""}`} onClick={toggleRepeat}
+            </TransportButton>
+            <TransportButton type="button" className={`phoneIconButton phoneToggle ${repeatMode !== "off" ? "active" : ""}`} onClick={toggleRepeat}
               aria-label={repeatButtonAriaLabel} aria-pressed={repeatMode !== "off"}>
               <Repeat2 size={22} strokeWidth={2.2} aria-hidden="true" />
               {repeatButtonStateText ? <span className="phoneRepeatMark" aria-hidden="true">{repeatButtonStateText}</span> : null}
-            </button>
-          </div>
+            </TransportButton>
+          </TransportGroup>
 
           <div className="phonePlayerTools">
             {connect ? <DevicePicker controls={connect} variant="chip" /> : null}

@@ -12,8 +12,7 @@ export function useAppToast() {
   const [appToast, setAppToast] = useState<AppToastState>(null);
   const toastTimerRef = useRef<number | null>(null);
 
-  const showAppToast = useCallback((message: string, kind: AppToastKind = "info") => {
-    if (kind !== "error") return;
+  const showFeedbackToast = useCallback((message: string, kind: "success" | "error") => {
     if (toastTimerRef.current !== null) {
       window.clearTimeout(toastTimerRef.current);
     }
@@ -25,6 +24,9 @@ export function useAppToast() {
       toastTimerRef.current = null;
     }, 2600);
   }, []);
+  const showAppToast = useCallback((message: string, kind: AppToastKind = "info") => {
+    if (kind === "error") showFeedbackToast(message, kind);
+  }, [showFeedbackToast]);
 
   useEffect(() => {
     return () => {
@@ -34,5 +36,5 @@ export function useAppToast() {
     };
   }, []);
 
-  return { appToast, setAppToast, showAppToast };
+  return { appToast, setAppToast, showAppToast, showFeedbackToast };
 }

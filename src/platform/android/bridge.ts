@@ -59,7 +59,7 @@ export function createAndroidBridge(): Bridge {
       return;
     }
     const overlay = document.querySelector("[role='menu']") ||
-      Array.from(document.querySelectorAll("[role='dialog']:not(.phonePlayerSheet):not(.phoneMoreSheet):not(.lyricsView), .editorModal")).pop();
+      Array.from(document.querySelectorAll("[role='dialog']:not(.phonePlayerSheet):not(.phoneMoreSheet):not(.lyricsView), [role='alertdialog']")).pop();
     if (overlay) {
       // Some shared dialogs only expose an explicit close button, without an Escape handler.
       const close = overlay.matches("[role='menu']") ? null : overlay.querySelector<HTMLButtonElement>(

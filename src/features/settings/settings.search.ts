@@ -45,7 +45,7 @@ export const SETTINGS_CONTROL_LINKS: readonly SettingsControlLink[] = [
   { id: "artwork", label: "Reroll library artwork", description: "Library", category: "library", target: "settings-library-artwork", keywords: "cover images art random covers library", desktopOnly: true },
   { id: "quality", label: "Download quality and format", description: "Downloads", category: "downloads", target: "settings-downloads-quality", keywords: "bitrate mp3 flac wav original opus m4a" },
   { id: "download-folder", label: "Download location", description: "Downloads", category: "downloads", target: "settings-downloads-folder", keywords: "folder location save auto add filenames clean" },
-  { id: "download-import", label: "Import completed downloads", description: "Downloads", category: "downloads", target: "settings-downloads-import", keywords: "keep original audio add to library filename clean title import" },
+  { id: "download-import", label: "Import completed downloads", description: "Downloads", category: "downloads", target: "settings-downloads-import", keywords: "add to library filename clean title import" },
   { id: "lastfm", label: "Last.fm connection", description: "Discover", category: "discover", target: "settings-discover-lastfm", keywords: "provider api key test network discovery" },
   { id: "discover-enable", label: "Enable Discover", description: "Discover", category: "discover", target: "settings-discover-enabled", keywords: "activate catalog search privacy external providers" },
   { id: "discord", label: "Discord presence and privacy", description: "Discord", category: "discord", target: "settings-discord-privacy", keywords: "rpc status activity buttons hide" },

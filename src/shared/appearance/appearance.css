@@ -1,0 +1,384 @@
+.app[data-oled="true"] {
+  background: #000;
+  --lt-glass-background: #0b0b0b;
+}
+
+.app[data-liquid-glass="true"] {
+  --lt-optical-fill: color-mix(in srgb, var(--lt-bg-elevated) 78%, transparent);
+  --lt-optical-edge: color-mix(in srgb, var(--lt-accent) 18%, transparent);
+  --lt-optical-focus: color-mix(in srgb, var(--lt-text) 72%, transparent);
+}
+
+.app[data-liquid-glass="true"] :is(.ltOverlaySurface, .playerBar, .titleBar, .sidebar) {
+  --lt-glass-background: var(--lt-optical-fill);
+}
+
+.app[data-liquid-glass="true"] .ltOpticalSelect {
+  width: min(100%, 14rem);
+  gap: 0;
+}
+
+.app[data-liquid-glass="true"] .ltOpticalSelect [data-slot="select-label"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.app[data-liquid-glass="true"] .ltOpticalSelect > button {
+  min-height: var(--lt-control-height, 36px);
+  height: auto;
+  padding: .45rem .75rem;
+  font-size: inherit;
+}
+
+.app[data-liquid-glass="true"] :is(.ltOpticalSelect > button, .ltOpticalAction) {
+  color: var(--lt-text);
+}
+
+.app[data-liquid-glass="true"] .ltOpticalToggle {
+  align-items: center;
+  display: flex;
+  min-height: var(--lt-control-height);
+  color: var(--lt-text);
+}
+
+.app[data-liquid-glass="true"] .ltOpticalToggle > div {
+  width: 100%;
+  justify-content: space-between;
+}
+
+.app[data-liquid-glass="true"] .ltOpticalToggle button[role="switch"] {
+  border: 0;
+  background: transparent;
+}
+
+.app[data-liquid-glass="true"] .ltOpticalToggle button[role="switch"]:not(:has([data-glass-control-ready])) {
+  background: var(--lt-fill-selected);
+}
+
+.app[data-liquid-glass="true"] .ltOpticalToggle button[role="switch"]:not(:has([data-glass-control-ready]))::before {
+  content: "";
+  display: block;
+  position: relative;
+  width: 16px;
+  height: 16px;
+  margin-inline: 3px;
+  border-radius: 50%;
+  background: var(--lt-text);
+}
+
+.app[data-liquid-glass="true"] .ltOpticalToggle button[aria-checked="true"]:not(:has([data-glass-control-ready]))::before {
+  margin-inline-start: auto;
+}
+
+.app[data-liquid-glass="true"] .settingsModeButton[aria-pressed="true"] .settingsModePreview {
+  border-color: var(--lt-optical-edge);
+}
+
+.app[data-liquid-glass="true"] .ltOpticalCard {
+  border-color: transparent;
+}
+
+.app[data-liquid-glass="true"] .settingsPage .settingsCategoryPage .ltOpticalCard {
+  padding: var(--lt-space-4);
+  border-radius: var(--lt-radius-panel);
+}
+
+.app[data-liquid-glass="true"] .ltOpticalTabs {
+  width: fit-content;
+  max-width: 100%;
+  flex-wrap: wrap;
+  background: transparent;
+  padding: 0;
+}
+
+.app[data-liquid-glass="true"] .ltOpticalTabs [role="radio"] {
+  color: var(--lt-muted);
+  border: 0;
+  background: transparent;
+  padding-inline: var(--lt-space-3);
+}
+
+.app[data-liquid-glass="true"] .ltOpticalTabs [role="radio"]:is(:hover, [aria-checked="true"]) {
+  color: var(--lt-text);
+}
+
+.app[data-liquid-glass="true"] .ltOpticalTabSelection {
+  /* GlassLens samples RGB only, so resolve the fill against the theme first. */
+  background: color-mix(in srgb, var(--lt-text) 14%, var(--lt-bg-elevated));
+}
+
+.app[data-liquid-glass="true"] .librarySectionNav .ltOpticalTabs {
+  flex-wrap: nowrap;
+}
+
+.app[data-liquid-glass="true"] button[data-glass-host] {
+  border-color: transparent;
+}
+
+.app[data-liquid-glass="true"] :is(.ltOpticalButton, .ltOpticalHistory, .ltOpticalQueueActions) {
+  --glass-tint: var(--lt-bg-elevated);
+}
+
+.app[data-liquid-glass="true"] .ltSidebarGlassButton {
+  --glass-tint: var(--lt-bg-elevated);
+}
+
+.app[data-liquid-glass="true"] .ltSidebarGlassButton.active {
+  --glass-tint: color-mix(in srgb, var(--lt-bg-elevated), var(--lt-text) 12%);
+}
+
+.app[data-liquid-glass="true"] .sidebar .navGroupedV467 {
+  --lt-sidebar-nav-gap: 6px;
+}
+
+.app[data-liquid-glass="true"] .ltSidebarGlassButton:not(.active, :focus-visible) > canvas {
+  opacity: .45;
+}
+
+.app[data-liquid-glass="true"] .navGroupedV467:hover .ltSidebarGlassButton > canvas {
+  opacity: .7;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .app[data-liquid-glass="true"]:not(.reducedMotion) .ltSidebarGlassButton > canvas {
+    transition: opacity var(--lt-control-motion) ease;
+  }
+}
+
+.app[data-liquid-glass="true"] .ltOpticalQueueActions > .queuePanelIconButton {
+  padding-inline: 0;
+}
+
+.app[data-liquid-glass="true"] .ltIconButton.ltOpticalButton {
+  border-radius: var(--lt-radius-item);
+}
+
+/* Optical controls use a short keyboard focus marker, not a second glass rim.
+   The shared focus rule consumes these tokens, including its legacy priority. */
+.app[data-liquid-glass="true"] :is(.ltOpticalTabs [role="radio"], .ltOpticalTransport > button, .ltOpticalHistory > button,
+  button[data-glass-host], .ltOpticalToggle button) {
+  --lt-control-focus-outline: none;
+  --lt-control-focus-offset: 0px;
+}
+/* Do not override the positioning of floating/absolute controls. The optical
+   host has its own positioning rule; group items only need a default anchor. */
+:where(.app[data-liquid-glass="true"] :is(.ltOpticalTabs [role="radio"], .ltOpticalTransport > button,
+  .ltOpticalHistory > button, .ltOpticalToggle button)) {
+  position: relative;
+}
+.app[data-liquid-glass="true"] :is(.ltOpticalTabs [role="radio"], .ltOpticalTransport > button, .ltOpticalHistory > button,
+  button[data-glass-host], .ltOpticalToggle button):focus-visible {
+  outline: none;
+  --tw-ring-shadow: 0 0 transparent;
+  --tw-ring-offset-shadow: 0 0 transparent;
+}
+.app[data-liquid-glass="true"] :is(.ltOpticalTabs [role="radio"], .ltOpticalTransport > button, .ltOpticalHistory > button,
+  button[data-glass-host], .ltOpticalToggle button):focus-visible::after {
+  content: "";
+  position: absolute;
+  inset-inline: 32%;
+  bottom: 2px;
+  height: 2px;
+  border-radius: 2px;
+  background: currentColor;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.ltOpticalPopoverPanel.homeCustomizePanel {
+  position: static;
+  width: auto;
+  max-width: 100%;
+  overflow-x: hidden;
+  background: transparent;
+  box-shadow: none;
+  border: 0;
+  padding: 0;
+}
+
+.app[data-liquid-glass="true"] .ltOpticalTransport {
+  --lt-transport-base: color-mix(in srgb, var(--lt-bg-elevated) 92%, var(--lt-text));
+  --glass-tint: var(--lt-transport-base);
+  background-color: color-mix(in srgb, var(--glass-tint) 82%, transparent);
+  color: var(--lt-text);
+  border-radius: 999px;
+  width: max-content;
+  max-width: 100%;
+  margin-inline: auto;
+  border-color: transparent;
+  padding-inline: var(--lt-space-1);
+}
+
+.app[data-liquid-glass="true"] :is(.ltOpticalTransport, .ltOpticalHistory) > button {
+  padding-inline: 0;
+  border: 0;
+}
+
+.app[data-liquid-glass="true"] .immersiveTransport.ltOpticalTransport {
+  gap: var(--lt-space-2);
+}
+
+.app[data-liquid-glass="true"] .ltOpticalTransport > .immersivePlay {
+  width: 46px;
+  height: 46px;
+}
+
+.app[data-liquid-glass="true"] .phonePlayerControls.ltOpticalTransport > .phoneIconButton {
+  min-width: 40px;
+}
+
+.app[data-liquid-glass="true"] :is(.progressRow, .immersiveSeek, .phonePlayerSeek) .ltRange {
+  --lt-range-track: var(--lt-fill-selected);
+}
+
+.app[data-liquid-glass="true"] .ltOpticalRange {
+  min-width: 0;
+  width: 100%;
+}
+
+.app[data-liquid-glass="true"] .ltOpticalVolume {
+  min-width: 0;
+  width: 100%;
+}
+
+.app[data-liquid-glass="true"] .ltOpticalVolume [data-slot="field-label"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.app[data-liquid-glass="true"] .ltOpticalVolume [data-slot="field"] {
+  gap: 0;
+}
+
+.app[data-liquid-glass="true"] .ltOpticalConfirm {
+  margin-block-start: var(--lt-space-3);
+}
+
+.app[data-liquid-glass="true"] .ltOpticalHistory > button {
+  min-width: 32px;
+}
+
+.settingsModePreview[data-preview-mode="oled"] {
+  --preview-bg: #000;
+  --preview-nav: #121212;
+  --preview-fill: #242424;
+  --preview-text: #fff;
+}
+
+.settingsAppearanceCleanV491 .settingsModeGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.app[data-liquid-glass="true"] :is(.playerBar, .titleBar, .sidebar, .queuePanel) {
+  background-color: var(--lt-optical-fill);
+}
+
+.app[data-liquid-glass="true"] :is(.queuePanel, .settingsPanelCard, .ltOverlaySurface) {
+  border-color: var(--lt-optical-edge);
+}
+
+.app[data-liquid-glass="true"] :is(.ltTrackRow button, .librarySectionNav button):focus-visible {
+  outline-color: var(--lt-optical-focus);
+}
+
+/* Use the same palette and appearance preference as the player, not a black capsule.
+   Keep the base theme dominant for readable controls even with very bright artwork. */
+.app[data-liquid-glass="true"] {
+  --lt-transport-artwork-share: 30%;
+}
+.app[data-liquid-glass="true"][data-cover-sync="subtle"] {
+  --lt-transport-artwork-share: 20%;
+}
+.app[data-liquid-glass="true"][data-cover-sync="strong"] {
+  --lt-transport-artwork-share: 42%;
+}
+.app[data-liquid-glass="true"]:not([data-cover-sync="off"]):not([data-ambient="off"]) :is(
+  .playerBar[data-ambient="true"],
+  .immersivePlayer[data-background="coverBlur"],
+  .phonePlayerSheet[data-background="coverBlur"]
+) .ltOpticalTransport {
+  --glass-tint: color-mix(in srgb, var(--lt-transport-base), var(--cover-average, var(--lt-transport-base)) var(--lt-transport-artwork-share));
+}
+.app[data-liquid-glass="true"]:is([data-player-background="flat"], [data-player-background="oledBlack"]) .playerBar .ltOpticalTransport {
+  --glass-tint: var(--lt-transport-base);
+}
+html:has(.app[data-liquid-glass="true"]) [data-glass-popup] {
+  outline: none;
+  border: 0;
+  background: transparent;
+  color: var(--lt-text);
+  --tw-ring-shadow: 0 0 transparent;
+  --tw-ring-offset-shadow: 0 0 transparent;
+  box-shadow: none;
+}
+html:has(.app[data-liquid-glass="true"]) [data-glass-popup][data-glass-off] {
+  background: color-mix(in srgb, var(--lt-bg-elevated) 90%, var(--cover-average, var(--lt-bg-elevated)));
+  box-shadow: var(--lt-shadow-menu);
+}
+html:has(.app[data-liquid-glass="true"]) [data-glass-popup]:is(:focus, :focus-visible) {
+  --lt-control-focus-outline: none;
+  --lt-control-focus-offset: 0px;
+  outline: none;
+}
+html:has(.app[data-liquid-glass="true"]) [data-glass-popup] :is([role="menu"], [role="listbox"], [data-glass-list]) {
+  position: relative;
+  z-index: 1;
+}
+html:has(.app[data-liquid-glass="true"]) [data-glass-popup][data-glass-off] :is([data-disabled], [aria-disabled="true"]) {
+  opacity: .45;
+}
+html:has(.app[data-liquid-glass="true"]) [data-glass-popup] [data-slot="popover-close"] {
+  border: 0;
+  --lt-control-focus-outline: 1px solid var(--lt-text);
+}
+html:has(.app[data-liquid-glass="true"]) [data-glass-popup] :is([role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"], [role="option"], [data-glass-item]) {
+  --lt-control-focus-outline: none;
+  --lt-control-focus-offset: 0px;
+}
+html:has(.app[data-liquid-glass="true"]) [data-glass-popup] :is([role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"], [role="option"]):focus-visible {
+  outline: none;
+  background-color: var(--lt-fill-selected);
+  box-shadow: inset 3px 0 currentColor;
+  --tw-ring-shadow: 0 0 transparent;
+  --tw-ring-offset-shadow: 0 0 transparent;
+}
+.ltGlassRangeFallback {
+  position: absolute;
+  inset-inline: 0;
+  top: 50%;
+  height: 6px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: var(--lt-fill-selected);
+  pointer-events: none;
+}
+.ltGlassRangeFallback > span { display:block; height:100%; border-radius:inherit; background:var(--lt-muted); }
+.ltGlassRangeFallback > i { position:absolute; top:50%; width:16px; height:16px; transform:translate(-50%,-50%); border-radius:50%; background:var(--lt-text); }
+[data-glass-control-fallback]:has(> canvas[data-glass-control-ready]) > .ltGlassRangeFallback,
+[data-glass-control-fallback]:has(> canvas[data-glass-control-ready]) > .ltGlassCheckFallback { visibility:hidden; }
+.ltGlassCheckFallback { position:absolute; inset:0; display:grid; place-items:center; border:1px solid var(--lt-muted); border-radius:inherit; color:var(--lt-text); pointer-events:none; }
+[aria-checked="true"] > .ltGlassCheckFallback { background:var(--lt-accent); color:var(--button-text-on-accent); border-color:transparent; }
+
+.app[data-liquid-glass="true"] .ltOpticalMenuIcon {
+  width: var(--lt-control-height);
+  min-width: var(--lt-control-height);
+  height: var(--lt-control-height);
+  padding: 0;
+}
+.app[data-liquid-glass="true"] .settingsResetButton.ltOpticalButton {
+  white-space: normal;
+  align-items: flex-start;
+  text-align: left;
+}
+.app[data-liquid-glass="true"] .downloadsTabList.ltOpticalTabs [role="radio"] {
+  min-width: 96px;
+  min-height: 34px;
+}

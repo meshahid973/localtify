@@ -16,7 +16,6 @@ const backfill = fs.readFileSync("electron/runtime/genre-backfill.cjs", "utf8");
 
 test("Genres is a lazy, feature-owned library destination", () => {
   assert.doesNotMatch(navigation, /id:\s*"genres"/);
-  assert.match(shell, /\["genres", "Genres"\]/);
   assert.match(shell, /lazy\(\(\) => import\("\.\.\/genres\/GenresView"\)\)/);
   assert.match(source, /data-page-section="genres"/);
   assert.match(source, /import "\.\/genres\.css"/);

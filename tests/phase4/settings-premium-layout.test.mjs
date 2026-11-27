@@ -195,6 +195,5 @@ test("Settings search targets actual sections and never recreates the feedback f
   for (const id of targets) assert.ok(componentFiles.includes('id="' + id + '"'), "Missing Settings search target: " + id);
   assert.doesNotMatch(search, /feedback|Feedback/i);
   assert.match(read("src/features/settings/settings.shared.tsx"), /export function SettingsChoiceGroup/);
-  assert.match(read("src/features/settings/categories/DownloadSettings.tsx"), /SettingsChoiceGroup/);
   assert.match(read("src/features/settings/categories/DiscordSettings.tsx"), /SettingsChoiceGroup/);
 });

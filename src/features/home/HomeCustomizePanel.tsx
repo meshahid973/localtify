@@ -1,3 +1,4 @@
+import { OpticalButton } from "../../shared/appearance/OpticalButton";
 import { useEffect, useRef } from "react";
 import { ArrowDown, ArrowUp, Eye, EyeOff, RotateCcw } from "lucide-react";
 import {
@@ -10,17 +11,28 @@ export type HomeCustomizePanelProps = {
   hiddenSections: unknown;
   updateHomeLayout: (patch: HomeLayoutPatch) => unknown;
   onClose: () => void;
+  embedded?: boolean;
 };
 
 /** Popover under the Customize Home button for reordering, hiding and showing Home sections. */
-export default function HomeCustomizePanel({ sectionOrder, hiddenSections, updateHomeLayout, onClose }: HomeCustomizePanelProps) {
+export default function HomeCustomizePanel({ sectionOrder, hiddenSections, updateHomeLayout, onClose, embedded = false }: HomeCustomizePanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const order = resolveHomeSectionOrder(sectionOrder);
   const hidden = new Set(normalizeHomeHidden(hiddenSections));
 
   useEffect(() => {
+    const dialogSelector = '[role="dialog"], [role="alertdialog"]';
+    const isTopmost = () => Array.from(document.querySelectorAll(dialogSelector)).at(-1) === panelRef.current?.closest(dialogSelector);
+    const closeOnBack = (event: Event) => {
+      if (event.defaultPrevented || !isTopmost()) return;
+      event.preventDefault();
+      onClose();
+      document.querySelector<HTMLElement>(".homeCustomizeButton")?.focus();
+    };
+    window.addEventListener("localtifyuiback", closeOnBack);
+    if (embedded) return () => window.removeEventListener("localtifyuiback", closeOnBack);
+
     panelRef.current?.querySelector<HTMLElement>("button:not(:disabled)")?.focus();
-    const isTopmost = () => Array.from(document.querySelectorAll('[role="dialog"], [role="alertdialog"]')).at(-1) === panelRef.current;
     const closeOnOutsidePointer = (event: PointerEvent) => {
       const target = event.target as Element | null;
       if (!panelRef.current?.contains(target) && !target?.closest(".homeCustomizeButton")) onClose();
@@ -31,27 +43,20 @@ export default function HomeCustomizePanel({ sectionOrder, hiddenSections, updat
       document.querySelector<HTMLElement>(".homeCustomizeButton")?.focus();
       onClose();
     };
-    const closeOnBack = (event: Event) => {
-      if (event.defaultPrevented || !isTopmost()) return;
-      event.preventDefault();
-      document.querySelector<HTMLElement>(".homeCustomizeButton")?.focus();
-      onClose();
-    };
     document.addEventListener("pointerdown", closeOnOutsidePointer);
     document.addEventListener("keydown", closeOnEscape);
-    window.addEventListener("localtifyuiback", closeOnBack);
     return () => {
       document.removeEventListener("pointerdown", closeOnOutsidePointer);
       document.removeEventListener("keydown", closeOnEscape);
       window.removeEventListener("localtifyuiback", closeOnBack);
     };
-  }, [onClose]);
+  }, [onClose, embedded]);
 
   return (
-    <div className="homeCustomizePanel" id="home-customize-panel" ref={panelRef} role="dialog" aria-label="Customize Home">
+    <div className={embedded ? "homeCustomizePanel ltOpticalPopoverPanel" : "homeCustomizePanel"} id={embedded ? undefined : "home-customize-panel"} ref={panelRef} role={embedded ? undefined : "dialog"} aria-label={embedded ? undefined : "Customize Home"}>
       <div className="homeCustomizeHead">
         <strong>Home sections</strong>
-        <button
+        <OpticalButton
           className="homeCustomizeReset"
           type="button"
           disabled={!isHomeLayoutCustomized(sectionOrder, hiddenSections)}
@@ -60,7 +65,7 @@ export default function HomeCustomizePanel({ sectionOrder, hiddenSections, updat
         >
           <RotateCcw size={11} strokeWidth={2.4} aria-hidden="true" />
           reset
-        </button>
+        </OpticalButton>
       </div>
 
       <ol className="homeCustomizeList">
