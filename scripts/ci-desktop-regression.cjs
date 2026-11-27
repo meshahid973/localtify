@@ -343,6 +343,7 @@ server.listen(5173,async()=>{
             })()`);
             assert.notEqual(palette.warm,palette.cool,"transport tint follows artwork palette");
           }
+          if(view==="settings") assert.equal(await win.webContents.executeJavaScript("getComputedStyle(document.getElementById('settings-appearance-theme')).animationName"),"none","Glass settings panels render immediately");
           await screenshot(win,`glass-${mode}-${view}`);
           if(mode==="dark"&&view==="library") {
             const bounds=await win.webContents.executeJavaScript("(()=>{const r=document.querySelector('.ltOpticalTransport').getBoundingClientRect();return {x:Math.round(r.left+40),y:Math.round(r.top+4),width:Math.max(1,Math.round(r.width-80)),height:5}})()");
@@ -999,6 +1000,7 @@ server.listen(5173,async()=>{
       await screenshot(win,"settings-search-crossfade");
       await win.webContents.executeJavaScript("document.querySelector('.settingsCategoryButton[title*=\"Lyrics\"]')?.click()");
       await until(()=>win.webContents.executeJavaScript("!!document.querySelector('[data-settings-category=lyrics] #settings-lyrics-display')").catch(()=>false),"independent lyrics settings");
+      assert.equal(await win.webContents.executeJavaScript("getComputedStyle(document.getElementById('settings-lyrics-display')).animationName"),"none","Settings panels do not fade in from invisible");
       await screenshot(win,"settings-lyrics");
       const playbackSelected = await win.webContents.executeJavaScript("(()=>{const button=[...document.querySelectorAll('.settingsCategoryButton')].find(button=>button.getAttribute('aria-label')==='Playback');if(!button)return false;button.click();return true;})()");
       assert.ok(playbackSelected,"Playback settings remain reachable");
