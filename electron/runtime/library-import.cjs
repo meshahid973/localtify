@@ -203,13 +203,18 @@ function createLibraryImportRuntime({getSongs, getSong, insertSongs, patchSong, 
     if (savedCoverPath && fileExists(savedCoverPath) && isImageFile(savedCoverPath)) return savedCoverPath;
     return pickStablePixelCoverForSong(song, pixelArtFiles);
   }
-  function shapeSong(song, pixelArtFiles = null, artworkCache = null) {
+  function shapeSong(song, pixelArtFiles = null, artworkCache = null, coverExistsCache = null) {
     if (!song) return null;
     const exists = fileExists(song.filePath);
     const savedCoverPath = String(song.coverPath || "").trim();
-    const savedCoverExists = Boolean(savedCoverPath && isImageFile(savedCoverPath) && fileExists(savedCoverPath));
+    const coverFileExists = (coverPath) => {
+      if (!coverExistsCache) return fileExists(coverPath);
+      if (!coverExistsCache.has(coverPath)) coverExistsCache.set(coverPath, fileExists(coverPath));
+      return coverExistsCache.get(coverPath);
+    };
+    const savedCoverExists = Boolean(savedCoverPath && isImageFile(savedCoverPath) && coverFileExists(savedCoverPath));
     const runtimeCoverPath = savedCoverExists ? savedCoverPath : pickStablePixelCoverForSong(song, pixelArtFiles);
-    const coverExists = savedCoverExists || Boolean(runtimeCoverPath && fileExists(runtimeCoverPath));
+    const coverExists = savedCoverExists || Boolean(runtimeCoverPath && coverFileExists(runtimeCoverPath));
     const runtimeCoverSource = savedCoverExists ? String(song.coverSource || "unknown") : (runtimeCoverPath ? "fallback" : "none");
     let artwork = coverExists ? artworkCache?.get(runtimeCoverPath) : null;
     if (!artwork) {
@@ -223,7 +228,8 @@ function createLibraryImportRuntime({getSongs, getSong, insertSongs, patchSong, 
   function listSongsShaped() {
     const pixelArtFiles = getPixelArtFiles();
     const artworkCache = new Map();
-    return getSongs().map((song) => shapeSong(song, pixelArtFiles, artworkCache));
+    const coverExistsCache = new Map();
+    return getSongs().map((song) => shapeSong(song, pixelArtFiles, artworkCache, coverExistsCache));
   }
   async function repairMissingSongMetadata(payload = {}) {
     const limit = Math.max(1, Math.min(1000, Number(payload?.limit || 180) || 180));

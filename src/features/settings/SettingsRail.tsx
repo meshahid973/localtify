@@ -21,7 +21,7 @@ const SETTINGS_NAV_GROUPS: ReadonlyArray<{
   label: string;
   ids: ReadonlyArray<SettingsCategory>;
 }> = [
-  { label: "Appearance", ids: ["appearance"] },
+  { label: "Personalization", ids: ["appearance"] },
   { label: "Listening", ids: ["playback", "lyrics", "experimental"] },
   { label: "Your collection", ids: ["library", "downloads"] },
   { label: "Connections", ids: ["discover", "discord"] },
@@ -57,7 +57,7 @@ export default function SettingsRail({
           <input id="settings-section-search" type="search" value={search}
             onChange={(event) => onSearchChange(event.currentTarget.value)}
             onKeyDown={(event) => { if (event.key === "Escape" && search) { event.preventDefault(); event.stopPropagation(); onSearchChange(""); } }}
-            placeholder="Find a setting..." />
+            placeholder="Search settings..." />
           {search ? <IconButton type="button" className="settingsSearchClear" onClick={() => { onSearchChange(""); document.getElementById("settings-section-search")?.focus(); }} aria-label="Clear settings search">
             <X size={14} strokeWidth={2} aria-hidden="true" />
           </IconButton> : null}
@@ -86,7 +86,7 @@ export default function SettingsRail({
                 <span className="settingsCategoryIcon" aria-hidden="true">
                   <SolidIcon className="settingsSolidIcon" name={tab.icon} size={20} />
                 </span>
-                <span className="settingsCategoryCopy"><strong>{tab.label}</strong></span>
+                <span className="settingsCategoryCopy"><strong>{tab.label}</strong><small>{tab.description}</small></span>
               </button>;
             })}
           </div>;

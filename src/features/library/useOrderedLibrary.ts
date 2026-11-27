@@ -8,14 +8,23 @@ export function useOrderedLibrary(ready: boolean) {
   const [songs, publish] = useState<Song[]>([]);
   const current = useRef<Song[]>([]);
   const savedOrder = useRef<string[]>([]);
+  const lookup = useRef<{ songs: Song[]; byId: Map<string, Song> } | null>(null);
   const setSongs = useCallback((update: SetStateAction<Song[]>) => {
     const next = typeof update === "function" ? update(current.current) : update;
+    if (next === current.current) return;
     current.current = next;
+    lookup.current = null;
     publish(next);
   }, []);
   const getSong = useCallback((id: string, hint?: number) => {
     const list = current.current;
-    return hint !== undefined && list[hint]?.id === id ? list[hint] : list.find(song => song.id === id);
+    if (hint !== undefined && list[hint]?.id === id) return list[hint];
+    if (lookup.current?.songs !== list) {
+      const byId = new Map<string, Song>();
+      for (const song of list) if (!byId.has(song.id)) byId.set(song.id, song);
+      lookup.current = { songs: list, byId };
+    }
+    return lookup.current.byId.get(id);
   }, []);
   const persist = useCallback((next: Song[]) => {
     saveLibraryOrder(next);

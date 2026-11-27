@@ -96,7 +96,7 @@ test("appearance has only light and dark mode and shared semantic aliases", () =
 
 test("Card mode owner respects theme surfaces without stripping effects", () => {
   const css = read("src/features/shell/effects.css");
-  for (const mode of ["solid", "glassy", "oledFlat"]) {
+  for (const mode of ["solid", "glassy"]) {
     const selector = '.app[data-card-background="' + mode + '"]';
     const start = css.indexOf(selector + "{");
     assert.notEqual(start, -1);
@@ -104,7 +104,7 @@ test("Card mode owner respects theme surfaces without stripping effects", () => 
     assert.match(body, /--v321-card-bg: (?:color-mix|var)\(/);
     assert.match(body, /--v321-card-border: var\(--lt-border\)/);
   }
-  assert.match(css, /:is\(\.app\[data-card-background="solid"\], \.app\[data-card-background="glassy"\], \.app\[data-card-background="oledFlat"\]\) :where\(\.songRow\)/);
+  assert.match(css, /:is\(\.app\[data-card-background="solid"\], \.app\[data-card-background="glassy"\]\) :where\(\.songRow\)/);
   assert.match(css, /box-shadow: var\(--v321-list-card-shadow\) !important/);
   assert.match(css, /--v321-list-card-shadow: inset 0 1px 0 color-mix\(in srgb, var\(--lt-text\) 4\.5%, transparent\)/);
   assert.match(css, /backdrop-filter: blur\(16px\)/);

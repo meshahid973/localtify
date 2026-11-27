@@ -43,3 +43,14 @@ test("legacy visual settings migrate once without losing active choices or rollb
   assert.equal(old.customThemeEnabled,true);
   assert.equal(migrateVisualSettings({...defaults,theme:"stars"},defaults).settings.theme,"dark");
 });
+
+test("retired OLED preferences migrate to supported modes without losing saved options", () => {
+  const saved = {...defaults, theme:"oled", mediaCardBackground:"oledFlat", playerBackgroundStyle:"oledBlack", volume:.31};
+  const result = migrateVisualSettings(saved, defaults);
+  assert.equal(result.settings.theme, "dark");
+  assert.equal(result.settings.mediaCardBackground, "solid");
+  assert.equal(result.settings.playerBackgroundStyle, "flat");
+  assert.equal(result.settings.volume, .31);
+  assert.equal(result.changed, true);
+  assert.equal(migrateVisualSettings(result.settings, defaults).changed, false);
+});

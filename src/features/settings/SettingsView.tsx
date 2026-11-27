@@ -35,11 +35,13 @@ export default function SettingsView({
     const page = pageRef.current;
     if (!page || !reveal || reveal.category !== settingsCategory) return;
     const id = reveal.id;
+    let timeout: number | undefined;
     let observer: MutationObserver | undefined;
     function revealControl() {
       const target = document.getElementById(id);
       if (!target || !page?.contains(target)) return false;
       observer?.disconnect();
+      window.clearTimeout(timeout);
       const disclosure = target instanceof HTMLDetailsElement ? target
         : target.firstElementChild instanceof HTMLDetailsElement ? target.firstElementChild : null;
       if (disclosure) disclosure.open = true;
@@ -64,8 +66,9 @@ export default function SettingsView({
       if (revealControl()) return;
       observer = new MutationObserver(revealControl);
       observer.observe(page, { childList: true, subtree: true });
+      timeout = window.setTimeout(() => { observer?.disconnect(); onRevealed(); }, 4000);
     });
-    return () => { cancelAnimationFrame(frame); observer?.disconnect(); };
+    return () => { cancelAnimationFrame(frame); observer?.disconnect(); window.clearTimeout(timeout); };
   }, [reveal, settingsCategory, onRevealed]);
 
   return (

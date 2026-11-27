@@ -37,7 +37,7 @@ test("fixed palettes share semantic tokens and retired IDs normalize safely", ()
   const {normalizeThemeId} = loadThemeUtilities();
   for (const id of ["mint", "stars", "berry", "custom", "invalid-theme", undefined]) assert.equal(normalizeThemeId(id), "dark");
   assert.equal(normalizeThemeId("mono"), "light");
-  assert.equal(normalizeThemeId("oled"), "oled");
+  assert.equal(normalizeThemeId("oled"), "dark");
   assert.match(read("src/styles/themes.css"), /--progress: var\(--accent\)/);
   assert.match(read("src/styles/themes.css"), /--theme-highlight: var\(--highlight\)/);
   assert.doesNotMatch(read("src/features/settings/index.ts"), /themePresetStyle|customThemePersistence/);
