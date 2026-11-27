@@ -63,3 +63,10 @@ test("top result cards and video uploads are mapped for artwork lookups",()=>{
  const artistCard={title:{runs:[{text:"Indie Artist"}]},onTap:linked("Indie Artist","MUSIC_PAGE_TYPE_ARTIST","UCabcdefghijklmnopqrstuv").navigationEndpoint,thumbnail};
  assert.equal(mapSearchResponse(build(artistCard),"artist","Indie Artist",false)[0].id,"ytmusic:UCabcdefghijklmnopqrstuv");
 });
+
+test("foreground and artwork queries share a single catalog response",async()=>{
+  let calls=0;
+  const search=createYouTubeMusicSearch(async()=>{calls++;return {ok:true,text:async()=>JSON.stringify(response([row("KICK BACK")]))};});
+  const [artwork,foreground]=await Promise.all([search("recording","KICK BACK",{artwork:true}),search("recording","kick back")]);
+  assert.equal(calls,1);assert.equal(artwork.length,1);assert.deepEqual(foreground,artwork);
+});

@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { observeArtwork, getResolvedRemoteArtwork, invalidateResolvedRemoteArtwork, resolveRemoteArtwork } from "../covers/thumbnailResource";
 import { Disc3, UserRound } from "lucide-react";
 import type { DiscoverArtwork, DiscoverResult } from "./discover.types";
+import { discoverTrace, discoverImageTrace } from "./discoverDiagnostics";
 const cache = new Map<string, {at:number; value:DiscoverArtwork}>();
 type ArtworkJob = { priority: number; queuedAt: number; person: boolean; users: number; started: boolean; promise: Promise<DiscoverResult | null>; run: () => Promise<void>; cancel: () => void };
 const primaryQueue: ArtworkJob[] = [], fallbackQueue: ArtworkJob[] = [];
@@ -42,7 +43,9 @@ function enqueueArtwork(key: string, fallback: boolean, priority: number, person
       priority,person,queuedAt:performance.now(),users:0,started:false,promise,
       run:async()=>{
         entry.started=true;
-        try { settle(await work()); }
+        const start=performance.now();
+        discoverTrace("artwork-queue",{ms:Math.round(start-entry.queuedAt),state:entry.person?"portrait":"song"});
+        try { const value=await work();discoverTrace("artwork-ipc",{ms:Math.round(performance.now()-start),state:value.status==="artwork"?(value.outcome||(value.coverUrl?"attached":"missing")):value.status});settle(value); }
         catch { settle(null); }
         finally { sharedLookups.delete(key); }
       },
@@ -114,7 +117,8 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
   const directUrls = [artwork?.coverUrl, artwork?.fallbackCoverUrl, ...(artwork?.coverAlternatives ?? []).slice(0,6)].map(safeCover).filter(Boolean);
   const resolvedUrls = [safeCover(cover?.coverUrl), safeCover(cover?.fallbackCoverUrl), ...(cover?.coverAlternatives ?? []).slice(0,6).map(safeCover)];
   const candidates = failed.length ? [...resolvedUrls, ...directUrls] : [...directUrls, ...resolvedUrls];
-  const src = candidates.find(url => url && !failed.includes(url));
+  const selected = loaded?.key===key && candidates.includes(loaded.url) && !failed.includes(loaded.url) ? loaded.url : undefined;
+  const src = selected || candidates.find(url => url && !failed.includes(url));
   const needsLookup = lookup && !src;
   // The cache returns a display URL only; the provider URL remains the lookup/download identity.
   const remembered = src ? getResolvedRemoteArtwork(src) : undefined;
@@ -171,6 +175,7 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
         artwork: {title,artist,kind:person?"artist":"recording",fallback:exhausted,primaryOnly:!exhausted&&!providerId,providerId,album,durationMs,failedUrls:excluded,retryPrimary}
       }));
       attempts++;
+      if(attempts>1)discoverTrace("artwork-retry",{count:attempts-1});
       if(!request){
         if(attempts<3)retryTimer=window.setTimeout(start,attempts*900);
         return;
@@ -202,7 +207,7 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
   return <span ref={ref} className="discoverCover" aria-hidden="true">
     {!imageReady ? (person ? <UserRound size={24} /> : <Disc3 size={24} />) : null}
     {(near || imageReady) && src && displaySrc ? <img key={displaySrc} ref={imageRef} src={displaySrc} alt="" loading={priority ? "eager" : "lazy"} decoding="async" fetchPriority={priority ? "high" : "auto"} referrerPolicy="no-referrer" data-ready={imageReady}
-      onLoad={() => setLoaded({key,url:displaySrc})}
-      onError={() => { if (localSrc) rejectLocal(); else setFailure(current => ({key,urls:[...new Set([...(current.key === key ? current.urls : []),src])]})); }} /> : null}
+      onLoad={event => {discoverImageTrace(event.currentTarget);setLoaded({key,url:displaySrc});}}
+      onError={() => { discoverTrace("image-error",{state:localSrc?"local":"remote"});if (localSrc) rejectLocal(); else setFailure(current => ({key,urls:[...new Set([...(current.key === key ? current.urls : []),src])]})); }} /> : null}
   </span>;
 }

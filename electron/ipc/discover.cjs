@@ -43,7 +43,19 @@ function normalizeCatalog(kind, items) {
 }
 
 /** Public catalog needs only opt-in; Last.fm personalized results require a valid key. */
-function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile, fetch, musicBrainzClient, searchStore, searchVocaDb, lookupAudioDb, searchYouTubeMusic, searchYouTubeMusicRadio, searchYouTubeArtwork, lookupDeezer, lookupFanart, now = Date.now }) {
+function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile, fetch, musicBrainzClient, searchStore, searchVocaDb, lookupAudioDb, searchYouTubeMusic, searchYouTubeMusicRadio, searchYouTubeArtwork, lookupDeezer, lookupFanart, now = Date.now, diagnosticsEnabled = false }) {
+  let tracing=false,traceStart=0,traceEvents=[];
+  const trace=(stage,detail={})=>{
+    if(!tracing)return;
+    traceEvents.push({at:Math.round(performance.now()-traceStart),stage,...detail});
+    if(traceEvents.length>2048)traceEvents.splice(0,256);
+  };
+  const timed=async(stage,work)=>{
+    if(!tracing)return work();
+    const start=performance.now();
+    try{const value=await work();trace(stage,{ms:Math.round(performance.now()-start),state:Array.isArray(value)?(value.length?"results":"empty"):(value?.coverUrl?"cover":"completed")});return value;}
+    catch(error){trace(stage,{ms:Math.round(performance.now()-start),state:error?.code==="ARTWORK_CAPACITY"?"busy":error?.status===429?"rate-limited":[401,403].includes(error?.status)?"authentication":error?.name==="TimeoutError"?"timeout":"unavailable"});throw error;}
+  };
   let saved = null;
   let running = null;
   let catalogRunning = null;
@@ -61,10 +73,10 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
     const cleanedArtist=artist.replace(/\s+[-–—]\s+Topic$/i,"").trim();
     const query=(title+" "+cleanedArtist).trim().slice(0,160);
     if(!active()||signal?.aborted)return [];
-    const songs=await searchYouTubeArtwork("recording",query,{artwork:true});
+    const songs=await timed("provider-youtube-recording",()=>searchYouTubeArtwork("recording",query,{artwork:true,signal}));
     if(withoutFailedArtwork(matchMusicArtwork(songs,title,artist,identity),excluded).coverUrl)return songs;
     if(!active()||signal?.aborted)return [];
-    const videos=await searchYouTubeArtwork("video",query,{artwork:true});
+    const videos=await timed("provider-youtube-video",()=>searchYouTubeArtwork("video",query,{artwork:true,signal}));
     return [...songs,...videos];
   }
   const lookupArtwork = createArtworkLookup(musicBrainzClient, now, async (title, artist) => {
@@ -75,10 +87,10 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
       artworkKey = apiKey;
       artworkClient = createLastfmClient({ apiKey, responseCache:artworkResponses, cacheFile:cacheFile ? cacheFile + ".artwork" : "", fetch, now, artwork:true });
     }
-    return artworkClient.trackInfo(title,artist);
+    return timed("provider-lastfm-artwork",()=>artworkClient.trackInfo(title,artist));
   }, lookupAudioDb ? (...args) => strict(lookupAudioDb,...args) : undefined, searchYouTubeArtwork ? lookupMusicArtwork : undefined,
-    lookupDeezer ? (...args) => strict(lookupDeezer,...args) : undefined,
-    lookupFanart ? (...args) => strict(lookupFanart,...args) : undefined,{file:cacheFile?cacheFile+".resolved-artwork-v1":""});
+    lookupDeezer ? (...args) => timed("provider-deezer",()=>strict(lookupDeezer,...args)) : undefined,
+    lookupFanart ? (...args) => strict(lookupFanart,...args) : undefined,{file:cacheFile?cacheFile+".resolved-artwork-v1":"",trace});
   // The resolver owns retention and coalescing for both entity types.
   async function lookupArtistArtwork(name,fallback=false,primaryOnly=false,excluded=[],retryPrimary=false) {
     const cleaned=name.replace(/\s+[-–—]\s+Topic$/i,"").trim();
@@ -139,6 +151,13 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
     return primary;
   }
   router.handle("discover:get", async (_event, payload = {}) => {
+    if(payload?.diagnostics!==undefined){
+      if(!diagnosticsEnabled)return {status:"off"};
+      if(payload.diagnostics==="start"){traceEvents=[];traceStart=performance.now();tracing=true;}
+      else if(payload.diagnostics==="stop")tracing=false;
+      else if(payload.diagnostics!=="report")return {status:"error",error:"Invalid diagnostics command."};
+      return {status:"diagnostics",events:traceEvents.slice()};
+    }
     const settings = getSettings();
     // Expose only configuration presence; never return the application key to
     // the renderer, phone bridge, IPC logs, or saved settings.
@@ -269,6 +288,7 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
     const initial=new Promise(resolve=>{publish=resolve;});
     const promise = Promise.resolve().then(async()=>{
       let result, batchBudget=6;
+      const generationStart=performance.now();
       const previous=saved?.apiKey===apiKey&&now()-saved.result.generatedAt<86400000?saved.result:null;
       try {
         result=await discover({...current,client,now:now(),active:jobActive,
@@ -277,17 +297,19 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
           // Additional batch requests use the documented MusicBrainz search API.
           catalog:async(name,tracks)=>{
             if(!jobActive())return [];
-            const cached=[...(searchYouTubeMusic?.cachedArtist?.(name)||[]),...(searchYouTubeArtwork?.cachedArtist?.(name)||[])];
+            const cached=[...(searchYouTubeMusic?.cachedArtist?.(name)||[]),...(searchYouTubeArtwork!==searchYouTubeMusic?(searchYouTubeArtwork?.cachedArtist?.(name)||[]):[])];
             const missing=tracks.filter(track=>!track.coverUrl&&!enrichCatalogTrack(track,cached).coverUrl&&(MBID.test(track.recordingId||"")||cleanText(track.title)));
             if(!missing.length||!musicBrainzClient?.searchRecordingBatch||!jobActive()||batchBudget<=0)return cached;
             batchBudget--;
             try{
-              const records=await musicBrainzClient.searchRecordingBatch(name,missing,{background:true,deadlineAt:Date.now()+1500});
+              const records=await timed("provider-musicbrainz-batch",()=>musicBrainzClient.searchRecordingBatch(name,missing,{background:true,deadlineAt:Date.now()+1500}));
               return jobActive()?[...cached,...records]:[];
             }catch{return cached;}
           },
-          onProgress:partial=>publish(reuseRecommendationArtwork(partial,previous))});
+          trace,onProgress:partial=>{trace("first-shelf",{ms:Math.round(performance.now()-generationStart)});publish(reuseRecommendationArtwork(partial,previous));}});
         result=reuseRecommendationArtwork(result,previous);
+        const rows=[...result.tracks,...result.artists.flatMap(a=>a.topTracks)];
+        trace("recommendations",{ms:Math.round(performance.now()-generationStart),total:rows.length,attached:rows.filter(t=>t.coverUrl).length});
         if(!requestActive())result={status:"off"};
         else if(running?.promise === promise)saved={apiKey,result};
       }catch(error){

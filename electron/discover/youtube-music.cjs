@@ -83,7 +83,7 @@ function mapRow(row,kind) {
   const durationMs=[...metadata,...fixed].map(r=>duration(clean(r?.text))).find(Boolean);
   return {id:"ytmusic:"+id,title,artist,album,subtitle:[artist,album].filter(Boolean).join(" · "),url:"https://www.youtube.com/watch?v="+id,durationMs,coverUrl:coverFor(row,id),...(artistIds.length?{artistIds}:{}),...(/^MPREb_[A-Za-z0-9_-]{1,80}$/.test(albumId||"")?{albumId:"ytmusic:"+albumId}:{})};
 }
-function mapSearchResponse(body,kind,query,strictQuery=true) {
+function mapSearchResponse(body,kind,query,strictQuery=true,limit=25) {
   const tabs=arr(body?.contents?.tabbedSearchResultsRenderer?.tabs);
   const sections=tabs.flatMap(t=>arr(t?.tabRenderer?.content?.sectionListRenderer?.contents));
   const items=sections.flatMap(s=>arr(s?.musicShelfRenderer?.contents).concat(s?.musicCardShelfRenderer?[{musicCardShelfRenderer:s.musicCardShelfRenderer},...arr(s.musicCardShelfRenderer.contents)]:[],arr(s?.itemSectionRenderer?.contents)));
@@ -95,7 +95,7 @@ function mapSearchResponse(body,kind,query,strictQuery=true) {
     if(!mapped||seen.has(mapped.id)||(kind!=="artist"&&isJunkVideo(mapped.title,query)))continue;
     seen.add(mapped.id);result.push(mapped);
   }
-  return result.filter(v=>!strictQuery||matchesQuery(query,v.title,v.artist)).slice(0,25);
+  return result.filter(v=>!strictQuery||matchesQuery(query,v.title,v.artist)).slice(0,limit);
 }
 async function requestCatalog(fetchImpl,endpoint,payload) {
   const response=await fetchImpl(origin+endpoint+"?prettyPrint=false",{method:"POST",redirect:"error",credentials:"omit",headers:{"content-type":"application/json",accept:"application/json","x-youtube-client-name":"67","x-youtube-client-version":clientVersion,"x-origin":"https://music.youtube.com"},body:JSON.stringify({...payload,context:{client:{clientName:"WEB_REMIX",clientVersion,hl:"en",gl:"US"}}}),signal:AbortSignal.timeout(6500)});
@@ -114,23 +114,63 @@ async function requestCatalog(fetchImpl,endpoint,payload) {
   return JSON.parse(raw);
 }
 function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPending=2) {
-  const cache=new Map(),pending=new Map();
-  let blockedUntil=0;
+  const cache=new Map(),pending=new Map(),waiting=[];
+  const limit=Math.max(2,Math.min(6,maxPending));
+  const backgroundLimit=Math.max(1,limit-2);
+  let blockedUntil=0,hardBlockedUntil=0,running=0,backgroundRunning=0;
+  function pump(){
+    while(running<limit&&waiting.length){
+      const foreground=waiting.findIndex(job=>!job.background);
+      const index=foreground>=0?foreground:backgroundRunning<backgroundLimit?0:-1;
+      if(index<0)return;
+      const [job]=waiting.splice(index,1);
+      clearTimeout(job.timer);
+      if(job.background&&job.signal?.aborted){job.reject(capacity());continue;}
+      if(now()<hardBlockedUntil||(job.background&&now()<blockedUntil)){job.reject(unavailable());continue;}
+      running++;const wasBackground=job.background;if(wasBackground)backgroundRunning++;
+      void job.run().then(job.resolve,job.reject).finally(()=>{
+        running--;if(wasBackground)backgroundRunning--;pump();
+      });
+    }
+  }
   const search=async (kind,query,options={})=>{
     if(!Object.hasOwn(filters,kind)||typeof query!=="string"||query.trim().length<2||query.length>160)return [];
-    const key=JSON.stringify([kind,query.normalize("NFKC").trim().toLowerCase(),options.artwork===true]);
+    if(options.signal?.aborted)throw capacity();
+    const background=options.artwork===true;
+    const key=JSON.stringify([kind,query.normalize("NFKC").trim().toLowerCase()]);
+    const select=items=>items.filter(v=>background||matchesQuery(query,v.title,v.artist)).slice(0,25);
     const hit=cache.get(key);
-    if(hit&&now()-hit.at<300000){cache.delete(key);cache.set(key,hit);return hit.items;}
-    if(pending.has(key))return pending.get(key);
-    if(options.artwork===true&&now()<blockedUntil)throw unavailable();
-    if(pending.size>=maxPending)throw capacity();
-    const task=Promise.resolve().then(async()=>{
-      const body=await requestCatalog(fetchImpl,"search",{query:query.trim(),params:filters[kind]});
-      const items=mapSearchResponse(body,kind,query,options.artwork!==true);
-      if(items.length) cache.set(key,{at:now(),items});while(cache.size>128)cache.delete(cache.keys().next().value);
-      return items;
-    }).catch(error=>{if(options.artwork===true)blockedUntil=Math.max(blockedUntil,now()+providerCooldown(error));throw error;}).finally(()=>pending.delete(key));
-    pending.set(key,task);return task;
+    if(hit&&now()-hit.at<300000){cache.delete(key);cache.set(key,hit);return select(hit.items);}
+    const prior=pending.get(key);
+    if(prior){
+      if(!background){prior.background=false;prior.signal=undefined;pump();}
+      else if(prior.signal!==options.signal)prior.signal=undefined;
+      return prior.promise.then(select);
+    }
+    if(now()<hardBlockedUntil||(background&&now()<blockedUntil))throw unavailable();
+    if(waiting.length>=32&&background||waiting.length>=48)throw capacity();
+    let resolve,reject;
+    const result=new Promise((yes,no)=>{resolve=yes;reject=no;});
+    const job={background,signal:options.signal,resolve,reject,timer:null,promise:null,run:async()=>{
+      try{
+        const body=await requestCatalog(fetchImpl,"search",{query:query.trim(),params:filters[kind]});
+        const items=mapSearchResponse(body,kind,query,false,100);
+        if(items.length)cache.set(key,{at:now(),items});
+        while(cache.size>128)cache.delete(cache.keys().next().value);
+        return items;
+      }catch(error){
+        if([401,403,429].includes(error?.status))hardBlockedUntil=Math.max(hardBlockedUntil,now()+providerCooldown(error));
+        if(job.background)blockedUntil=Math.max(blockedUntil,now()+providerCooldown(error));
+        throw error;
+      }
+    }};
+    job.promise=result.finally(()=>{pending.delete(key);clearTimeout(job.timer);});
+    job.timer=setTimeout(()=>{
+      const index=waiting.indexOf(job);
+      if(index>=0){waiting.splice(index,1);reject(capacity());pump();}
+    },background?3500:8000);
+    pending.set(key,job);waiting.push(job);pump();
+    return job.promise.then(select);
   };
   search.cachedArtist=name=>{
     const artistKey=value=>clean(value).normalize("NFKC").trim().replace(/\s+[-–—]\s+Topic$/i,"").replace(/\s+/g," ").toLowerCase();

@@ -170,7 +170,7 @@ function boundedProvider(work, limit) {
     try { return await work(...args); } finally { running--; }
   };
 }
-function createArtworkLookup(client,now=Date.now,trackInfo,lookupAudioDb,lookupMusic,lookupDeezer,lookupFanart,{file=""}={}) {
+function createArtworkLookup(client,now=Date.now,trackInfo,lookupAudioDb,lookupMusic,lookupDeezer,lookupFanart,{file="",trace=()=>{}}={}) {
   const cache=createResourceCache({file,now,validate:validCacheEntry}), pending=new Map();
   const music = boundedProvider(lookupMusic, 4);
   const lastfm = boundedProvider(trackInfo, 4);
@@ -187,17 +187,18 @@ function createArtworkLookup(client,now=Date.now,trackInfo,lookupAudioDb,lookupM
     await cache.hydrate();
     if(!active())return {};
     const candidate=withoutFailedArtwork(cache.get(key),excluded);
-    if(candidate.coverUrl)return candidate;
+    if(candidate.coverUrl){trace("artwork-cache",{state:"hit"});return candidate;}
+    trace("artwork-cache",{state:"miss"});
     const negative=cache.get(requestKey);
     if(negative?.outcome==="missing")return {};
     if(negative?.outcome==="unavailable")throw unavailable();
-    if(pending.has(requestKey))return pending.get(requestKey);
+    if(pending.has(requestKey)){trace("artwork-cache",{state:"shared"});return pending.get(requestKey);}
     if(fallback ? fallbackRunning>=2 : primaryRunning>=4) throw capacity();
     if(fallback)fallbackRunning++;else primaryRunning++;
     const task=Promise.resolve().then(()=>active()?work():{}).then(value=>{
       if(!active())return {};
       const result=withoutFailedArtwork(value,excluded);
-      if(result.coverUrl)cache.set(key,result,86400000);
+      if(result.coverUrl){cache.set(key,result,86400000);trace("artwork-resolved",{state:result.coverUrl.includes("coverartarchive.org")?"musicbrainz":result.coverUrl.includes("dzcdn.net")?"deezer":result.coverUrl.includes("lastfm")?"lastfm":"other"});}
       else cache.set(requestKey,{outcome:"missing"},300000);
       return result;
     },error=>{

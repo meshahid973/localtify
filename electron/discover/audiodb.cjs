@@ -3,7 +3,7 @@ const { boundedJson } = require("./extra-artwork.cjs");
 const { setTimeout: wait } = require("node:timers/promises");
 const { createResourceCache } = require("../runtime/resource-cache.cjs");
 const { createHash } = require("node:crypto");
-const { providerCooldown, unavailable } = require("./provider-health.cjs");
+const { providerCooldown, unavailable, capacity } = require("./provider-health.cjs");
 const norm = value => String(value||"").normalize("NFKC").trim().replace(/\s+/g," ").toLowerCase();
 const albumImage = value => typeof value==="string" && /^https:\/\/(?:www\.|r2\.)?theaudiodb\.com\/images\/media\/album\/thumb\/[a-z0-9_-]+\.(?:jpg|jpeg|png)(?:\/(?:small|medium))?$/i.test(value) ? value : "";
 function createAudioDbArtwork({apiKey, fetchImpl=globalThis.fetch, now=Date.now}) {
@@ -13,7 +13,7 @@ function createAudioDbArtwork({apiKey, fetchImpl=globalThis.fetch, now=Date.now}
     if(signal?.aborted)throw unavailable();
     if(now()<blockedUntil)throw unavailable();
     const slot=Math.max(now(),nextSlot);
-    if(slot-now()>7000)throw unavailable(); // avoid accumulating unbounded delayed work
+    if(slot-now()>7000)throw capacity(); // avoid accumulating unbounded delayed work
     nextSlot=slot+2100;
     if(slot>now())await wait(slot-now(),undefined,signal?{signal}:undefined);
     if(signal?.aborted||now()<blockedUntil)throw unavailable();
@@ -42,7 +42,7 @@ function createAudioDbArtwork({apiKey, fetchImpl=globalThis.fetch, now=Date.now}
     // Shared album work is cancelled only when no requesting consumer remains.
     let entry=pendingAlbums.get(key);
     if(!entry){
-      if(pendingAlbums.size>=4)throw unavailable();
+      if(pendingAlbums.size>=4)throw capacity();
       const controller=new AbortController();
       entry={controller,users:0,promise:null};
       const job=entry;

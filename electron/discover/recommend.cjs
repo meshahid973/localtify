@@ -84,12 +84,14 @@ function diversify(entries, limit) {
   return picked;
 }
 
-async function discover({ songs, hiddenArtists = [], client, now = Date.now(), catalog, cachedArtwork, active = () => true, onProgress = () => {} }) {
+async function discover({ songs, hiddenArtists = [], client, now = Date.now(), catalog, cachedArtwork, active = () => true, onProgress = () => {}, trace = () => {} }) {
   const hidden = notForMeTest([], hiddenArtists);
   const taste = libraryTaste(songs, hidden, now);
   if (!taste.seeds.length) return { status: "no-taste", generatedAt: now, seeds: [], artists: [], tracks: [] };
 
+  const similarStart=performance.now();
   const similar = await settleAll(taste.seeds, (seed) => client.similarArtists(seed.name));
+  trace("similar-artists",{ms:Math.round(performance.now()-similarStart),count:taste.seeds.length});
   const artists = new Map();
   taste.seeds.forEach((seed, index) => {
     for (const candidate of similar[index]) {
@@ -140,7 +142,10 @@ async function discover({ songs, hiddenArtists = [], client, now = Date.now(), c
     }
     const items=await batch;
     if(!active())return tracks;
-    return tracks.map(track=>enrichCatalogTrack(track,items));
+    const began=performance.now();
+    const enriched=tracks.map(track=>enrichCatalogTrack(track,items));
+    trace("identity-match",{ms:Math.round(performance.now()-began),total:tracks.length,attached:enriched.filter(t=>t.coverUrl).length});
+    return enriched;
   }
   let published=false;
   function publish(){

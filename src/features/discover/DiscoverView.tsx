@@ -8,6 +8,7 @@ import type { SpotifyTrack } from "../downloads/download.types";
 import type { Settings } from "../settings/settings.types";
 import type { CatalogKind, DiscoverResult, DiscoverTrack } from "./discover.types";
 import { DiscoverCover, getCachedDiscoverArtwork, isDisplayOnlyCover } from "./DiscoverArtwork";
+import { discoverTrace } from "./discoverDiagnostics";
 import type { Song } from "../library/song.types";
 import { Cover } from "../covers/Cover";
 import { buildDiscoverShelves } from "./discoverShelves";
@@ -73,10 +74,12 @@ export default function DiscoverView({ settings, updateSetting, sendToDownloads,
 
   const load = useCallback(async (refresh = false) => {
     const requestVersion = ++requestVersionRef.current;
+    const started=performance.now();
     setLoading(true);
     try {
       const next = await window.localitfy.getDiscoveries({ refresh, progress: !phone });
       if (requestVersion !== requestVersionRef.current) return;
+      discoverTrace("recommendation-response",{ms:Math.round(performance.now()-started),state:next.status});
       if(next.status==="ready"&&next.partial){
         // Keep an existing complete shelf visible during refresh; cold opening publishes early.
         setResult(current=>{
@@ -90,7 +93,7 @@ export default function DiscoverView({ settings, updateSetting, sendToDownloads,
     } catch {
       if (requestVersion === requestVersionRef.current) setResult(current=>current?.status==="ready"?current:{ status: "error", error: "Discover failed. Please try again." });
     } finally {
-      if (requestVersion === requestVersionRef.current) setLoading(false);
+      if (requestVersion === requestVersionRef.current) {setLoading(false);discoverTrace("recommendation-complete",{ms:Math.round(performance.now()-started)});}
     }
   }, [phone]);
   useEffect(() => {

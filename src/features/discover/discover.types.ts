@@ -3,7 +3,9 @@ export type DiscoverTrack = { title: string; artist: string; url: string; album?
 export type DiscoverArtist = { name: string; url: string; because: string[]; seedCount: number; topTracks: DiscoverTrack[] };
 export type CatalogKind = "recording" | "artist";
 export type CatalogItem = { id: string; title: string; artist: string; album?: string; subtitle: string; url: string; artistIds?: string[]; albumId?: string; aliases?: string[]; songType?: string } & DiscoverArtwork;
+export type DiscoverDiagnosticEvent = { at: number; stage: string; ms?: number; count?: number; total?: number; state?: string; attached?: number };
 export type DiscoverResult =
+  | { status: "diagnostics"; events: DiscoverDiagnosticEvent[] }
   | { status: "configuration"; lastfmSource: "default" | "override" | "missing"; lastfmCheck?: "ok" | "no-match" | "bad-key" | "rate-limited" | "network" | "http" | "error" }
   | ({ status: "artwork"; outcome?: "unavailable" | "busy" } & DiscoverArtwork)
   | { status: "catalog"; kind: CatalogKind; items: CatalogItem[] }
