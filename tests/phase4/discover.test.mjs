@@ -358,19 +358,19 @@ test("public catalog search requires opt-in but never a Last.fm key", async () =
 test("catalog searches share an in-flight request and drop responses after opt-out", async () => {
   const handlers = new Map();
   const settings = { discoverEnabled: true };
-  let release;
+  const releases = [];
   let calls = 0;
-  const musicBrainzClient = { searchCatalog: () => { calls++; return new Promise(resolve => { release = resolve; }); } };
+  const musicBrainzClient = { searchCatalog: () => { calls++; return new Promise(resolve => { releases.push(resolve); }); } };
   registerDiscoverIpc({ handle: (channel, handler) => handlers.set(channel, handler) }, { getSongs: () => [], getSettings: () => settings, musicBrainzClient });
   const search = term => handlers.get("discover:get")({}, { catalog: { kind: "recording", term } });
   const first = search("Track");
   const second = search("track");
-  assert.equal((await search("Other")).status, "error");
-  assert.equal(calls, 1);
+  const independent = ["Other","Third","Fourth"].map(search);
+  assert.equal((await search("Fifth")).status, "error");
+  assert.equal(calls, 4);
   settings.discoverEnabled = false;
-  release([]);
-  assert.equal((await first).status, "off");
-  assert.equal((await second).status, "off");
+  releases.forEach(release => release([]));
+  for(const result of await Promise.all([first,second,...independent]))assert.equal(result.status,"off");
 });
 
 test("Discover permits opt-in with a blank key and sends explicit catalog searches", () => {
