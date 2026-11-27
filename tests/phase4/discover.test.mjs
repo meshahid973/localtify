@@ -786,3 +786,22 @@ test("specialist fallback does not displace existing catalog results or query un
   assert.equal((await search("重音テト")).items[0].id,ordinary[0].id);assert.equal(calls,0);
   ordinary=[];assert.equal((await search("重音テト")).items[0].id,"vocadb:1");assert.equal(calls,1);
 });
+
+test("public catalog recommendations work without credentials, preserve exact identities and filter owned and hidden tracks",async()=>{
+  const id="12345678-1234-1234-1234-123456789abc", other="22345678-1234-1234-1234-123456789abc",release="32345678-1234-1234-1234-123456789abc";
+  const recording=(i,title,name,artistId)=>({id:"42345678-1234-1234-1234-123456789ab"+i,title,"artist-credit":[{name,artist:{id:artistId,name}}],releases:[{id:release,status:"Official",title:"Album"}]});
+  const calls=[],handlers=new Map(),settings={discoverEnabled:false,lastfmApiKey:""};
+  const musicBrainzClient={searchCatalog:async(kind,name)=>{calls.push([kind,name]);return [{id,name,tags:[{name:"electronic",count:10}]}];},
+    searchArtistRecordings:async id=>{calls.push(["artist",id]);return [recording(1,"Owned","Seed",id),recording(2,"New song","Seed",id)];},
+    searchGenreRecordings:async genre=>{calls.push(["genre",genre]);return [recording(3,"Related","Related Artist",other),recording(4,"Hidden","Hidden Artist",other)];}};
+  registerDiscoverIpc({handle:(channel,handler)=>handlers.set(channel,handler)},{getSongs:()=>[{title:"Owned",artist:"Seed",playCount:10}],getSettings:()=>settings,musicBrainzClient});
+  const get=payload=>handlers.get("discover:get")({},payload);
+  assert.equal((await get({})).status,"off");assert.equal(calls.length,0);
+  settings.discoverEnabled=true;settings.notForMeArtists=["Hidden Artist"];
+  const result=await get({});
+  assert.equal(result.status,"ready");assert.deepEqual(result.tracks.map(t=>t.title),["New song"]);
+  assert.equal(result.artists[0].topTracks[0].title,"Related");
+  assert.ok(result.artists[0].topTracks[0].coverUrl.startsWith("https://coverartarchive.org/"));
+  assert.equal(calls.length,3);await get({});assert.equal(calls.length,3);
+  settings.lastfmApiKey="invalid";assert.equal((await get({})).status,"ready");
+});

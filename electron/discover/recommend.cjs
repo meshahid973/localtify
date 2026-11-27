@@ -3,7 +3,7 @@
 // Discover: music from outside your library, picked from what Last.fm says is similar to what you own and play.
 // Artists you already have and artists marked "not for me" are left out; songs you already have are left out.
 const { artistCredits, notForMeTest } = require("../analysis/listening-signals.cjs");
-const { enrichCatalogTrack } = require("./artwork.cjs");
+const { enrichCatalogTrack, catalogArtwork } = require("./artwork.cjs");
 const { safeDisplayCover } = require("../runtime/remote-cover.cjs");
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -84,12 +84,74 @@ function diversify(entries, limit) {
   return picked;
 }
 
-async function discover({ songs, hiddenArtists = [], client, now = Date.now(), catalog, cachedArtwork, active = () => true, onProgress = () => {} }) {
+const mbid = value => typeof value==="string"&&/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(value);
+const clean=value=>typeof value==="string"?value.trim().slice(0,300):"";
+function recordingTrack(row){
+  if(!mbid(row?.id)||!clean(row.title))return null;
+  const credits=Array.isArray(row["artist-credit"])?row["artist-credit"]:[];
+  const artist=credits.map(c=>clean(c.name||c.artist?.name)+(c.joinphrase||"")).join("").trim();
+  const artistIds=credits.map(c=>c.artist?.id).filter(mbid);
+  if(!artist||!artistIds.length)return null;
+  const releases=(Array.isArray(row.releases)?row.releases:[]).filter(r=>mbid(r?.id)&&(!r.status||r.status==="Official")&&r["cover-art-archive"]?.front!==false);
+  const original=releases.filter(r=>!(r["release-group"]?.["secondary-types"]||[]).includes("Compilation"));
+  const art=catalogArtwork("recording",{...row,releases:original.length?original:releases});
+  return {title:clean(row.title),artist,url:"https://musicbrainz.org/recording/"+row.id,recordingId:row.id,artistIds, ...art};
+}
+function createPublicCatalog(brainz){
+  if(!brainz?.searchArtistRecordings||!brainz?.searchGenreRecordings)return null;
+  return async(seed,active)=>{
+    const options=()=>({background:true,deadlineAt:Date.now()+3500});
+    const exact=(await brainz.searchCatalog("artist",seed,options())).filter(row=>mbid(row?.id)&&key(row.name)===key(seed));
+    const matches=[...new Map(exact.map(row=>[row.id,row])).values()];
+    if(matches.length!==1||!active())return [];
+    const artist=matches[0];
+    const own=(await brainz.searchArtistRecordings(artist.id,options())).map(recordingTrack).filter(t=>t?.artistIds.includes(artist.id));
+    if(!active())return [];
+    // Genre tags come from the public artist record, not the user's library.
+    const genre=(Array.isArray(artist.tags)?artist.tags:[]).filter(t=>typeof t.name==="string"&&t.name.length<=80&&Number(t.count)>0).sort((a,b)=>b.count-a.count)[0]?.name;
+    if(!genre)return own;
+    const related=await brainz.searchGenreRecordings(genre,options()).catch(()=>[]);
+    return [...own,...related.map(recordingTrack).filter(Boolean)];
+  };
+}
+async function discover({ songs, hiddenArtists = [], client, publicCatalog, now = Date.now(), catalog, cachedArtwork, active = () => true, onProgress = () => {} }) {
   const hidden = notForMeTest([], hiddenArtists);
   const taste = libraryTaste(songs, hidden, now);
   if (!taste.seeds.length) return { status: "no-taste", generatedAt: now, seeds: [], artists: [], tracks: [] };
 
-  const similar = await settleAll(taste.seeds, (seed) => client.similarArtists(seed.name));
+  // Both sources feed the same ranking and shelf generation. A bounded public
+  // catalog can replace a missing or failing authenticated recommendation source.
+  const publicTracks=new Map();
+  let similar;
+  const seedTracks=async()=>{
+    const out=await settleAll(taste.seeds.slice(0,2),async seed=>active()?publicCatalog(seed.name,active):[]);
+    const candidates=taste.seeds.map(()=>[]);
+    out.forEach((tracks,i)=>{
+      for(const track of tracks){
+        if(!track||!track.title||!track.artist||hidden({artist:track.artist})||taste.ownedTracks.has(trackKey(track.artist,track.title)))continue;
+        const k=key(track.artist),rows=publicTracks.get(k)||[];
+        if(!rows.some(row=>row.recordingId===track.recordingId||key(row.title)===key(track.title)))rows.push(track);
+        publicTracks.set(k,rows.slice(0,12));
+        if(!candidates[i].some(row=>key(row.name)===k))candidates[i].push({name:track.artist,url:track.artistIds?.[0]?"https://musicbrainz.org/artist/"+track.artistIds[0]:track.url,match:0.65});
+      }
+    });
+    return candidates;
+  };
+  if(publicCatalog){
+    try{similar=await seedTracks();}catch(error){if(!client)throw error;}
+  }
+  if(client&&(!similar||publicTracks.size<3)){
+    try{
+      const optional=await settleAll(taste.seeds,seed=>active()?client.similarArtists(seed.name):[]);
+      similar=similar?similar.map((rows,i)=>[...rows,...optional[i].filter(row=>!rows.some(old=>key(old.name)===key(row.name)))]):optional;
+    }catch(error){if(!similar||!publicTracks.size)throw error;}
+  }
+  if(!similar)similar=taste.seeds.map(()=>[]);
+  const getTracks=async(name,limit)=>{
+    const tracks=publicTracks.get(key(name));
+    if(tracks?.length)return tracks.slice(0,limit);
+    return client&&active()?client.topTracks(name,limit).catch(error=>{if(publicTracks.size)return [];throw error;}):[];
+  };
   const artists = new Map();
   taste.seeds.forEach((seed, index) => {
     for (const candidate of similar[index]) {
@@ -154,7 +216,7 @@ async function discover({ songs, hiddenArtists = [], client, now = Date.now(), c
   const rankedJobs=settleAll(rankedArtists.slice(0,TOP_TRACK_ARTISTS),async(artist)=>{
     if(!active())return [];
     const index=rankedArtists.indexOf(artist);
-    const tracks=filter(await client.topTracks(artist.name),artist.name);
+    const tracks=filter(await getTracks(artist.name,3),artist.name);
     topTracks[index]=await enrich(artist.name,tracks);
     completedArtists.add(index);publish();
     return topTracks[index];
@@ -162,7 +224,7 @@ async function discover({ songs, hiddenArtists = [], client, now = Date.now(), c
   const favouriteJobs=settleAll(favourites,async seed=>{
     if(!active())return [];
     const index=favourites.indexOf(seed);
-    const tracks=filter(await client.topTracks(seed.name,15),seed.name).slice(0,MISSING_SONGS_PER_ARTIST);
+    const tracks=filter(await getTracks(seed.name,15),seed.name).slice(0,MISSING_SONGS_PER_ARTIST);
     favouriteTracks[index]=await enrich(seed.name,tracks);
     publish();return favouriteTracks[index];
   });
@@ -204,4 +266,4 @@ function reuseRecommendationArtwork(result,previous){
   };
   return {...result,artists:result.artists.map(artist=>({...artist,topTracks:artist.topTracks.map(reuse)})),tracks:result.tracks.map(reuse)};
 }
-module.exports = { discover, withoutOwned, libraryTaste, titleKey, reuseRecommendationArtwork };
+module.exports = { discover, withoutOwned, libraryTaste, titleKey, reuseRecommendationArtwork, createPublicCatalog, recordingTrack };

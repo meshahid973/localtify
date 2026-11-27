@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { randomUUID, createHash } = require("node:crypto");
 const { createLastfmClient, createLastfmResponseCache } = require("../discover/lastfm.cjs");
-const { discover, withoutOwned, reuseRecommendationArtwork } = require("../discover/recommend.cjs");
+const { discover, withoutOwned, reuseRecommendationArtwork, createPublicCatalog } = require("../discover/recommend.cjs");
 const { catalogArtwork, createArtworkLookup, matchArtistArtwork, matchMusicArtwork, firstArtwork, withoutFailedArtwork, enrichCatalogTrack } = require("../discover/artwork.cjs");
 const { rankCatalog, searchTerms } = require("../discover/catalog.cjs");
 const { suitableVocaDbQuery } = require("../discover/vocadb.cjs");
@@ -44,6 +44,7 @@ function normalizeCatalog(kind, items) {
 
 /** Public catalog needs only opt-in; Last.fm personalized results require a valid key. */
 function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile, fetch, musicBrainzClient, searchStore, searchVocaDb, lookupAudioDb, searchYouTubeMusic, searchYouTubeMusicRadio, searchYouTubeArtwork, lookupDeezer, lookupFanart, now = Date.now }) {
+  const publicCatalog=createPublicCatalog(musicBrainzClient);
   let saved = null;
   let running = null;
   let catalogRunning = null;
@@ -255,7 +256,7 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
       }
     }
     const apiKey = apiKeyFor(settings);
-    if (!/^[0-9a-f]{32}$/i.test(apiKey)) return { status: "needs-key" };
+    if (!publicCatalog && !/^[0-9a-f]{32}$/i.test(apiKey)) return { status: "needs-key" };
     const current = { songs: getSongs(), hiddenArtists: Array.isArray(settings.notForMeArtists) ? settings.notForMeArtists : [] };
     const latest=()=>({songs:getSongs(),hiddenArtists:Array.isArray(getSettings().notForMeArtists)?getSettings().notForMeArtists:[]});
     const requestActive=()=>active()&&apiKeyFor(getSettings())===apiKey;
@@ -263,7 +264,7 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
     const choose=job=>payload?.progress===true?job.initial:job.promise;
     if (running?.apiKey === apiKey) return choose(running).then(answer);
     if (payload?.refresh !== true && saved?.apiKey === apiKey && now() - saved.result.generatedAt < RESULT_TTL_MS) return answer(saved.result);
-    const client = createLastfmClient({ apiKey, cacheFile, ...(cacheFile?{responseCache:catalogResponses}:{}), fetch, now });
+    const client = /^[0-9a-f]{32}$/i.test(apiKey)?createLastfmClient({ apiKey, cacheFile, ...(cacheFile?{responseCache:catalogResponses}:{}), fetch, now }):null;
     let publish, jobLive=true;
     const jobActive=()=>jobLive&&requestActive();
     const initial=new Promise(resolve=>{publish=resolve;});
@@ -271,7 +272,7 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
       let result, batchBudget=6;
       const previous=saved?.apiKey===apiKey&&now()-saved.result.generatedAt<86400000?saved.result:null;
       try {
-        result=await discover({...current,client,now:now(),active:jobActive,
+        result=await discover({...current,client,publicCatalog,now:now(),active:jobActive,
           cachedArtwork:track=>jobActive()&&(!track.recordingId||track.providerId)&&(!track.album||track.providerId)?lookupArtwork.cached(track.title,track.artist,track):{},
           // Reuse existing catalog data without widening unofficial endpoint usage.
           // Additional batch requests use the documented MusicBrainz search API.

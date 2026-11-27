@@ -69,7 +69,7 @@ export default function DiscoverSettings({ settings, updateSetting }: Props) {
 
   const sourceLabel = source === "default" ? "Included with Localtify"
     : source === "override" ? "Custom key is active"
-    : source === "missing" ? "Last.fm is unavailable in this build"
+    : source === "missing" ? "Optional Last.fm connection is not configured"
     : source === "checking" ? "Checking the desktop provider" : "Provider status unavailable";
   const connectionLabel = lastfmCheck === "ok" ? "Last.fm connection verified."
     : lastfmCheck === "no-match" ? "Last.fm responded, but the sample track was not found."
@@ -84,12 +84,12 @@ export default function DiscoverSettings({ settings, updateSetting }: Props) {
       <h4>Discover</h4>
     </div>
     <SettingSection id="settings-discover-enabled" title="Music discovery" icon={<Compass size={20} aria-hidden="true" />}>
-      <ToggleRow label="Enable Discover" help="When enabled, catalog and artwork searches may contact music services. Last.fm recommendations use your library metadata." checked={settings.discoverEnabled}
+      <ToggleRow label="Enable Discover" help="When enabled, catalog and artwork searches may contact music services. Recommendations send a small number of artist names to music services; listening history stays on this device." checked={settings.discoverEnabled}
         onChange={value => void updateSetting("discoverEnabled", value)} />
       <p className="settingsHintText">Searches may contact music providers. Your local library works without Discover.</p>
     </SettingSection>
 
-    <SettingSection id="settings-discover-lastfm" title="Last.fm recommendations" icon={<KeyRound size={20} aria-hidden="true" />}>
+    <SettingSection id="settings-discover-lastfm" title="Optional Last.fm recommendations" icon={<KeyRound size={20} aria-hidden="true" />}>
       <div className="discoverProviderStatus" role="status">
         <span className={`discoverProviderDot ${lastfmCheck === "ok" ? "ready" : ""}`} aria-hidden="true" />
         <span>{sourceLabel}</span>
@@ -98,7 +98,7 @@ export default function DiscoverSettings({ settings, updateSetting }: Props) {
       </div>
       {checking ? <p className="settingsHintText" role="status">Checking Last.fm…</p> : null}
       {connectionLabel ? <p className="settingsHintText" role="status">{connectionLabel}</p> : null}
-      {source === "missing" ? <p className="settingsHintText">Public catalog search remains available. Official releases include Last.fm recommendations.</p> : null}
+      {source === "missing" ? <p className="settingsHintText">Discover can use public catalog recommendations without a Last.fm key.</p> : null}
       <details className="settingsDisclosure discoverProviderAdvanced" open={editingKey} onToggle={event => setEditingKey(event.currentTarget.open)}>
         <summary>Advanced provider options</summary>
         <div className="settingsDisclosureBody">

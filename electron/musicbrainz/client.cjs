@@ -111,6 +111,14 @@ function createMusicBrainzClient({ userAgent, fetchImpl = fetch, minIntervalMs =
         return Array.isArray(items) ? items : [];
       });
     },
+    searchArtistRecordings: (artistId, options) => {
+      if(!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(artistId||""))return Promise.resolve([]);
+      return request("recording",{query:"arid:"+phrase(artistId)+" AND status:official",limit:"40"},options).then(body=>Array.isArray(body.recordings)?body.recordings:[]);
+    },
+    searchGenreRecordings: (tag, options) => {
+      if(typeof tag!=="string"||!tag.trim()||tag.length>80)return Promise.resolve([]);
+      return request("recording",{query:"tag:"+phrase(tag)+" AND status:official",limit:"40"},options).then(body=>Array.isArray(body.recordings)?body.recordings:[]);
+    },
     searchRecordingBatch: (artist,tracks,options) => {
       const unique=[...new Set((Array.isArray(tracks)?tracks:[]).slice(0,4).flatMap(track=>{
         const id=track?.recordingId,title=typeof track==="string"?track:track?.title;

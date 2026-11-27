@@ -252,6 +252,17 @@ async function probeExpansion(){
   }
   return outcomes;
 }
+async function publicRecommendations(){
+  const {discover,createPublicCatalog}=require("../electron/discover/recommend.cjs");
+  let requests=0;
+  const brainz=createMusicBrainzClient({userAgent:"Localtify/0.5.1 (https://github.com/meshahid973/localtify)",fetchImpl:async(url,options)=>{requests++;return fetch(url,options);}});
+  const start=performance.now();let firstShelfMs=null;
+  try{
+    const result=await discover({songs:[{title:"One More Time",artist:"Daft Punk",playCount:10}],client:null,publicCatalog:createPublicCatalog(brainz),onProgress:()=>{firstShelfMs??=Math.round(performance.now()-start);}});
+    const tracks=[...result.tracks,...result.artists.flatMap(a=>a.topTracks)];
+    return {status:result.status,requests,firstShelfMs,totalMs:Math.round(performance.now()-start),tracks:tracks.length,artists:new Set(tracks.map(t=>t.artist)).size,artworkCandidates:tracks.filter(t=>t.coverUrl).length};
+  }catch(error){return {status:"unavailable",requests,totalMs:Math.round(performance.now()-start),detail:error.code||"network"};}
+}
 async function main() {
   const jobs=[];
   jobs.push(check("Deezer",async()=>{
@@ -377,7 +388,8 @@ async function main() {
   const catalogBatch=process.argv.includes("--resolution")||baselineRoot?await liveCatalogBatch():undefined;
   const recommendationComparison=baselineRoot?{baseline:await controlledRecommendation(baselineRoot,false),candidate:await controlledRecommendation(path.resolve(__dirname,".."),true)}:undefined;
   const expansion=process.argv.includes("--provider-expansion")?await probeExpansion():undefined;
-  console.log(JSON.stringify({expansion,checkedAt:new Date().toISOString(),sample:{title:expectedTitle,artist:expectedArtist},
+  const publicRecommendation=process.argv.includes("--public-recommendation")?await publicRecommendations():undefined;
+  console.log(JSON.stringify({expansion,publicRecommendation,checkedAt:new Date().toISOString(),sample:{title:expectedTitle,artist:expectedArtist},
     checks:sorted,resolution,comparison,cacheComparison,catalogBatch,recommendationComparison,note:"Advisory network observation, not a guarantee of future provider availability"},null,2));
   // Manual release acceptance must not silently pass without configured keys
   // or when either keyed integration is unable to retrieve usable artwork.
