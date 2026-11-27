@@ -67,9 +67,9 @@ export default function DiscoverSettings({ settings, updateSetting }: Props) {
     }
   }
 
-  const sourceLabel = source === "default" ? "Localtify default key is configured"
+  const sourceLabel = source === "default" ? "Included with Localtify"
     : source === "override" ? "Custom key is active"
-    : source === "missing" ? "No Last.fm key configured"
+    : source === "missing" ? "Last.fm is unavailable in this build"
     : source === "checking" ? "Checking the desktop provider" : "Provider status unavailable";
   const connectionLabel = lastfmCheck === "ok" ? "Last.fm connection verified."
     : lastfmCheck === "no-match" ? "Last.fm responded, but the sample track was not found."
@@ -98,9 +98,9 @@ export default function DiscoverSettings({ settings, updateSetting }: Props) {
       </div>
       {checking ? <p className="settingsHintText" role="status">Checking Last.fm…</p> : null}
       {connectionLabel ? <p className="settingsHintText" role="status">{connectionLabel}</p> : null}
-      {source === "missing" ? <p className="settingsHintText">No key configured. Add one for Last.fm recommendations.</p> : null}
+      {source === "missing" ? <p className="settingsHintText">Public catalog search remains available. Official releases include Last.fm recommendations.</p> : null}
       <details className="settingsDisclosure discoverProviderAdvanced" open={editingKey} onToggle={event => setEditingKey(event.currentTarget.open)}>
-        <summary>API key options</summary>
+        <summary>Advanced provider options</summary>
         <div className="settingsDisclosureBody">
           <label className="settingsSelectField">
             <span>Last.fm API key override</span>

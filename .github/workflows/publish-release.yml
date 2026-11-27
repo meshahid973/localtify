@@ -45,6 +45,7 @@ jobs:
       - name: Build desktop packages
         env:
           LOCALTIFY_LASTFM_API_KEY: ${{ secrets.LOCALTIFY_LASTFM_API_KEY }}
+          LOCALTIFY_REQUIRE_LASTFM_KEY: "1"
           WIN_CSC_LINK: ${{ secrets.LOCALTIFY_WINDOWS_CSC_LINK }}
           WIN_CSC_KEY_PASSWORD: ${{ secrets.LOCALTIFY_WINDOWS_CSC_KEY_PASSWORD }}
         shell: bash
@@ -60,7 +61,11 @@ jobs:
           else
             npm run dist:linux
           fi
-      - run: node scripts/check-release-artifacts.cjs
+      - name: Verify release artifacts and bundled Last.fm configuration
+        env:
+          LOCALTIFY_LASTFM_API_KEY: ${{ secrets.LOCALTIFY_LASTFM_API_KEY }}
+          LOCALTIFY_REQUIRE_LASTFM_KEY: "1"
+        run: node scripts/check-release-artifacts.cjs
       - name: Verify Windows installer and app Authenticode signatures
         if: runner.os == 'Windows'
         shell: pwsh
