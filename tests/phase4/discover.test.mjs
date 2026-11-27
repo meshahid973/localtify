@@ -672,3 +672,82 @@ test("identified artwork never substitutes another catalog recording with the sa
     next.flush();
   }finally{fs.rmSync(dir,{recursive:true,force:true});}
  });
+
+test("catalog-first recommendations attach exact artwork with one artist query and publish before slower groups",async()=>{
+  const coverUrl="https://lh3.googleusercontent.com/fixture=w256-h256-l90-rj";
+  const calls=[],partials=[];
+  let release;
+  const client=fakeClient({
+    similarArtists:async()=>[{name:"Fast Artist",match:.9},{name:"Slow Artist",match:.7}],
+    topTracks:async name=>name==="Slow Artist"?new Promise(resolve=>{release=resolve;}):
+      name==="Fast Artist"?["One","Two","Three","One (Live)"].map(title=>({title,artist:name,url:"https://www.last.fm/music/Fast+Artist"})):[]
+  });
+  let first;
+  const initial=new Promise(resolve=>{first=resolve;});
+  const pending=discover({songs:[{title:"Owned",artist:"Seed",playCount:10}],client,now:NOW,
+    catalog:async name=>{calls.push(name);return ["One","Two","Three"].map((title,index)=>({id:"ytmusic:abcdefghij"+index,title,artist:name,album:"Album",durationMs:180000,coverUrl}));},
+    onProgress:result=>{partials.push(result);first(result);}
+  });
+  const early=await initial;
+  assert.equal(early.partial,true);assert.equal(early.artists[0].topTracks.filter(track=>track.coverUrl).length,3);
+  assert.equal(early.artists[0].topTracks[3].coverUrl,undefined,"live recording must not receive studio artwork");
+  assert.equal(early.artists[0].topTracks[0].providerId,"ytmusic:abcdefghij0");
+  assert.deepEqual(calls,["Fast Artist"]);
+  release([{title:"Slow Song",artist:"Slow Artist"}]);
+  const final=await pending;
+  assert.equal(final.partial,undefined);assert.equal(final.artists.length,2);assert.equal(partials.length,1);
+  assert.deepEqual(calls,["Fast Artist","Slow Artist"]);
+});
+test("catalog enrichment rejects conflicting versions, artists and ambiguous catalog identities",()=>{
+  const {enrichCatalogTrack}=require("../../electron/discover/artwork.cjs");
+  const track={title:"Song",artist:"Artist",durationMs:180000};
+  const candidate={id:"ytmusic:abcdefghijk",title:"Song",artist:"Artist",durationMs:180000,coverUrl:"https://lh3.googleusercontent.com/fixture=w256-h256-l90-rj"};
+  assert.equal(enrichCatalogTrack(track,[candidate]).coverUrl,candidate.coverUrl);
+  for(const rows of [[{...candidate,title:"Song (Remix)"}],[{...candidate,artist:"Other"}],[{...candidate,durationMs:220000}],[candidate,{...candidate,id:"ytmusic:abcdefghijl"}]])assert.deepEqual(enrichCatalogTrack(track,rows),track);
+});
+
+test("artist catalog batch reuses existing catalog results and only queries the documented grouped endpoint for missing tracks",async()=>{
+  const {createMusicBrainzClient}=require("../../electron/musicbrainz/client.cjs");
+  const calls=[];
+  const client=createMusicBrainzClient({userAgent:"Localtify tests",minIntervalMs:0,fetchImpl:async url=>{calls.push(new URL(url));return {ok:true,headers:new Headers(),json:async()=>({recordings:[]})};}});
+  await client.searchRecordingBatch("Artist",["Song","Song","Live (2019)"],{background:true});
+  assert.equal(calls.length,1);
+  assert.equal(calls[0].searchParams.get("query"),'artist:"Artist" AND (recording:"Live (2019)" OR recording:"Song")');
+  const {enrichCatalogTrack}=require("../../electron/discover/artwork.cjs");
+  const track={title:"Song",artist:"Artist"},id="12345678-1234-1234-1234-123456789abc",release="22345678-1234-1234-1234-123456789abc";
+  const candidate={id,title:"Song","artist-credit":[{name:"Artist"}],releases:[{id:release,title:"Album","cover-art-archive":{front:true}}]};
+  assert.equal(enrichCatalogTrack(track,[candidate]).providerId,id);
+  assert.equal(enrichCatalogTrack(track,[candidate]).coverUrl,"https://coverartarchive.org/release/"+release+"/front-250");
+  const provisional=enrichCatalogTrack(track,[{...candidate,releases:[{id:release,title:"Album"}]}]);
+  assert.equal(provisional.recordingId,id);assert.equal(provisional.providerId,undefined);
+  assert.equal(provisional.coverUrl,"https://coverartarchive.org/release/"+release+"/front-250");
+  assert.deepEqual(enrichCatalogTrack(track,[{...candidate,releases:[{id:release,title:"Album","cover-art-archive":{front:false}}]}]),track);
+  await client.searchRecordingBatch("Artist",[{title:"Song",recordingId:id},"Other"],{background:true});
+  assert.ok(calls[1].searchParams.get("query").includes("rid:"+JSON.stringify(id)));
+  await client.searchRecordingBatch("Artist",[{recordingId:id},{recordingId:release}],{background:true});
+  assert.equal(calls[2].searchParams.get("query"),`(rid:"${id}" OR rid:"${release}")`);
+  assert.equal(calls[2].searchParams.get("limit"),"10");
+});
+
+test("expired background catalog batch never starts another provider request",async()=>{
+  const {createMusicBrainzClient}=require("../../electron/musicbrainz/client.cjs");let calls=0;
+  const client=createMusicBrainzClient({userAgent:"Localtify tests",fetchImpl:async()=>{calls++;return {ok:true,headers:new Headers(),json:async()=>({recordings:[]})};}});
+  await assert.rejects(client.searchRecordingBatch("Artist",["One","Two"],{background:true,deadlineAt:Date.now()-1}));
+  assert.equal(calls,0);
+});
+
+test("queued batch expiry does not wait for unrelated metadata or issue an expired request",async()=>{
+  const {createMusicBrainzClient}=require("../../electron/musicbrainz/client.cjs");let finish,calls=0;
+  const client=createMusicBrainzClient({userAgent:"Localtify tests",minIntervalMs:0,fetchImpl:async()=>{calls++;return new Promise(resolve=>{finish=resolve;});}});
+  const blocking=client.searchRecordings("Blocking","Artist");
+  await assert.rejects(client.searchRecordingBatch("Artist",["One","Two"],{background:true,deadlineAt:Date.now()+20}));
+  assert.equal(calls,1);finish({ok:true,headers:new Headers(),json:async()=>({recordings:[]})});await blocking;
+});
+test("recommendation refresh retains verified unchanged artwork but not conflicting identities",()=>{
+  const {reuseRecommendationArtwork}=require("../../electron/discover/recommend.cjs");
+  const coverUrl="https://lh3.googleusercontent.com/fixture=w256-h256-l90-rj",track={title:"Track",artist:"Artist",url:"https://last.fm/music/Artist",providerId:"ytmusic:abcdefghijk",durationMs:180000,coverUrl};
+  const result={status:"ready",artists:[],tracks:[{title:track.title,artist:track.artist,url:track.url}]};
+  const previous={...result,tracks:[track]};
+  assert.equal(reuseRecommendationArtwork(result,previous).tracks[0].coverUrl,coverUrl);
+  assert.equal(reuseRecommendationArtwork({...result,tracks:[{...result.tracks[0],durationMs:220000}]},previous).tracks[0].coverUrl,undefined);
+});

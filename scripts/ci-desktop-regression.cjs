@@ -772,7 +772,8 @@ server.listen(5173,async()=>{
     await win.webContents.executeJavaScript("document.querySelector('.sidebar [data-nav-id=settings]').click()");
     await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('.settingsModeButton').length===2 && document.querySelector('.app').dataset.workspaceArtwork==='on'").catch(()=>false),"appearance controls");
     assert.equal(await win.webContents.executeJavaScript("document.querySelector('.workspaceArtworkBackdrop .artworkBackdropLayer[data-visible=true] img')?.src"),playingArtwork,"navigation preserves active cover");
-    const discoverTracks=["Paper Boats","Night Bus","Blue Hour","Soft Focus","Rain Garden","Silver Line"].map(title=>({title,artist:"Fixture Artist",url:"https://www.last.fm/music/Fixture+Artist"}));
+    const discoverTracks=["Paper Boats","Night Bus","Blue Hour","Soft Focus","Rain Garden","Silver Line"].map((title,index)=>({title,artist:"Fixture Artist",url:"https://www.last.fm/music/Fixture+Artist",...(index===1||index===2?{coverUrl:"https://lh3.googleusercontent.com/qa"+title.replace(/[^a-zA-Z0-9]/g,"")+"=w256-h256-l90-rj"}:{})}));
+    let firstRecommendation=true, completedRecommendation=false;
     const artworkCalls=new Map();
     const fixtureImage=nativeImage.createFromPath(songs[0].coverPath).toDataURL();
     ipcMain.removeHandler("discover:get");
@@ -786,7 +787,13 @@ server.listen(5173,async()=>{
         if(query.fallback)await sleep(160);
         return {status:"artwork",coverUrl:"https://lh3.googleusercontent.com/qa"+query.title.replace(/[^a-zA-Z0-9]/g,"")+"=w256-h256-l90-rj"};
       }
-      return {status:"ready",generatedAt:Date.now(),seeds:["Test Artist"],tracks:[],artists:[{name:"Fixture Artist",url:discoverTracks[0].url,because:["Test Artist"],seedCount:1,topTracks:discoverTracks}]};
+      const result=tracks=>({status:"ready",generatedAt:Date.now(),seeds:["Test Artist"],tracks:[],artists:[{name:"Fixture Artist",url:discoverTracks[0].url,because:["Test Artist"],seedCount:1,topTracks:tracks}]});
+      if(payload?.progress&&firstRecommendation){firstRecommendation=false;return {...result(discoverTracks.slice(0,3)),partial:true};}
+      if(!completedRecommendation){
+        await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('section[aria-labelledby=discover-recommended] img[data-ready=true]').length>=2"),"early catalog-supplied images before final recommendation reply",5000,25);
+        completedRecommendation=true;
+      }
+      return result(discoverTracks);
     });
     ipcMain.removeHandler("covers:resolve-remote");
     ipcMain.handle("covers:resolve-remote",(event)=>{
@@ -869,6 +876,8 @@ server.listen(5173,async()=>{
       await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('section[aria-labelledby=discover-recommended] img[data-ready=true]').length===6"),"six decoded fixture Discover covers "+mode,10000,50);
       assert.equal(artworkCalls.get("Paper Boats:false"),1,"primary lookup must be coalesced and cached");
       assert.equal(artworkCalls.get("Paper Boats:true"),1,"missing primary must resolve via independent fallback");
+      assert.equal(artworkCalls.get("Night Bus:false"),undefined,"catalog artwork avoids per-track resolution");
+      assert.equal(artworkCalls.get("Blue Hour:false"),undefined,"second catalog artwork avoids per-track resolution");
       console.log("[discover-rendered]",JSON.stringify({mode,elapsedMs:Math.round(performance.now()-discoverStarted),metadataRequests:[...artworkCalls.values()].reduce((a,b)=>a+b,0)}));
       await screenshot(win,"discover-"+mode);
        // Discover's configuration lives in Settings, never an inline provider form.

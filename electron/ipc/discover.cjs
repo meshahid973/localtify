@@ -4,8 +4,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { randomUUID, createHash } = require("node:crypto");
 const { createLastfmClient, createLastfmResponseCache } = require("../discover/lastfm.cjs");
-const { discover, withoutOwned } = require("../discover/recommend.cjs");
-const { catalogArtwork, createArtworkLookup, matchArtistArtwork, matchMusicArtwork, firstArtwork, withoutFailedArtwork } = require("../discover/artwork.cjs");
+const { discover, withoutOwned, reuseRecommendationArtwork } = require("../discover/recommend.cjs");
+const { catalogArtwork, createArtworkLookup, matchArtistArtwork, matchMusicArtwork, firstArtwork, withoutFailedArtwork, enrichCatalogTrack } = require("../discover/artwork.cjs");
 const { rankCatalog, searchTerms } = require("../discover/catalog.cjs");
 const { safeDisplayCover } = require("../runtime/remote-cover.cjs");
 
@@ -241,23 +241,51 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
     const apiKey = apiKeyFor(settings);
     if (!/^[0-9a-f]{32}$/i.test(apiKey)) return { status: "needs-key" };
     const current = { songs: getSongs(), hiddenArtists: Array.isArray(settings.notForMeArtists) ? settings.notForMeArtists : [] };
-    if (payload?.refresh !== true && saved?.apiKey === apiKey && now() - saved.result.generatedAt < RESULT_TTL_MS) return withoutOwned(saved.result, current);
-    if (running?.apiKey === apiKey) return running.promise.then((result) => withoutOwned(result, current));
+    const latest=()=>({songs:getSongs(),hiddenArtists:Array.isArray(getSettings().notForMeArtists)?getSettings().notForMeArtists:[]});
+    const requestActive=()=>active()&&apiKeyFor(getSettings())===apiKey;
+    const answer=result=>requestActive()?withoutOwned(result,latest()):{status:"off"};
+    const choose=job=>payload?.progress===true?job.initial:job.promise;
+    if (running?.apiKey === apiKey) return choose(running).then(answer);
+    if (payload?.refresh !== true && saved?.apiKey === apiKey && now() - saved.result.generatedAt < RESULT_TTL_MS) return answer(saved.result);
     const client = createLastfmClient({ apiKey, cacheFile, ...(cacheFile?{responseCache:catalogResponses}:{}), fetch, now });
-    const promise = (async () => {
+    let publish, jobLive=true;
+    const jobActive=()=>jobLive&&requestActive();
+    const initial=new Promise(resolve=>{publish=resolve;});
+    const promise = Promise.resolve().then(async()=>{
+      let result, batchBudget=6;
+      const previous=saved?.apiKey===apiKey&&now()-saved.result.generatedAt<86400000?saved.result:null;
       try {
-        const result = await discover({ ...current, client, now: now() });
-        // Requests from a previous API key must never overwrite the latest cached result.
-        if (running?.apiKey === apiKey) saved = { apiKey, result };
-        return result;
-      } catch (error) {
-        return { status: "error", error: error?.message || "Discover failed. Please try again." };
-      } finally {
-        if (running?.promise === promise) running = null;
+        result=await discover({...current,client,now:now(),active:jobActive,
+          cachedArtwork:track=>jobActive()&&(!track.recordingId||track.providerId)&&(!track.album||track.providerId)?lookupArtwork.cached(track.title,track.artist,track):{},
+          // Reuse existing catalog data without widening unofficial endpoint usage.
+          // Additional batch requests use the documented MusicBrainz search API.
+          catalog:async(name,tracks)=>{
+            if(!jobActive())return [];
+            const cached=[...(searchYouTubeMusic?.cachedArtist?.(name)||[]),...(searchYouTubeArtwork?.cachedArtist?.(name)||[])];
+            const missing=tracks.filter(track=>!track.coverUrl&&!enrichCatalogTrack(track,cached).coverUrl&&/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(track.recordingId||""));
+            if(missing.length<2||!musicBrainzClient?.searchRecordingBatch||!jobActive()||batchBudget<=0)return cached;
+            batchBudget--;
+            try{
+              const records=await musicBrainzClient.searchRecordingBatch(name,missing,{background:true,deadlineAt:Date.now()+1500});
+              return jobActive()?[...cached,...records]:[];
+            }catch{return cached;}
+          },
+          onProgress:partial=>publish(reuseRecommendationArtwork(partial,previous))});
+        result=reuseRecommendationArtwork(result,previous);
+        if(!requestActive())result={status:"off"};
+        else if(running?.promise === promise)saved={apiKey,result};
+      }catch(error){
+        result=saved?.apiKey===apiKey&&saved.result.status==="ready"?saved.result:
+          {status:"error",error:error?.message||"Discover failed. Please try again."};
+      }finally{
+        jobLive=false;
+        if(running?.promise === promise)running=null;
       }
-    })();
-    running = { apiKey, promise };
-    return promise.then((result) => withoutOwned(result, current));
+      publish(result);
+      return result;
+    });
+    running={apiKey,promise,initial};
+    return choose(running).then(answer);
   });
 
   // Biographies use Discover's existing opt-in. Only validated records enter the disk cache.

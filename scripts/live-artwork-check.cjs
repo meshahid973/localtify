@@ -189,6 +189,48 @@ async function liveResolution(){
   return {cases,providers:counts,note:"Network metadata timing is time to response headers; per-track metadataMs includes parsing, scheduling and matching. No user library data."};
 }
 
+async function controlledRecommendation(root,batch){
+  const {discover}=require(path.resolve(root,"electron/discover/recommend.cjs"));
+  const {matchMusicArtwork}=require(path.resolve(root,"electron/discover/artwork.cjs"));
+  const artists=["Public Artist A","Public Artist B","Public Artist C"];
+  const tracks=artist=>["First","Second","Third"].map((title,index)=>({title,artist,url:"https://last.fm/music/"+encodeURIComponent(artist)+"/"+title,index}));
+  const rows=artist=>tracks(artist).map(({index,...track})=>({...track,id:"ytmusic:abcdefghi"+artists.indexOf(artist)+index,coverUrl:"https://lh3.googleusercontent.com/fixture"+artists.indexOf(artist)+index+"=w256-h256-l90-rj"}));
+  let requests=0,firstShelfMs=null;
+  const start=performance.now();
+  const client={similarArtists:async()=>artists.map((name,index)=>({name,match:1-index*.1,url:"https://last.fm/music/"+encodeURIComponent(name)})),
+    topTracks:async artist=>{await delay(artist===artists[2]?500:30);return artists.includes(artist)?tracks(artist):[];}};
+  const result=await discover({songs:[{title:"Owned",artist:"Public Seed",playCount:10}],client,
+    ...(batch?{catalog:async artist=>{requests++;await delay(40);return rows(artist);},onProgress:partial=>{
+      if(partial.artists.flatMap(artist=>artist.topTracks).filter(track=>track.coverUrl).length>=3)firstShelfMs=Math.round(performance.now()-start);
+    }}:{})});
+  const all=result.artists.flatMap(artist=>artist.topTracks);
+  if(!batch){
+    for(let i=0;i<all.length;i+=4){
+      await Promise.all(all.slice(i,i+4).map(async track=>{requests++;await delay(40);Object.assign(track,matchMusicArtwork(rows(track.artist),track.title,track.artist));}));
+      if(firstShelfMs===null)firstShelfMs=Math.round(performance.now()-start);
+    }
+  }
+  return {firstShelfMs,totalMs:Math.round(performance.now()-start),artworkRequests:requests,tracks:all.length,attached:all.filter(track=>track.coverUrl).length};
+}
+async function liveCatalogBatch(){
+  const {enrichCatalogTrack}=require("../electron/discover/artwork.cjs");
+  const artist="Daft Punk",tracks=[["One More Time","60fa767a-d85d-4991-82bc-4294e0b11ae7"],["Digital Love","15f16efc-8762-4151-95ab-c12d06268640"],["Harder, Better, Faster, Stronger","f1a6a40f-78f5-4918-968d-f64363bae94c"]].map(([title,recordingId])=>({title,artist,recordingId,album:"Discovery"}));
+  let requests=0;
+  const client=createMusicBrainzClient({userAgent:"Localtify/0.5.1 (https://github.com/meshahid973/localtify)",timeoutMs:9000,
+    fetchImpl:async(url,options)=>{requests++;return fetch(url,options);}});
+  const start=performance.now();
+  try{
+    const records=await client.searchRecordingBatch(artist,tracks,{background:true,deadlineAt:Date.now()+1500});
+    const catalogMs=Math.round(performance.now()-start);
+    const results=await Promise.all(tracks.map(async track=>{
+      const row=enrichCatalogTrack(track,records);
+      const imageStart=performance.now();
+      const image=row.coverUrl?await imageAvailable(row.coverUrl).catch(()=>false):false;
+      return {title:track.title,exactRecordingCount:records.filter(record=>norm(record.title)===norm(track.title)&&norm((record["artist-credit"]||[]).map(c=>(c.name||c.artist?.name||"")+(c.joinphrase||"")).join(""))===norm(artist)).length,attached:Boolean(row.coverUrl),image,imageMs:row.coverUrl?Math.round(performance.now()-imageStart):null};
+    }));
+    return {artist,requests,catalogMs,records:records.length,frontMarked:records.filter(row=>row.releases?.some(release=>release["cover-art-archive"]?.front===true)).length,results};
+  }catch{return {artist,requests,catalogMs:Math.round(performance.now()-start),status:"unavailable"};}
+}
 async function main() {
   const jobs=[];
   jobs.push(check("Deezer",async()=>{
@@ -312,8 +354,10 @@ async function main() {
   }:undefined;
   if(comparison&&[...comparison.baseline,...comparison.candidate].some(row=>row.resolved!==row.expected))throw Error("Controlled artwork identity resolution diverged");
   const cacheComparison=baselineRoot?{baseline:await controlledCache(baselineRoot),candidate:await controlledCache(path.resolve(__dirname,".."))}:undefined;
+  const catalogBatch=process.argv.includes("--resolution")||baselineRoot?await liveCatalogBatch():undefined;
+  const recommendationComparison=baselineRoot?{baseline:await controlledRecommendation(baselineRoot,false),candidate:await controlledRecommendation(path.resolve(__dirname,".."),true)}:undefined;
   console.log(JSON.stringify({checkedAt:new Date().toISOString(),sample:{title:expectedTitle,artist:expectedArtist},
-    checks:sorted,resolution,comparison,cacheComparison,note:"Advisory network observation, not a guarantee of future provider availability"},null,2));
+    checks:sorted,resolution,comparison,cacheComparison,catalogBatch,recommendationComparison,note:"Advisory network observation, not a guarantee of future provider availability"},null,2));
   // Manual release acceptance must not silently pass without configured keys
   // or when either keyed integration is unable to retrieve usable artwork.
   if(process.argv.includes("--require-keyed")) {

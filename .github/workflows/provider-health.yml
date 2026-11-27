@@ -44,7 +44,7 @@ jobs:
             args+=(--baseline-root "$baseline")
           fi
           node scripts/live-artwork-check.cjs "${args[@]}" > qa-providers/live-provider-report.json
-          node -e 'const fs=require("node:fs");const r=JSON.parse(fs.readFileSync("qa-providers/live-provider-report.json","utf8"));if(!Array.isArray(r.checks)||r.checks.length<8)throw Error("Incomplete provider report");for(const c of r.checks)console.log([c.provider,c.status,c.detail||""].join(" | "));console.log(JSON.stringify({resolution:r.resolution,comparison:r.comparison,cacheComparison:r.cacheComparison}))'
+          node -e 'const fs=require("node:fs");const r=JSON.parse(fs.readFileSync("qa-providers/live-provider-report.json","utf8"));if(!Array.isArray(r.checks)||r.checks.length<8)throw Error("Incomplete provider report");for(const c of r.checks)console.log([c.provider,c.status,c.detail||""].join(" | "));console.log(JSON.stringify({resolution:r.resolution,comparison:r.comparison,cacheComparison:r.cacheComparison,catalogBatch:r.catalogBatch,recommendationComparison:r.recommendationComparison}))'
       - name: Preserve provider results
         if: always()
         uses: actions/upload-artifact@v4

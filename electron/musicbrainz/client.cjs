@@ -41,7 +41,7 @@ function createMusicBrainzClient({ userAgent, fetchImpl = fetch, minIntervalMs =
     });
   }
 
-  function request(pathname, params = {}, { background = false } = {}) {
+  function request(pathname, params = {}, { background = false, deadlineAt = 0 } = {}) {
     const url = new URL(pathname, API);
     for (const [key, value] of Object.entries({ ...params, fmt: "json" })) url.searchParams.set(key, value);
     const key = url.href;
@@ -57,7 +57,7 @@ function createMusicBrainzClient({ userAgent, fetchImpl = fetch, minIntervalMs =
       if (!background) existing.background = false;
       return existing.promise;
     }
-    if (background && Date.now() < backgroundBlockedUntil) return Promise.reject(unavailable());
+    if ((deadlineAt&&Date.now()>=deadlineAt)||(background && Date.now() < backgroundBlockedUntil)) return Promise.reject(unavailable());
     if (waiting.length >= 128 || (background && waiting.filter(job => job.background).length >= 16)) {
       return Promise.reject(new Error("MusicBrainz request queue is busy. Try again shortly."));
     }
@@ -65,12 +65,13 @@ function createMusicBrainzClient({ userAgent, fetchImpl = fetch, minIntervalMs =
     const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
     const run = async () => {
       for (let attempt = 0; ; attempt += 1) {
-        if (background && Date.now() < backgroundBlockedUntil) throw unavailable();
+        if ((deadlineAt&&Date.now()>=deadlineAt)||(background && Date.now() < backgroundBlockedUntil)) throw unavailable();
         const wait = lastAt + minIntervalMs - Date.now();
+        if(deadlineAt&&Date.now()+Math.max(0,wait)>=deadlineAt)throw unavailable();
         if (wait > 0) await sleep(wait);
-        if (background && Date.now() < backgroundBlockedUntil) throw unavailable();
+        if ((deadlineAt&&Date.now()>=deadlineAt)||(background && Date.now() < backgroundBlockedUntil)) throw unavailable();
         lastAt = Date.now();
-        const response = await fetchImpl(key, { headers: { "User-Agent": userAgent, Accept: "application/json" }, signal: AbortSignal.timeout(timeoutMs) }).catch((error) => { if(background)backgroundBlockedUntil=Date.now()+15000; throw unreachable(error); });
+        const response = await fetchImpl(key, { headers: { "User-Agent": userAgent, Accept: "application/json" }, signal: AbortSignal.timeout(deadlineAt?Math.max(1,Math.min(timeoutMs,deadlineAt-Date.now())):timeoutMs) }).catch((error) => { if(background&&!deadlineAt)backgroundBlockedUntil=Date.now()+15000; throw unreachable(error); });
         if(response.status===429||response.status>=500)backgroundBlockedUntil=Math.max(backgroundBlockedUntil,Date.now()+providerCooldown({status:response.status,retryAfterMs:retryAfterMs(response.headers)}));
         // 503 means the rate limit was hit; back off and retry a couple of times.
         const retryDelay=retryAfterMs(response.headers);
@@ -80,12 +81,19 @@ function createMusicBrainzClient({ userAgent, fetchImpl = fetch, minIntervalMs =
       }
     };
     const entry = { promise, run, resolve, reject, background };
+    // Remove an expired batch from the queue immediately, even if an earlier
+    // unrelated request is still running. A started request has its own timeout.
+    const deadlineTimer=deadlineAt?setTimeout(()=>{
+      const index=waiting.indexOf(entry);
+      if(index>=0){waiting.splice(index,1);reject(unavailable());}
+    },Math.max(1,deadlineAt-Date.now())):null;
     inFlight.set(key, entry);
     promise.then(() => {
+      if(deadlineTimer!==null)clearTimeout(deadlineTimer);
       inFlight.delete(key);
       cache.set(key, { promise, expiresAt: Date.now() + Math.max(0, cacheTtlMs) });
       while (cache.size > Math.max(1, maxCacheEntries)) cache.delete(cache.keys().next().value);
-    }, () => { inFlight.delete(key); });
+    }, () => { if(deadlineTimer!==null)clearTimeout(deadlineTimer);inFlight.delete(key); });
     waiting.push(entry);
     pump();
     return promise;
@@ -102,6 +110,16 @@ function createMusicBrainzClient({ userAgent, fetchImpl = fetch, minIntervalMs =
         const items = body[endpoint + "s"];
         return Array.isArray(items) ? items : [];
       });
+    },
+    searchRecordingBatch: (artist,tracks,options) => {
+      const unique=[...new Set((Array.isArray(tracks)?tracks:[]).slice(0,4).flatMap(track=>{
+        const id=track?.recordingId,title=typeof track==="string"?track:track?.title;
+        if(typeof id==="string"&&/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(id))return ["rid:"+phrase(id)];
+        return typeof title==="string"&&title.trim()&&title.length<=300?["recording:"+phrase(title)]:[];
+      }))].sort();
+      if(typeof artist!=="string"||!artist.trim()||artist.length>300||!unique.length)return Promise.resolve([]);
+      const identified=unique.every(term=>term.startsWith("rid:"));
+      return request("recording",{query:identified?`(${unique.join(" OR ")})`:`artist:${phrase(artist)} AND (${unique.join(" OR ")})`,limit:identified?"10":"100"},options).then(body=>Array.isArray(body.recordings)?body.recordings:[]);
     },
     searchRecordings: (title, artist, options) => request("recording", { query: `recording:${phrase(title)}${artist ? ` AND artist:${phrase(artist)}` : ""}`, limit: "25" }, options).then((body) => body.recordings || []),
     getRecording: (id, options) => request(`recording/${encodeURIComponent(id)}`, { inc: "artist-credits+releases+release-groups" }, options),

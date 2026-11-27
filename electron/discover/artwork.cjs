@@ -55,6 +55,50 @@ function matchMusicArtwork(items,title,artist,identity = {}) {
   }))].slice(0,6);
   return {coverUrl:item.coverUrl,...(covers.length>1?{coverAlternatives:covers}:{}),...(Number.isFinite(item.durationMs)&&item.durationMs>0?{durationMs:item.durationMs}:{})};
 }
+function enrichCatalogTrack(track, items) {
+  if (track.coverUrl && require("../runtime/remote-cover.cjs").safeDisplayCover(track.coverUrl)) return track;
+  const identity={album:track.album||"",durationMs:track.durationMs||0,providerId:track.providerId||"",recordingId:validId(track.recordingId)?track.recordingId:""};
+  // Do not substitute a different version or attach an arbitrary ID from an ambiguous result.
+  const exact=(Array.isArray(items)?items:[]).filter(item=>
+    /^ytmusic:[A-Za-z0-9_-]{11}$/.test(item?.id||"") &&
+    norm(item.title)===norm(track.title) && equivalentArtist(item.artist,track.artist) &&
+    (!identity.providerId||item.id===identity.providerId) &&
+    (!identity.album||norm(item.album)===norm(identity.album)) &&
+    (!identity.durationMs||(Number.isFinite(item.durationMs)&&Math.abs(item.durationMs-identity.durationMs)<=5000)) &&
+    matchMusicArtwork([item],track.title,track.artist,identity).coverUrl);
+  const unique=[...new Map(exact.map(item=>[item.id,item])).values()];
+  if(unique.length===1){
+    const item=unique[0],art=matchMusicArtwork([item],track.title,track.artist,identity);
+    return {...track,...art,providerId:item.id,album:track.album||item.album||undefined,durationMs:track.durationMs||art.durationMs,...(item.artistIds?.length?{catalogArtistIds:item.artistIds}:{}),...(item.albumId?{catalogAlbumId:item.albumId}:{})};
+  }
+  if(unique.length>1 || identity.providerId&&!validId(identity.providerId))return track;
+  const recordings=(Array.isArray(items)?items:[]).filter(item=>validId(item?.id)&&
+    norm(item.title)===norm(track.title)&&norm(credit(item))===norm(track.artist)&&
+    (!identity.providerId||item.id===identity.providerId)&&(!identity.recordingId||item.id===identity.recordingId)&&
+    (!identity.durationMs||(Number.isFinite(item.length)&&Math.abs(item.length-identity.durationMs)<=5000)));
+  const matches=[...new Map(recordings.map(item=>[item.id,item])).values()];
+  if(matches.length!==1)return track;
+  const recording=matches[0];
+  // Recording search omits the front-art flag. An exact recording may supply
+  // a release-based CAA candidate, just as ordinary catalog search does.
+  // Never treat the candidate as proof the image exists, or use explicitly
+  // unavailable releases or compilations in place of a known album.
+  const all=(Array.isArray(recording.releases)?recording.releases:[]).filter(release=>validId(release?.id)&&(!release.status||release.status==="Official")&&
+    release["cover-art-archive"]?.front!==false&&(!identity.album||norm(release.title)===norm(identity.album)));
+  const normal=all.filter(release=>!(release["release-group"]?.["secondary-types"]||[]).includes("Compilation"));
+  const releases=normal.length?normal:all;
+  const art=catalogArtwork("recording",{...recording,releases});
+  if(!art.coverUrl)return track;
+  const albumNames=[...new Set(releases.map(r=>r.title).filter(Boolean))];
+  const confirmed=releases.some(release=>release["cover-art-archive"]?.front===true);
+  // Prefer the representative release-group image when availability is unknown.
+  // Leave the existing name-based fallback available if this provisional image fails.
+  const covers=[...new Set([...(confirmed?[art.coverUrl,art.fallbackCoverUrl]:[art.fallbackCoverUrl,art.coverUrl]),...(art.coverAlternatives||[])].filter(Boolean))].slice(0,6);
+  return {...track,...art,coverUrl:covers[0],fallbackCoverUrl:covers[1],coverAlternatives:covers,
+    ...(confirmed?{providerId:recording.id}:{}),recordingId:recording.id,
+    artistIds:[...new Set((recording["artist-credit"]||[]).map(c=>c.artist?.id).filter(validId))],
+    album:track.album||(albumNames.length===1?albumNames[0]:undefined),durationMs:track.durationMs||art.durationMs};
+}
 function matchArtistArtwork(items,name,providerId = "") {
   const {safeThumbnail}=require("./youtube-music.cjs");
   const exact=(Array.isArray(items)?items:[]).filter(item=>artistKey(item?.title)===artistKey(name)&&(!providerId||item.id===providerId)&&/^ytmusic:UC[A-Za-z0-9_-]{22}$/.test(item.id||"")&&safeThumbnail(item.coverUrl));
@@ -228,9 +272,19 @@ function createArtworkLookup(client,now=Date.now,trackInfo,lookupAudioDb,lookupM
       return {};
     });
   };
+  lookup.cached=async(title,artist,identity={})=>{
+    await cache.hydrate();
+    const providerId=identity.providerId||"",album=norm(identity.album),durationMs=identity.durationMs||0;
+    for(const fallback of [false,true]){
+      const raw=JSON.stringify(["recording",norm(title),norm(artist),providerId,providerId?album:"",providerId?durationMs:0,fallback]);
+      const value=withoutFailedArtwork(cache.get(raw.length>1024?"identity:"+artworkDigest(raw):raw));
+      if(value.coverUrl&&(!durationMs||(value.durationMs&&Math.abs(value.durationMs-durationMs)<=5000)))return value;
+    }
+    return {};
+  };
   lookup.resolve=resolve;
   lookup.flush=cache.flush;
   lookup.close=cache.close;
   return lookup;
 }
-module.exports={catalogArtwork,createArtworkLookup,lastfmArtwork,matchMusicArtwork,matchArtistArtwork,firstArtwork,withoutFailedArtwork};
+module.exports={catalogArtwork,createArtworkLookup,lastfmArtwork,matchMusicArtwork,matchArtistArtwork,firstArtwork,withoutFailedArtwork,enrichCatalogTrack};
