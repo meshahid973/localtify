@@ -644,3 +644,31 @@ test("identified artwork never substitutes another catalog recording with the sa
   const warmCalls=calls,start=performance.now();await get();assert.equal(calls,warmCalls);
   console.log("[artwork-cache] warm metadata ms="+(performance.now()-start).toFixed(3)+" providerRequests=0");
  });
+
+ test("Last.fm album reuse requires verified recording and release identity",async()=>{
+  const {createArtworkLookup}=require("../../electron/discover/artwork.cjs");
+  const id="12345678-1234-1234-1234-123456789abc";
+  const coverUrl="https://lastfm.freetls.fastly.net/i/u/300x300/0123456789abcdef0123456789abcdef.jpg";
+  const lookup=createArtworkLookup(null,Date.now,async(title,artist)=>({name:title,artist:{name:artist},album:{mbid:title==="Live"?"22345678-1234-1234-1234-123456789abc":id,title:"Album",artist:"Artist",image:title==="First"?[{"#text":coverUrl}]:[]}}));
+  assert.equal((await lookup("First","Artist")).coverUrl,coverUrl);
+  assert.equal((await lookup("Second","Artist")).coverUrl,coverUrl);
+  assert.notEqual((await lookup("Live","Artist")).coverUrl,coverUrl);
+ });
+ test("Last.fm migrates legacy public answers, batches writes and does not keep credential-scoped misses across changes",async()=>{
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),"localtify-lastfm-cache-"));
+  try{
+    let clock=1000,calls=0;
+    const file=path.join(dir,"cache.json");
+    const key="track.getinfo?track=Song&artist=Artist&autocorrect=0";
+    fs.writeFileSync(file,JSON.stringify({[key]:{at:clock,data:{track:{name:"Song"}}}}));
+    const fetch=async()=>{calls++;return {ok:true,json:async()=>({error:6})};};
+    const client=createLastfmClient({apiKey:KEY,cacheFile:file,fetch,now:()=>clock,wait:async()=>{}});
+    assert.equal((await client.trackInfo("Song","Artist")).name,"Song");assert.equal(calls,0);
+    await Promise.all([client.trackInfo("Missing","Artist"),client.trackInfo("Missing","Artist")]);assert.equal(calls,1);
+    client.flush();
+    const next=createLastfmClient({apiKey:"ffffffffffffffffffffffffffffffff",cacheFile:file,fetch,now:()=>clock,wait:async()=>{}});
+    await next.trackInfo("Missing","Artist");assert.equal(calls,2);
+    await next.trackInfo("Song","Artist");assert.equal(calls,2);
+    next.flush();
+  }finally{fs.rmSync(dir,{recursive:true,force:true});}
+ });

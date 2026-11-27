@@ -71,7 +71,7 @@ function createLastfmResponseCache({file="",now=Date.now}={}) {
   const valid=value=>value&&typeof value==="object"&&!Array.isArray(value)&&!value.error;
   return createResourceCache({file,now,maxEntries:CACHE_MAX_ENTRIES,maxBytes:8*1024*1024,validate:valid,
     migrate:decoded=>decoded&&typeof decoded==="object"?Object.entries(decoded)
-      .filter(([,row])=>Number.isFinite(row?.at)&&valid(row.data)&&Object.keys(row.data).length)
+      .filter(([,row])=>Number.isFinite(row?.at)&&row.at<=now()&&valid(row.data)&&Object.keys(row.data).length)
       .sort((a,b)=>a[1].at-b[1].at).map(([key,row])=>[key,{value:row.data,expiresAt:row.at+CACHE_TTL_MS}]):[]});
 }
 function createLastfmClient({ apiKey, cacheFile, fetch = globalThis.fetch, now = Date.now, responseCache=createLastfmResponseCache({file:cacheFile,now}), artwork = false, wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) }) {
@@ -88,9 +88,11 @@ function createLastfmClient({ apiKey, cacheFile, fetch = globalThis.fetch, now =
     if(pending.has(key))return pending.get(key);
     if(pending.size>=64)throw new LastfmError("Last.fm is temporarily busy.","rate-limited");
     const task=request(method,params).then(body=>{
-      const found=Object.keys(body).length>0;
-      responseCache.set(found?key:missing,body,found?CACHE_TTL_MS:300000);
-      return body;
+      const field={"track.getinfo":"track","track.search":"results","artist.getinfo":"artist","artist.getsimilar":"similarartists","artist.gettoptracks":"toptracks"}[method];
+      const found=field?Boolean(body[field]):Object.keys(body).length>0;
+      const value=found?body:{};
+      responseCache.set(found?key:missing,value,found?CACHE_TTL_MS:300000);
+      return value;
     }).finally(()=>pending.delete(key));
     pending.set(key,task);
     return task;

@@ -178,8 +178,8 @@ function createArtworkLookup(client,now=Date.now,trackInfo,lookupAudioDb,lookupM
         const verified = norm(track?.name)===norm(title)&&norm(track?.artist?.name)===norm(artist);
         const albumId=verified&&validId(track?.album?.mbid)?track.album.mbid.toLowerCase():"";
         knownRelease = albumId ? url("release",albumId) : undefined;
-        if(albumId&&active()){
-          const albumKey="album:lastfm:"+albumId;
+        if(albumId&&norm(track.album.title)&&norm(track.album.artist)&&active()){
+          const albumKey="album:lastfm:"+artworkDigest([albumId,norm(track.album.title),norm(track.album.artist)]);
           if(primary.coverUrl)cache.set(albumKey,primary,86400000);
           else primary=withoutFailedArtwork(cache.get(albumKey),excluded);
         }

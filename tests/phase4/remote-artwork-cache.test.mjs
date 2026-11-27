@@ -73,3 +73,17 @@ test("stale artwork is served only during an explicit revalidation window and va
     await cache.close();
   } finally {await fs.rm(dir,{recursive:true,force:true});}
 });
+
+ test("remote artwork cold-cache budget releases direct display after the fetch aborts",async()=>{
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),"localtify-art-budget-"));let calls=0,aborted=false;
+  const cache=createRemoteArtworkCache({dir,fetchImpl:async(_url,options)=>{
+    calls++;return new Promise((resolve,reject)=>options.signal.addEventListener("abort",()=>{aborted=true;reject(options.signal.reason);},{once:true}));
+  }});
+  try{
+    // Keep the test runner alive while AbortSignal's unref'ed deadline fires.
+    const keepAlive=setTimeout(()=>{},2000);
+    try{assert.deepEqual(await Promise.all([cache.resolve(a),cache.resolve(a)]),["",""]);}finally{clearTimeout(keepAlive);}
+    assert.equal(calls,1);assert.equal(aborted,true);assert.equal(cache.pendingCount,0);
+    assert.equal(await cache.resolve(a),"");assert.equal(calls,1);
+  }finally{await cache.close();await fs.rm(dir,{recursive:true,force:true});}
+ });

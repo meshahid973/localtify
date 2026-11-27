@@ -78,7 +78,7 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
   }, lookupAudioDb ? (...args) => strict(lookupAudioDb,...args) : undefined, searchYouTubeArtwork ? lookupMusicArtwork : undefined,
     lookupDeezer ? (...args) => strict(lookupDeezer,...args) : undefined,
     lookupFanart ? (...args) => strict(lookupFanart,...args) : undefined,{file:cacheFile?cacheFile+".resolved-artwork-v1":""});
-  // The outer resource cache owns retention and coalescing for both entity types.
+  // The resolver owns retention and coalescing for both entity types.
   async function lookupArtistArtwork(name,fallback=false,primaryOnly=false,excluded=[],retryPrimary=false) {
     const cleaned=name.replace(/\s+[-–—]\s+Topic$/i,"").trim();
     let failed=false;
@@ -166,12 +166,12 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
         return { status: "error", error: "Invalid artwork identity." };
       if(!Array.isArray(failedUrls)||failedUrls.length>8||!failedUrls.every(safeDisplayCover)) return {status:"error",error:"Invalid artwork candidates."};
       const excluded=[...new Set(failedUrls)].sort();
+      const scope=configuration();
+      const requestActive=()=>active()&&configuration()===scope;
       try {
         const normalizeKey = value => value.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase();
         const identity = { providerId, album: normalizeKey(album), durationMs };
         const key = JSON.stringify([kind, normalizeKey(title), normalizeKey(artist), providerId, identity.album, durationMs, fallback === true]);
-        const scope=configuration();
-        const requestActive=()=>active()&&configuration()===scope;
         const options={cacheKey:key,fallback:fallback===true,primaryOnly:primaryOnly===true&&!providerId,active:requestActive,excluded,retryPrimary:retryPrimary===true,configuration:scope};
         const artwork=providerId||kind==="artist"
           ? await lookupArtwork.resolve(key,options,()=>providerId
@@ -179,7 +179,7 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
             : lookupArtistArtwork(title.trim(),options.fallback,options.primaryOnly,excluded,options.retryPrimary))
           : await lookupArtwork(title.trim(),artist.trim(),options);
         return requestActive() ? {status:"artwork",...artwork} : {status:"off"};
-      } catch { return !active() ? {status:"off"} : primaryOnly === true && !providerId ? {status:"artwork",outcome:"unavailable"} : { status: "error", error: "Artwork unavailable." }; }
+      } catch { return !requestActive() ? {status:"off"} : primaryOnly === true && !providerId ? {status:"artwork",outcome:"unavailable"} : { status: "error", error: "Artwork unavailable." }; }
     }
     if (payload?.catalog !== undefined) {
       const query = payload.catalog;

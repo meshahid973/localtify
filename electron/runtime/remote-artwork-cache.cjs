@@ -64,6 +64,7 @@ function createRemoteArtworkCache({ dir, maxBytes = 128 * 1024 * 1024, maxEntrie
     await fs.rm(path.join(dir,name),{force:true}).catch(() => {});
   }
   async function prune(orphaned = [], startup = false) {
+    const before=rows.size;
     const refs = new Map();
     let bytes = 0;
     for (const row of rows.values()) {
@@ -82,7 +83,7 @@ function createRemoteArtworkCache({ dir, maxBytes = 128 * 1024 * 1024, maxEntrie
       const [url,row] = rows.entries().next().value;
       drop(url,row);
     }
-    markDirty();
+    if(!startup||before!==rows.size)markDirty();
     if (startup) {
       for (const entry of await fs.readdir(dir,{withFileTypes:true})) {
         if (!entry.isFile()) continue;

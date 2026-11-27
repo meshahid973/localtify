@@ -129,6 +129,7 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
   const requestKey = exhausted ? key + ":fallback" : key;
   const excludedKey=JSON.stringify(failed.slice(-8).sort());
   const retryPrimary=exhausted && resolved?.key===key && resolved.unavailable===true && !resolved.fallback;
+  const tooManyFailures=!src&&failed.length>=8;
   const finishedMissing=resolved?.key===key&&resolved.fallback&&!resolved.value.coverUrl&&!resolved.value.fallbackCoverUrl&&!resolved.value.coverAlternatives?.length;
   useEffect(() => {
     if (!near || !src || !displaySrc || imageReady) return;
@@ -140,7 +141,7 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
   }, [src, displaySrc, localSrc, key, imageReady, near]);
   useEffect(() => {
     if (!needsLookup || (!person && !artist) || !title || !near) return;
-    if(finishedMissing)return;
+    if(finishedMissing||tooManyFailures)return;
     let live = true;
     let releaseRequest: (()=>void) | undefined;
     let retryTimer: number | undefined;
@@ -165,8 +166,8 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
         if(!live)return;
         if(answer?.status!=="artwork"){
           // A temporary provider failure is already subject to a shared backend cooldown.
-          // Only transport failures get a short local retry; re-entry/refresh can retry later.
-          if(!answer&&attempts<2)retryTimer=window.setTimeout(start,900);
+          // At most one delayed retry per visible consumer, never continuous polling.
+          if(attempts<2&&answer?.status!=="off")retryTimer=window.setTimeout(start,answer?.status==="error"?15000:900);
           return;
         }
         if(hasCandidate(answer)){
@@ -178,7 +179,7 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
     };
     start();
     return () => { live = false; releaseRequest?.(); if (retryTimer !== undefined) window.clearTimeout(retryTimer); };
-  }, [key, title, artist, needsLookup, near, person, exhausted, requestKey, providerId, album, durationMs, excludedKey, retryPrimary, finishedMissing]);
+  }, [key, title, artist, needsLookup, near, person, exhausted, requestKey, providerId, album, durationMs, excludedKey, retryPrimary, finishedMissing, tooManyFailures]);
   return <span ref={ref} className="discoverCover" aria-hidden="true">
     {!imageReady ? (person ? <UserRound size={24} /> : <Disc3 size={24} />) : null}
     {(near || imageReady) && src && displaySrc ? <img key={displaySrc} ref={imageRef} src={displaySrc} alt="" loading="eager" decoding="async" fetchPriority="auto" referrerPolicy="no-referrer" data-ready={imageReady}
