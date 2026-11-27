@@ -88,7 +88,7 @@ export default function SettingsRail({
                 <span className="settingsCategoryIcon" aria-hidden="true">
                   <SolidIcon className="settingsSolidIcon" name={tab.icon} size={20} />
                 </span>
-                <span className="settingsCategoryCopy"><strong>{tab.label}</strong><small>{tab.description}</small></span>
+                <span className="settingsCategoryCopy"><strong>{tab.label}</strong></span>
               </button>;
             })}
           </div>;

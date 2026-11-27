@@ -266,7 +266,7 @@
 }
 .settingsPage.settingsPageV027 .settingsCategoryButton {
   width: 100%; min-height: 40px; display: flex; align-items: center;
-  gap: 10px; padding: 9px 10px; border: 1px solid transparent;
+  gap: 10px; padding: 7px 10px; border: 1px solid transparent;
   border-radius: 8px; color: var(--lt-muted); background: transparent;
   font-size: 13px; text-align: left;
 }
@@ -281,9 +281,8 @@
 }
 .settingsPage.settingsPageV027 .settingsCategoryIcon svg { width: 17px; height: 17px; }
 .settingsPage.settingsPageV027 .settingsCategoryButton[aria-current="page"] .settingsCategoryIcon { color: var(--lt-accent); }
-.settingsPage.settingsPageV027 .settingsCategoryCopy { gap: 3px; }
+.settingsPage.settingsPageV027 .settingsCategoryCopy { gap: 0; }
 .settingsPage.settingsPageV027 .settingsCategoryCopy strong { font-size: 13px; font-weight: 580; }
-.settingsPage.settingsPageV027 .settingsCategoryCopy small { font-size: 11px; line-height: 1.35; color: var(--lt-muted); }
 .settingsPage.settingsPageV027 .settingsSearchBoxV027 { gap: 6px; padding: 0 2px 6px; }
 .settingsPage.settingsPageV027 .settingsSearchBoxV027 .settingsSearchField input {
   min-height: 40px; background: var(--lt-surface-soft);
@@ -362,7 +361,6 @@
  .settingsPage.settingsPageV027 .settingsNavGroup + .settingsNavGroup { margin: 0; padding: 0; border: 0; }
  .settingsPage.settingsPageV027 .settingsNavCaption { display: none; }
  .settingsPage.settingsPageV027 .settingsCategoryButton { flex: none; width: auto; min-width: 115px; }
- .settingsPage.settingsPageV027 .settingsCategoryCopy small { display: none; }
 }
 @media (max-width: 600px) {
  .settingsPage.settingsPageV027 { width: 100%; padding-bottom: 80px; }
