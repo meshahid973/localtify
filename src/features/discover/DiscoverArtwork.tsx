@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { observeArtwork, observeVisibleArtwork, getResolvedRemoteArtwork, invalidateResolvedRemoteArtwork, resolveRemoteArtwork } from "../covers/thumbnailResource";
 import { Disc3, UserRound } from "lucide-react";
-import type { DiscoverArtwork, DiscoverResult } from "./discover.types";
+import type { DiscoverArtwork, DiscoverResult, DiscoverTrack } from "./discover.types";
+import { buildDiscoverShelves } from "./discoverShelves";
 import { discoverTrace, discoverImageTrace } from "./discoverDiagnostics";
 const cache = new Map<string, {at:number; value:DiscoverArtwork}>();
 type ArtworkJob = { priority: number; queuedAt: number; person: boolean; users: number; started: boolean; promise: Promise<DiscoverResult | null>; run: () => Promise<void>; cancel: () => void };
@@ -98,6 +99,91 @@ const deezerCover = /^https:\/\/(?:e-cdns-images|cdns-images|cdn-images)\.dzcdn\
 const fanartCover = /^https:\/\/assets\.fanart\.tv\/fanart\/music\/[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}\/(?:albumcover|artistthumb)\/[-a-z0-9_.%]+\.(?:jpg|jpeg|png)\/preview$/i;
 export const isDisplayOnlyCover = (value?: string) => Boolean(value && (deezerCover.test(value) || fanartCover.test(value)));
 const safeCover = (value?: string) => value && (deezerCover.test(value) || fanartCover.test(value) || youtubeCover.test(value) || audioDbCover.test(value) || /^https:\/\/coverartarchive\.org\/(release|release-group)\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/front-250$/i.test(value) || (/^https:\/\/(?:lastfm\.freetls\.fastly\.net|lastfm-img2\.akamaized\.net)\/i\/u\/(?:[0-9]+x[0-9]+|[0-9]+s)\/[a-f0-9]{32}\.(?:png|jpe?g|webp)$/i.test(value) && !/2a96cbd8b46e442fc41c2b86b821562f|4128a6eb29f94943c9d206c08e625904/i.test(value))) ? value : undefined;
+// Headless, bounded startup warmup. Use the same lookup keys, queue and
+// cache as mounted cards; never mount a second hidden Discover interface.
+let warmGeneration = -1;
+const warmedTracks = new Set<string>();
+const warmedImages = new Set<string>();
+function warmImage(url: string, signal: AbortSignal) {
+  if (signal.aborted || warmedImages.has(url)) return Promise.resolve();
+  warmedImages.add(url);
+  return new Promise<void>(resolve => {
+    const image = new Image();
+    image.decoding = "async";
+    image.fetchPriority = "low";
+    image.referrerPolicy = "no-referrer";
+    const finish = () => {
+      window.clearTimeout(timer);
+      image.onload = image.onerror = null;
+      signal.removeEventListener("abort", finish);
+      resolve();
+    };
+    const timer = window.setTimeout(finish, 5000);
+    image.onload = image.onerror = finish;
+    signal.addEventListener("abort", finish, { once: true });
+    image.src = url;
+  });
+}
+function firstCover(value?: DiscoverArtwork) {
+  return [value?.coverUrl,value?.fallbackCoverUrl,...(value?.coverAlternatives||[]).slice(0,6)].map(safeCover).find(Boolean);
+}
+async function warmTrack(track: DiscoverTrack, signal: AbortSignal, allowLookup: boolean) {
+  const providerId=track.providerId||"", album=providerId?track.album||"":"", durationMs=providerId?track.durationMs||0:0;
+  const key=artworkKey(track.title,track.artist,false,providerId,album,durationMs);
+  let src=firstCover(track)||firstCover(cachedArtwork(key+":fallback"))||firstCover(cachedArtwork(key));
+  if(!src && allowLookup && !warmedTracks.has(key) && !signal.aborted){
+    warmedTracks.add(key);
+    // One primary and, if appropriate, one fallback attempt, no background retry loop.
+    for(const fallback of [false,true]){
+      if(signal.aborted)break;
+      const requestKey=key+(fallback?":fallback":"");
+      const request=enqueueArtwork(requestKey+"[]false",fallback,8,false,async()=>{
+        const answer=await window.localitfy.getDiscoveries({artwork:{title:track.title,artist:track.artist,kind:"recording",fallback,primaryOnly:!fallback&&!providerId,providerId,album,durationMs,failedUrls:[],retryPrimary:false}});
+        if(answer.status==="artwork"&&firstCover(answer))rememberArtwork(requestKey,answer);
+        return answer;
+      });
+      if(!request)break;
+      signal.addEventListener("abort",request.release,{once:true});
+      const answer=await request.promise.finally(()=>{signal.removeEventListener("abort",request.release);request.release();});
+      if(answer?.status!=="artwork"||answer.outcome==="busy"||answer.outcome==="unavailable")break;
+      src=firstCover(answer);if(src)break;
+    }
+  }
+  if(src&&!signal.aborted){
+    const local=!isDisplayOnlyCover(src)&&!src.startsWith("https://coverartarchive.org/")?await resolveRemoteArtwork(src):"";
+    if(!signal.aborted)await warmImage(local||src,signal);
+  }
+}
+export async function preloadDiscover(signal: AbortSignal) {
+  if(signal.aborted)return;
+  const started=performance.now();
+  // The backend already coalesces recommendation generation and retains the
+  // completed result; opening Discover joins that operation without refreshing.
+  const result=await window.localitfy.getDiscoveries();
+  if(signal.aborted||result.status!=="ready")return;
+  if(warmGeneration!==result.generatedAt){
+    warmGeneration=result.generatedAt;warmedTracks.clear();warmedImages.clear();
+  }
+  const shelves=buildDiscoverShelves(result.artists,result.tracks);
+  const tracks=[...shelves.recommended.slice(0,10),...shelves.popular.slice(0,6)];
+  // Warm attached covers first, then spend at most six lookups on missing
+  // songs. No artist portraits, polling, forced refresh or separate queue.
+  let lookups=0;
+  for(const track of tracks){
+    if(signal.aborted)return;
+    if(firstCover(track))await warmTrack(track,signal,false);
+  }
+  for(const track of tracks){
+    if(signal.aborted)return;
+    if(firstCover(track))continue;
+    const providerId=track.providerId||"";
+    const key=artworkKey(track.title,track.artist,false,providerId,providerId?track.album||"":"",providerId?track.durationMs||0:0);
+    const allow=!warmedTracks.has(key)&&warmedTracks.size<6&&lookups<6;
+    if(allow)lookups++;
+    await warmTrack(track,signal,allow);
+  }
+  discoverTrace("background-discover-ready",{ms:Math.round(performance.now()-started),count:warmedImages.size,total:tracks.length});
+}
 export function DiscoverCover({ title, artist, artwork, lookup = false, person = false, providerId = "", priority = false, lookupPriority = person ? 3 : 2, retryEpoch = 0 }: {
   title: string; artist: string; artwork?: DiscoverArtwork & { album?: string }; lookup?: boolean; person?: boolean; providerId?: string; priority?: boolean; lookupPriority?: number; retryEpoch?: number;
 }) {
