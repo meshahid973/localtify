@@ -118,7 +118,7 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
   }, [src, near, eligibleLocal]);
   // Once selected, keep the same display source. A later cache lease must not
   // swap out a decoded image or duplicate an in-flight browser download.
-  const localCandidate = eligibleLocal ? (local?.source === src ? local.url : remembered ?? "") : "";
+  const localCandidate = eligibleLocal ? (local && local.source === src ? local.url : remembered ?? "") : "";
   const localSrc = localCandidate !== badLocal ? localCandidate : "";
   const displaySrc = pendingLocal ? "" : localSrc || src;
   const imageReady = Boolean(displaySrc && loaded?.key === key && loaded.url === displaySrc);

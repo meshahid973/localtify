@@ -134,7 +134,10 @@ export function resolveRemoteArtwork(source: string) {
     if (ttl) remoteResults.set(source,{url,until:Date.now()+ttl});
     while(remoteResults.size>512) remoteResults.delete(remoteResults.keys().next().value!);
     return url;
-  }).finally(()=>remotePending.delete(source));
+  });
   remotePending.set(source,task);
+  // Keep the native read counted until it actually settles, even when the
+  // renderer has already chosen a direct image.
+  void peek.finally(()=>{if(remotePending.get(source)===task)remotePending.delete(source);});
   return task;
 }
