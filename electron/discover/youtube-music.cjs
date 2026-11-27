@@ -249,7 +249,14 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
   function storeRecord(item){
     if(!validRecord(item))return null;
     const key=recordingKey(item.id),old=persistent.get(recordKey(key))?.record;
-    const row={...item,identity:canonicalIdentity(item,{now:now()})};
+    const row={...item};
+    if(old){
+      // Same provider ID only. A sparse response must not erase verified metadata.
+      for(const field of ["album","albumId","durationMs","coverUrl","fallbackCoverUrl","coverAlternatives","releaseDate","releaseId","releaseGroupId","isrc","artistIds","artistCredits","aliases"]){
+        if((row[field]===undefined||row[field]===""||(Array.isArray(row[field])&&!row[field].length))&&old[field]!==undefined)row[field]=old[field];
+      }
+    }
+    row.identity=canonicalIdentity(row,{now:now()});
     if(old&&old.identity?.verifiedAt&&item.identity?.verifiedAt===old.identity.verifiedAt)return old;
     persistent.set(recordKey(key),{record:row},14*86400000);
     return row;
@@ -435,6 +442,13 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
     if(!options.signal?.aborted&&missing.length){
       const more=await Promise.all(missing.map(track=>search("recording",(track.title+" "+track.artist).slice(0,160),{...options,artwork:true}).catch(()=>[])));
       for(const rows of more)for(const row of rows)collected.set(row.id,row);
+    }
+    // Video catalog is a bounded second route for recordings absent from music shelves.
+    const unresolved=wanted.find(track=>!matches([...collected.values()]).includes(track));
+    if(unresolved&&!options.signal?.aborted){
+      const query=(unresolved.title+" "+unresolved.artist).slice(0,160);
+      const videos=await search("video",query,{...options,artwork:true}).catch(()=>[]);
+      for(const row of videos)collected.set(row.id,row);
     }
     const all=[...collected.values()];
     const relevant=all.filter(item=>wanted.some(track=>matchMusicArtwork([item],track.title,track.artist,track).coverUrl));

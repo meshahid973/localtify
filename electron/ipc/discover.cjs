@@ -278,8 +278,8 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
         catalogRunning.set(key,promise);
       }
       try {
-        const items = await catalogRunning.get(key);
-        if(kind==="recording"&&getSettings().discoverEnabled===true&&searchYouTubeMusic?.rememberCatalog)await searchYouTubeMusic.rememberCatalog(items.filter(row=>!row.storeRank&&!row.listeners));
+        let items = await catalogRunning.get(key);
+        if(kind==="recording"&&getSettings().discoverEnabled===true&&searchYouTubeMusic?.rememberCatalog)items=await searchYouTubeMusic.rememberCatalog(items);
         return getSettings().discoverEnabled === true ? { status: "catalog", kind, items } : { status: "off" };
       } catch {
         return getSettings().discoverEnabled === true
@@ -342,6 +342,7 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
         result=reuseRecommendationArtwork(result,previous);
         const rows=[...result.tracks,...result.artists.flatMap(a=>a.topTracks)];
         trace("recommendations",{ms:Math.round(performance.now()-generationStart),total:rows.length,attached:rows.filter(t=>t.coverUrl).length});
+        trace("metadata-attachment",{total:rows.length,count:rows.filter(t=>t.identity).length});
         if(!requestActive())result={status:"off"};
         else if(running?.promise === promise)saved={apiKey,result};
       }catch(error){

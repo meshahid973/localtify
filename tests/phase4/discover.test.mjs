@@ -841,3 +841,12 @@ test("recording identity ranks verified credits, version, duration and release w
   const known={...source,album:"Original Album"};
   assert.equal(evaluateRecording(known,[{...correct,album:"Other Album"},{...correct,id:"ytmusic:abcdefghij2",album:"Original Album"}]).candidate.id,"ytmusic:abcdefghij2");
 });
+
+
+test("recording matcher never drops featured credits",()=>{
+  const {evaluateRecording}=require("../../electron/discover/track-identity.cjs");
+  const source={title:"Song (feat. Guest)",artist:"Artist",durationMs:123000,artistCredits:[{name:"Artist",id:"ytmusic:UC1234567890123456789012"}]};
+  const candidate={id:"ytmusic:abcdefghijk",title:"Song",artist:"Artist",durationMs:123000,artistCredits:source.artistCredits};
+  assert.equal(evaluateRecording(source,[candidate]).status,"unresolved");
+  assert.equal(evaluateRecording(source,[{...candidate,artist:"Artist, Guest",artistCredits:[...candidate.artistCredits,{name:"Guest"}]}]).status,"matched");
+});

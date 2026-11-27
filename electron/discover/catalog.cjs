@@ -1,5 +1,6 @@
 "use strict";
 const {boundedJson}=require("./extra-artwork.cjs");
+const {recordingKey}=require("./track-identity.cjs");
 
 // Apple supplies catalog metadata only. Do not import its promotional art or previews.
 const normalize = value => String(value || "").normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}\p{M}]+/gu," ").trim();
@@ -54,9 +55,11 @@ function rankCatalog(query, musicbrainz, store=[], popular=[]) {
     const matches=entries.get(key)||[];
     const duration=Number(item.durationMs)||0;
     const compatible=matches.filter(old=>!duration||!old.durationMs||Math.abs(duration-old.durationMs)<=5000);
-    const old=compatible.find(candidate=>candidate.id===item.id)||(compatible.length===1?compatible[0]:undefined);
+    const old=compatible.find(candidate=>candidate.id===item.id);
+    // Names and similar durations do not establish a cross-provider identity.
+    // Preserve distinct recording IDs and never transplant artwork between them.
     if(!old){matches.push(item);entries.set(key,matches);return;}
-    const isMb = candidate => /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(candidate.id || "");
+    const isMb = candidate => recordingKey(candidate.id).startsWith("musicbrainz:recording:");
     const base=isMb(old)?old:isMb(item)?item:old.storeRank?old:item;
     matches[matches.indexOf(old)]={...base,album:base.album||old.album||item.album,storeRank:Math.min(old.storeRank||999,item.storeRank||999),listeners:Math.max(old.listeners||0,item.listeners||0),coverUrl:old.coverUrl||item.coverUrl,fallbackCoverUrl:old.fallbackCoverUrl||item.fallbackCoverUrl,coverAlternatives:[...new Set([...(old.coverAlternatives||[]),...(item.coverAlternatives||[])])].slice(0,6)};
   };

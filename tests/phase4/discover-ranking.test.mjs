@@ -33,3 +33,9 @@ test("catalog keeps conflicting recording lengths separate and coalesces matchin
   assert.deepEqual(await first,[]);assert.deepEqual(await second,[]);
   await search("SONG");assert.equal(calls,1);
 });
+
+
+test("same-name catalog recordings with different verified IDs never share artwork",()=>{
+  const rows=[{id:"ytmusic:abcdefghijk",title:"Song",artist:"Artist",durationMs:120000,coverUrl:"first"},{id:"ytmusic:lmnopqrstuv",title:"Song",artist:"Artist",durationMs:120000,coverUrl:"second"}];
+  assert.deepEqual(rankCatalog("song",rows).map(row=>[row.id,row.coverUrl]),rows.map(row=>[row.id,row.coverUrl]));
+});

@@ -74,7 +74,7 @@ function matchMusicArtwork(items,title,artist,identity = {}) {
   return {coverUrl:item.coverUrl,...(covers.length>1?{coverAlternatives:covers}:{}),...(Number.isFinite(item.durationMs)&&item.durationMs>0?{durationMs:item.durationMs}:{})};
 }
 function enrichCatalogTrack(track, items, trace=()=>{}) {
-  if (track.coverUrl && require("../runtime/remote-cover.cjs").safeDisplayCover(track.coverUrl)) return track;
+  if (track.identity && track.coverUrl && require("../runtime/remote-cover.cjs").safeDisplayCover(track.coverUrl)) return track;
   const identity={album:track.album||"",durationMs:track.durationMs||0,providerId:track.providerId||"",recordingId:validId(track.recordingId)?track.recordingId:""};
   // Rank whole identities before selecting artwork. Do not discard a competing
   // candidate merely because it lacks a cover URL.

@@ -95,7 +95,7 @@ function rankRecording(source,item,{requireKnownDuration=true}={}){
   const candidateCreditIds=new Set(candidate.credits.map(c=>c.id).filter(Boolean));
   const sameCreditIds=sourceCreditIds.size>0&&sourceCreditIds.size===source.credits.length&&candidateCreditIds.size===candidate.credits.length&&sameSet(sourceCreditIds,candidateCreditIds)&&source.featureKey===candidate.featureKey;
   const artistExact=source.artistKey===candidate.artistKey||source.artistKey===candidate.creditKey||source.creditKey===candidate.artistKey;
-  const aliasMatch=source.credits.length<=1&&candidate.credits.length===1&&candidate.credits[0].id&&list(candidate.credits[0].aliases).some(a=>artistKey(a)===source.artistKey);
+  const aliasMatch=!source.featureKey&&!candidate.featureKey&&source.credits.length<=1&&candidate.credits.length===1&&candidate.credits[0].id&&list(candidate.credits[0].aliases).some(a=>artistKey(a)===source.artistKey);
   if(!artistExact&&!sameCreditIds&&!aliasMatch)return reject("artist-mismatch");
   const exact=[...source.titles].some(t=>candidate.titles.has(t));
   const delta=source.durationMs&&candidate.durationMs?Math.abs(source.durationMs-candidate.durationMs):undefined;
