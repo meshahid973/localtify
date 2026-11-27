@@ -95,7 +95,8 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
   const [local, setLocal] = useState<{source:string; url:string}>();
   const [badLocal, setBadLocal] = useState("");
   const [failure, setFailure] = useState<{key:string; urls:string[]}>({key:"",urls:[]});
-  const cover = resolved?.key === key ? resolved.value : cachedArtwork(key + ":fallback") || cachedArtwork(key);
+  const cachedFallback=cachedArtwork(key + ":fallback");
+  const cover = resolved?.key === key ? resolved.value : cachedFallback || cachedArtwork(key);
   const failed = failure.key === key ? failure.urls : [];
   const directUrls = [artwork?.coverUrl, artwork?.fallbackCoverUrl, ...(artwork?.coverAlternatives ?? []).slice(0,6)].map(safeCover).filter(Boolean);
   const resolvedUrls = [safeCover(cover?.coverUrl), safeCover(cover?.fallbackCoverUrl), ...(cover?.coverAlternatives ?? []).slice(0,6).map(safeCover)];
@@ -123,10 +124,11 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
     if (displaySrc && imageRef.current?.complete && imageRef.current.naturalWidth > 0) setLoaded({key,url:displaySrc});
   }, [key, displaySrc]);
   const rejectLocal = () => { if (src) invalidateResolvedRemoteArtwork(src); setBadLocal(localSrc); };
-  const exhausted = Boolean(resolved?.key === key && (resolved.fallback || !src));
+  const exhausted = resolved?.key === key ? Boolean(resolved.fallback || !src) : Boolean(cachedFallback);
   const requestKey = exhausted ? key + ":fallback" : key;
   const excludedKey=JSON.stringify(failed.slice(-8).sort());
-  const retryPrimary=exhausted && resolved?.key===key && resolved.unavailable===true;
+  const retryPrimary=exhausted && resolved?.key===key && resolved.unavailable===true && !resolved.fallback;
+  const finishedMissing=resolved?.key===key&&resolved.fallback&&!resolved.value.coverUrl&&!resolved.value.fallbackCoverUrl&&!resolved.value.coverAlternatives?.length;
   useEffect(() => {
     if (!near || !src || !displaySrc || imageReady) return;
     const timer = window.setTimeout(() => {
@@ -137,6 +139,7 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
   }, [src, displaySrc, localSrc, key, imageReady, near]);
   useEffect(() => {
     if (!needsLookup || (!person && !artist) || !title || !near) return;
+    if(finishedMissing)return;
     let live = true;
     let releaseRequest: (()=>void) | undefined;
     let retryTimer: number | undefined;
@@ -172,7 +175,7 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
     };
     start();
     return () => { live = false; releaseRequest?.(); if (retryTimer !== undefined) window.clearTimeout(retryTimer); };
-  }, [key, title, artist, needsLookup, near, person, exhausted, requestKey, providerId, album, durationMs, excludedKey, retryPrimary]);
+  }, [key, title, artist, needsLookup, near, person, exhausted, requestKey, providerId, album, durationMs, excludedKey, retryPrimary, finishedMissing]);
   return <span ref={ref} className="discoverCover" aria-hidden="true">
     {!imageReady ? (person ? <UserRound size={24} /> : <Disc3 size={24} />) : null}
     {(near || imageReady) && src && displaySrc ? <img key={displaySrc} ref={imageRef} src={displaySrc} alt="" loading="eager" decoding="async" fetchPriority="auto" referrerPolicy="no-referrer" data-ready={imageReady}

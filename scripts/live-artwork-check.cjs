@@ -100,13 +100,16 @@ async function controlledResolution(implementation) {
   return cases;
 }
 async function liveResolution(){
-  const counts={};
+  const counts={}, pending=new Set();
   const instrument=provider=>async(address,options)=>{
     const stat=counts[provider]??={requests:0,metadataMs:0,failures:0,timeouts:0};
     stat.requests++;
     const started=performance.now();
     try {
-      const response=await fetch(address,options);
+      const job=fetch(address,options);
+      pending.add(job);
+      let response;
+      try{response=await job;}finally{pending.delete(job);}
       if(!response.ok)stat.failures++;
       return response;
     }catch(error){stat.failures++;if(error?.name==="TimeoutError"||error?.name==="AbortError")stat.timeouts++;throw error;}
@@ -135,6 +138,7 @@ async function liveResolution(){
       cases.push({title,artist,metadataMs,imageMs:result.coverUrl?Math.round(performance.now()-imageStart):null,status:result.coverUrl?(image?"ok":"image-unavailable"):"missing"});
     }catch{cases.push({title,artist,metadataMs:Math.round(performance.now()-start),imageMs:null,status:"temporarily-unavailable"});}
   }
+  await Promise.allSettled([...pending]);
   return {cases,providers:counts,note:"Network metadata timing is time to response headers; per-track metadataMs includes parsing, scheduling and matching. No user library data."};
 }
 

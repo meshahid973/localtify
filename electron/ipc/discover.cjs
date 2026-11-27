@@ -89,7 +89,7 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
     ];
     if(!fallback) {
       try {
-        const result=await firstArtwork(primary,{active,excluded});
+        const result=await firstArtwork(primary,{active,excluded,timeoutMs:primaryOnly?5000:0});
         if(result.coverUrl||primaryOnly||!active())return result;
       } catch(error) { if(primaryOnly)throw error; failed=true; }
     }

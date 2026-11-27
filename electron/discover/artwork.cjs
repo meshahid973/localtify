@@ -72,16 +72,17 @@ function withoutFailedArtwork(value, excluded = []) {
   if(!covers.length)return {};
   return {coverUrl:covers[0],...(covers[1]?{fallbackCoverUrl:covers[1],coverAlternatives:covers.slice(0,6)}:{}),...(value.durationMs?{durationMs:value.durationMs}:{})};
 }
-function firstArtwork(jobs, { active = () => true, staggerMs = 350, excluded = [] } = {}) {
+function firstArtwork(jobs, { active = () => true, staggerMs = 350, excluded = [], timeoutMs = 0 } = {}) {
   const providers = jobs.filter(Boolean);
   if (!providers.length) return Promise.resolve({});
   return new Promise((resolve, reject) => {
-    let next = 0, running = 0, failed = false, settled = false, timer;
+    let next = 0, running = 0, failed = false, settled = false, timer, deadline;
     const controller = new AbortController();
     const finish = (value, error) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      clearTimeout(deadline);
       controller.abort();
       if (error) reject(error); else resolve(value);
     };
@@ -106,6 +107,7 @@ function firstArtwork(jobs, { active = () => true, staggerMs = 350, excluded = [
       });
       if (next < providers.length) timer = setTimeout(advance, staggerMs);
     };
+    if(timeoutMs>0)deadline=setTimeout(()=>finish({},active()?unavailable():undefined),timeoutMs);
     advance();
   });
 }
@@ -143,7 +145,7 @@ function createArtworkLookup(client,now=Date.now,trackInfo,lookupAudioDb,lookupM
     const task=Promise.resolve().then(async()=>{
       let track, failed=false;
       const run = async jobs => {
-        try { return await firstArtwork(jobs,{active,excluded}); }
+        try { return await firstArtwork(jobs,{active,excluded,timeoutMs:primaryOnly?5000:0}); }
         catch { failed=true; return {}; }
       };
       const lastfmJob = lastfm && (async () => {
