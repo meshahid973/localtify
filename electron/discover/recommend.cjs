@@ -160,16 +160,18 @@ async function discover({ songs, hiddenArtists = [], client, now = Date.now(), c
     if(!active())return [];
     const index=rankedArtists.indexOf(artist);
     const tracks=filter(await client.topTracks(artist.name),artist.name);
-    topTracks[index]=await enrich(artist.name,tracks,"recommended");
+    topTracks[index]=tracks;
     completedArtists.add(index);publish();
+    topTracks[index]=await enrich(artist.name,tracks,"recommended");
     return topTracks[index];
   });
   const favouriteJobs=settleAll(favourites,async seed=>{
     if(!active())return [];
     const index=favourites.indexOf(seed);
     const tracks=filter(await client.topTracks(seed.name,15),seed.name).slice(0,MISSING_SONGS_PER_ARTIST);
+    favouriteTracks[index]=tracks;publish();
     favouriteTracks[index]=await enrich(seed.name,tracks,"popular");
-    publish();return favouriteTracks[index];
+    return favouriteTracks[index];
   });
   await Promise.all([rankedJobs,favouriteJobs]);
   return snapshot();

@@ -83,3 +83,20 @@ test("catalog mapper reads album and duration from additional columns",()=>{
   columns.push(col([linked("KICK BACK","MUSIC_PAGE_TYPE_ALBUM","MPREalbum")]),col([{text:"3:13"}]));
   const [track]=mapSearchResponse(response([item]),"recording","KICK BACK");assert.equal(track.album,"KICK BACK");assert.equal(track.durationMs,193000);
 });
+
+test("artist page extracts only credited top songs and release metadata",()=>{
+  const {mapArtistPage}=require("../../electron/discover/youtube-music.cjs");
+  const id="UCabcdefghijklmnopqrstuv";
+  const body={header:{musicImmersiveHeaderRenderer:{title:{runs:[{text:"Kenshi Yonezu"}]}}},contents:[{musicShelfRenderer:{title:{runs:[{text:"Songs"}]},contents:[row("KICK BACK")]}},{musicShelfRenderer:{title:{runs:[{text:"Related"}]},contents:[row("Not a top song","abcdefghij2")]}}]};
+  const page=mapArtistPage(body,id);assert.equal(page.name,"Kenshi Yonezu");assert.equal(page.tracks.length,1);assert.equal(page.tracks[0].id,"ytmusic:abcdefghijk");
+});
+test("catalog recording metadata survives restart without another search",async()=>{
+  const {mkdtempSync,rmSync}=require("node:fs"),{tmpdir}=require("node:os"),{join}=require("node:path");
+  const dir=mkdtempSync(join(tmpdir(),"localtify-catalog-")),file=join(dir,"catalog.json");
+  try{
+    const search=createYouTubeMusicSearch(async()=>({ok:true,text:async()=>JSON.stringify(response([row("KICK BACK")]))}),Date.now,2,{file});
+    await search("recording","KICK BACK");search.close();
+    const next=createYouTubeMusicSearch(async()=>{throw Error("unexpected network");},Date.now,2,{file});await next.hydrate();
+    assert.equal(next.cachedArtist("Kenshi Yonezu")[0].id,"ytmusic:abcdefghijk");next.close();
+  }finally{rmSync(dir,{recursive:true,force:true});}
+});

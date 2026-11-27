@@ -56,6 +56,7 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
     try{const value=await work();trace(stage,{ms:Math.round(performance.now()-start),state:Array.isArray(value)?(value.length?"results":"empty"):(value?.coverUrl?"cover":"completed")});return value;}
     catch(error){trace(stage,{ms:Math.round(performance.now()-start),state:error?.code==="ARTWORK_CAPACITY"?"busy":error?.status===429?"rate-limited":[401,403].includes(error?.status)?"authentication":error?.name==="TimeoutError"?"timeout":"unavailable"});throw error;}
   };
+  searchYouTubeMusic?.setTrace?.(trace);
   let saved = null;
   let running = null;
   let catalogRunning = null;
@@ -289,8 +290,9 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
     const jobActive=()=>jobLive&&requestActive();
     const initial=new Promise(resolve=>{publish=resolve;});
     const promise = Promise.resolve().then(async()=>{
-      let result, batchBudget=6, artistCatalogBudget=4;
+      let result, batchBudget=6, artistCatalogBudget=6;
       const generationStart=performance.now();
+      await searchYouTubeMusic?.hydrate?.();
       const previous=saved?.apiKey===apiKey&&now()-saved.result.generatedAt<86400000?saved.result:null;
       try {
         result=await discover({...current,client,now:now(),active:jobActive,
@@ -301,13 +303,13 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
             const cached=[...(searchYouTubeMusic?.cachedArtist?.(name)||[]),...(searchYouTubeArtwork!==searchYouTubeMusic?(searchYouTubeArtwork?.cachedArtist?.(name)||[]):[])];
             const missing=tracks.filter(track=>!track.coverUrl&&!enrichCatalogTrack(track,cached).coverUrl&&(MBID.test(track.recordingId||"")||cleanText(track.title)));
             if(!missing.length)return cached;
-            const deadline=Date.now()+1500, controller=new AbortController();
+            const deadline=Date.now()+3000, controller=new AbortController();
             const extra=[];
             // Only new recommended artists (not private library seeds) use an
             // artist-level query through the existing public catalog adapter.
             if(source==="recommended"&&artistCatalogBudget>0&&missing.length>=2&&missing.some(track=>!MBID.test(track.recordingId||""))&&searchYouTubeArtwork&&name.length<=160){
               artistCatalogBudget--;
-              extra.push(timed("provider-artist-catalog",()=>searchYouTubeArtwork("recording",name,{artwork:true,artistCatalog:true,signal:controller.signal})).then(rows=>Array.isArray(rows)?rows:[],()=>[]));
+              extra.push(timed("provider-artist-catalog",()=>searchYouTubeArtwork.artistCatalog ? searchYouTubeArtwork.artistCatalog(name,missing,{artwork:true,signal:controller.signal}) : searchYouTubeArtwork("recording",name,{artwork:true,artistCatalog:true,signal:controller.signal})).then(rows=>Array.isArray(rows)?rows:[],()=>[]));
             }
             if(musicBrainzClient?.searchRecordingBatch&&batchBudget>0){
               batchBudget--;
@@ -432,8 +434,8 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
       return stored ? bioAnswer(stored) : { status: "error", error: error?.message || "Couldn't load the biography." };
     }
   });
-  const flush=()=>{lookupArtwork.flush();artworkResponses.flush();catalogResponses.flush();};
-  return {flush,close(){closed=true;lookupArtwork.close();artworkResponses.close();catalogResponses.close();}};
+  const flush=()=>{lookupArtwork.flush();artworkResponses.flush();catalogResponses.flush();searchYouTubeMusic?.flush?.();};
+  return {flush,close(){closed=true;lookupArtwork.close();artworkResponses.close();catalogResponses.close();searchYouTubeMusic?.close?.();}};
 }
 
 module.exports = { registerDiscoverIpc };

@@ -5,11 +5,14 @@
 // innertubeThumbnail,innertubeSearchRanking}.ts. Localtify adaptation:
 // catalog metadata only; no accounts, tokens, playback endpoints or Liner services.
 const { retryAfterMs, providerCooldown, unavailable, capacity } = require("./provider-health.cjs");
+const {createResourceCache}=require("../runtime/resource-cache.cjs");
+const {createHash}=require("node:crypto");
 const origin = "https://music.youtube.com/youtubei/v1/";
 const clientVersion = "1.20260911.08.00";
 const filters = { video: "EgWKAQIQAWoKEAkQBRAKEAMQBA%3D%3D", recording: "EgWKAQIIAWoKEAkQBRAKEAMQBA%3D%3D", artist: "EgWKAQIgAWoKEAkQBRAKEAMQBA%3D%3D" };
 const videoId = /^[A-Za-z0-9_-]{11}$/;
 const artistId = /^UC[A-Za-z0-9_-]{22}$/;
+const albumIdPattern=/^MPREb_[A-Za-z0-9_-]{1,80}$/;
 const clean = v => typeof v === "string" ? v.trim().slice(0,300) : "";
 const norm = v => clean(v).normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu," ").trim();
 const arr = v => Array.isArray(v) ? v : [];
@@ -83,7 +86,7 @@ function mapRow(row,kind) {
   const album=clean(albumRun?.text),albumId=browse(albumRun)?.browseId;
   const fixed=arr(row.fixedColumns).flatMap(c=>runs(c?.musicResponsiveListItemFixedColumnRenderer?.text));
   const durationMs=[...metadata,...fixed].map(r=>duration(clean(r?.text))).find(Boolean);
-  return {id:"ytmusic:"+id,title,artist,album,subtitle:[artist,album].filter(Boolean).join(" · "),url:"https://www.youtube.com/watch?v="+id,durationMs,coverUrl:coverFor(row,id),...(artistIds.length?{artistIds}:{}),...(/^MPREb_[A-Za-z0-9_-]{1,80}$/.test(albumId||"")?{albumId:"ytmusic:"+albumId}:{})};
+  return {id:"ytmusic:"+id,title,artist,album,subtitle:[artist,album].filter(Boolean).join(" · "),url:"https://www.youtube.com/watch?v="+id,durationMs,coverUrl:coverFor(row,id),artistCredits:artistRuns.flatMap(r=>{const name=clean(r.text),id=browse(r)?.browseId;return name?[{name,...(artistId.test(id||"")?{id:"ytmusic:"+id}:{})}]:[];}),...(artistIds.length?{artistIds}:{}),...(/^MPREb_[A-Za-z0-9_-]{1,80}$/.test(albumId||"")?{albumId:"ytmusic:"+albumId}:{})};
 }
 function mapSearchResponse(body,kind,query,strictQuery=true,limit=25,filterJunk=true) {
   const tabs=arr(body?.contents?.tabbedSearchResultsRenderer?.tabs);
@@ -99,6 +102,69 @@ function mapSearchResponse(body,kind,query,strictQuery=true,limit=25,filterJunk=
   }
   return result.filter(v=>!strictQuery||matchesQuery(query,v.title,v.artist)).slice(0,limit);
 }
+// Adapted from tryliner/desktop innertubeArtistMapper and innertubeCollectionMapper.
+// Only bounded, recognized artist shelves are used; unrelated recommendations
+// and artist portraits are never assigned as recording artwork.
+function walkRecords(root,visit){
+  const stack=[root];let visited=0;
+  while(stack.length&&visited++<30000){
+    const node=stack.pop();if(!node||typeof node!=="object")continue;
+    if(visit(node)===true)continue;
+    const children=Array.isArray(node)?node:Object.values(node);
+    for(let i=children.length-1;i>=0;i--)if(children[i]&&typeof children[i]==="object")stack.push(children[i]);
+  }
+}
+function mapArtistPage(body,id){
+  if(!artistId.test(id))return null;
+  let header,topSongs;
+  const tracks=new Map(),releases=new Map();
+  walkRecords(body,node=>{
+    header ||= node.musicImmersiveHeaderRenderer||node.musicVisualHeaderRenderer||node.musicHeaderRenderer||node.musicResponsiveHeaderRenderer;
+    const shelf=node.musicShelfRenderer;
+    if(shelf&&/^(?:songs|top songs|popular songs)$/i.test(text(shelf.title))){
+      for(const item of arr(shelf.contents).slice(0,100)){
+        const track=mapRow(item?.musicResponsiveListItemRenderer||{},"recording");
+        if(track&&track.artistIds?.includes("ytmusic:"+id))tracks.set(track.id,track);
+      }
+      const endpoint=browse(runs(shelf.title)[0])||shelf.bottomEndpoint?.browseEndpoint;
+      if(typeof endpoint?.browseId==="string"&&/^[A-Za-z0-9_-]{1,120}$/.test(endpoint.browseId)&&typeof endpoint.params==="string"&&endpoint.params.length<=512)
+        topSongs={browseId:endpoint.browseId,params:endpoint.params};
+      return true;
+    }
+    const carousel=node.musicCarouselShelfRenderer;
+    if(carousel){
+      const label=text(carousel.header?.musicCarouselShelfBasicHeaderRenderer?.title);
+      if(/^(albums|singles & eps)$/i.test(label)){
+        for(const raw of arr(carousel.contents).slice(0,80)){
+          const item=raw?.musicTwoRowItemRenderer,endpoint=browse(runs(item?.title)[0])||item?.navigationEndpoint?.browseEndpoint;
+          const title=text(item?.title),releaseId=endpoint?.browseId;
+          if(!title||!albumIdPattern.test(releaseId||""))continue;
+          const coverUrl=coverFor({thumbnail:item.thumbnailRenderer},undefined);
+          const year=runs(item.subtitle).map(r=>clean(r.text)).find(v=>/^\d{4}$/.test(v));
+          releases.set(releaseId,{id:"ytmusic:"+releaseId,title,coverUrl,releaseDate:year,releaseType:/^albums$/i.test(label)?"album":/^ep$/i.test(clean(runs(item.subtitle)[0]?.text))?"ep":"single"});
+        }
+      }
+      return true;
+    }
+    return false;
+  });
+  const name=text(header?.title);
+  if(!name)return null;
+  return {id:"ytmusic:"+id,name,coverUrl:coverFor(header,undefined),tracks:[...tracks.values()].slice(0,100),releases:[...releases.values()].slice(0,100),topSongs};
+}
+function mapArtistSongs(body,id){
+  const rows=new Map();
+  walkRecords(body,node=>{
+    if(!node.musicResponsiveListItemRenderer)return false;
+    const item=mapRow(node.musicResponsiveListItemRenderer,"recording");
+    if(item&&item.artistIds?.includes("ytmusic:"+id))rows.set(item.id,item);
+    return true;
+  });
+  return [...rows.values()].slice(0,100);
+}
+const artistKey=value=>clean(value).normalize("NFKC").trim().replace(/\s+[-–—]\s+Topic$/i,"").replace(/\s+/g," ").toLowerCase();
+const diskKey=(type,value)=>type+":"+createHash("sha256").update(value).digest("hex");
+const isTrack=row=>row&&/^ytmusic:[A-Za-z0-9_-]{11}$/.test(row.id||"")&&typeof row.title==="string"&&typeof row.artist==="string"&&(!row.coverUrl||safeThumbnail(row.coverUrl)===row.coverUrl);
 async function requestCatalog(fetchImpl,endpoint,payload) {
   const response=await fetchImpl(origin+endpoint+"?prettyPrint=false",{method:"POST",redirect:"error",credentials:"omit",headers:{"content-type":"application/json",accept:"application/json","x-youtube-client-name":"67","x-youtube-client-version":clientVersion,"x-origin":"https://music.youtube.com"},body:JSON.stringify({...payload,context:{client:{clientName:"WEB_REMIX",clientVersion,hl:"en",gl:"US"}}}),signal:AbortSignal.timeout(6500)});
   if(!response.ok){
@@ -115,8 +181,10 @@ async function requestCatalog(fetchImpl,endpoint,payload) {
   else {raw=await response.text();if(Buffer.byteLength(raw)>max)throw Error("Oversized music catalog");}
   return JSON.parse(raw);
 }
-function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPending=2) {
+function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPending=2,{file=""}={}) {
   const cache=new Map(),pending=new Map(),waiting=[];
+  const persistent=createResourceCache({file,now,maxEntries:512,maxBytes:12*1024*1024,validate:value=>value&&typeof value==="object"&&Array.isArray(value.items)&&value.items.length<=100&&value.items.every(isTrack)});
+  let trace=()=>{};
   const limit=Math.max(1,Math.min(6,maxPending));
   const backgroundLimit=Math.max(1,limit-2);
   let blockedUntil=0,hardBlockedUntil=0,running=0,backgroundRunning=0;
@@ -129,20 +197,19 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
       clearTimeout(job.timer);job.detach?.();
       if(job.background&&job.signal?.aborted){job.reject(capacity());continue;}
       if(now()<hardBlockedUntil||(job.background&&now()<blockedUntil)){job.reject(unavailable());continue;}
+      trace("catalog-queue",{ms:Math.round(performance.now()-job.queuedAt)});
       running++;const wasBackground=job.background;if(wasBackground)backgroundRunning++;
       void job.run().then(job.resolve,job.reject).finally(()=>{
         running--;if(wasBackground)backgroundRunning--;pump();
       });
     }
   }
-  const search=async (kind,query,options={})=>{
-    if(!Object.hasOwn(filters,kind)||typeof query!=="string"||query.trim().length<2||query.length>160)return [];
+  async function scheduled(key,options,work,select=items=>items){
     if(options.signal?.aborted)throw capacity();
     const background=options.artwork===true;
-    const key=JSON.stringify([kind,query.normalize("NFKC").trim().toLowerCase()]);
-    const select=items=>items.filter(v=>(kind==="artist"||options.artistCatalog===true||!isJunkVideo(v.title,query))&&(background||matchesQuery(query,v.title,v.artist))).slice(0,options.artistCatalog===true?100:25);
     const hit=cache.get(key);
-    if(hit&&now()-hit.at<300000){cache.delete(key);cache.set(key,hit);return select(hit.items);}
+    if(hit&&now()-hit.at<300000){cache.delete(key);cache.set(key,hit);trace("catalog-cache",{state:"hit"});return select(hit.items);}
+    trace("catalog-cache",{state:"miss"});
     const prior=pending.get(key);
     if(prior){
       if(!background){prior.background=false;prior.detach?.();prior.signal=undefined;pump();}
@@ -153,10 +220,10 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
     if((waiting.length>=32&&background)||waiting.length>=48)throw capacity();
     let resolve,reject;
     const result=new Promise((yes,no)=>{resolve=yes;reject=no;});
-    const job={background,signal:options.signal,resolve,reject,timer:null,promise:null,run:async()=>{
+    const job={background,queuedAt:performance.now(),signal:options.signal,resolve,reject,timer:null,promise:null,run:async()=>{
       try{
-        const body=await requestCatalog(fetchImpl,"search",{query:query.trim(),params:filters[kind]});
-        const items=mapSearchResponse(body,kind,query,false,100,false);
+        const started=performance.now();trace("catalog-network",{count:1});
+        const items=await work();trace("catalog-response",{ms:Math.round(performance.now()-started),count:items.length});
         if(items.length)cache.set(key,{at:now(),items});
         while(cache.size>128)cache.delete(cache.keys().next().value);
         return items;
@@ -178,15 +245,89 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
     pump();
     return job.promise.then(select);
   };
-  search.cachedArtist=name=>{
-    const artistKey=value=>clean(value).normalize("NFKC").trim().replace(/\s+[-–—]\s+Topic$/i,"").replace(/\s+/g," ").toLowerCase();
-    const wanted=artistKey(name),items=new Map();
-    if(!wanted)return [];
-    for(const entry of cache.values()){
-      if(now()-entry.at>=300000)continue;
-      for(const item of entry.items)if(artistKey(item.artist)===wanted&&videoId.test(item.id?.slice(8)||""))items.set(item.id,item);
+  function remember(items){
+    const byArtist=new Map();
+    for(const item of items.filter(isTrack)){
+      for(const name of [item.artist,...(item.artistCredits||[]).map(c=>c.name)]){
+        const key=artistKey(name);if(!key)continue;
+        const group=byArtist.get(key)||new Map();group.set(item.id,item);byArtist.set(key,group);
+      }
     }
-    return [...items.values()].slice(0,100);
+    for(const [name,group] of byArtist){
+      const key=diskKey("artist-tracks",name);
+      const old=persistent.get(key)?.items||[];
+      const merged=new Map(old.map(item=>[item.id,item]));
+      for(const item of group.values()){merged.delete(item.id);merged.set(item.id,item);}
+      persistent.set(key,{items:[...merged.values()].slice(-100)},14*86400000);
+    }
+  }
+  const search=async(kind,query,options={})=>{
+    if(!Object.hasOwn(filters,kind)||typeof query!=="string"||query.trim().length<2||query.length>160)return [];
+    const key=JSON.stringify([kind,query.normalize("NFKC").trim().toLowerCase()]);
+    const select=items=>items.filter(v=>(kind==="artist"||options.artistCatalog===true||!isJunkVideo(v.title,query))&&(options.artwork||matchesQuery(query,v.title,v.artist))).slice(0,options.artistCatalog===true?100:25);
+    await persistent.hydrate();
+    return scheduled(key,options,async()=>{
+      const body=await requestCatalog(fetchImpl,"search",{query:query.trim(),params:filters[kind]});
+      const items=mapSearchResponse(body,kind,query,false,100,false);
+      if(kind!=="artist")remember(items);
+      return items;
+    },select);
+  };
+  search.cachedArtist=name=>{
+    const wanted=artistKey(name);if(!wanted)return [];
+    const items=persistent.get(diskKey("artist-tracks",wanted))?.items||[];
+    trace("recording-cache",{state:items.length?"hit":"miss",count:items.length});
+    return items;
+  };
+  search.hydrate=()=>persistent.hydrate();
+  search.close=()=>persistent.close();
+  search.flush=()=>persistent.flush();
+  search.setTrace=fn=>{trace=typeof fn==="function"?fn:()=>{};};
+  search.artistCatalog=async(name,wanted,options={})=>{
+    await persistent.hydrate();
+    const {enrichCatalogTrack}=require("./artwork.cjs");
+    const matches=items=>wanted.filter(track=>enrichCatalogTrack({...track,coverUrl:undefined},items).providerId?.startsWith("ytmusic:"));
+    const known=search.cachedArtist(name);
+    const ids=new Set(known.filter(item=>matches([item]).length).flatMap(item=>(item.artistCredits||[]).filter(c=>artistKey(c.name)===artistKey(name)).map(c=>c.id)).filter(id=>/^ytmusic:UC[A-Za-z0-9_-]{22}$/.test(id||"")));
+    trace("artist-identity-cache",{state:ids.size?"hit":"miss",count:ids.size});
+    if(ids.size!==1){
+      const artists=await search("artist",name,{...options,artwork:true});
+      for(const artist of artists.filter(item=>artistKey(item.title)===artistKey(name)).slice(0,2))ids.add(artist.id);
+    }
+    const collected=new Map(known.map(item=>[item.id,item]));
+    const verified=[];
+    for(const candidate of [...ids].slice(0,2)){
+      if(options.signal?.aborted)break;
+      const id=candidate.slice(8);if(!artistId.test(id))continue;
+      const key=diskKey("artist-page",candidate);
+      let items=persistent.get(key)?.items;
+      trace("artist-catalog-cache",{state:items?"hit":"miss"});
+      if(!items){
+        const started=performance.now();
+        items=await scheduled("browse:"+id,{...options,artwork:true},async()=>{
+          const page=mapArtistPage(await requestCatalog(fetchImpl,"browse",{browseId:id}),id);
+          if(!page||artistKey(page.name)!==artistKey(name))return [];
+          let tracks=page.tracks;
+          if(page.topSongs&&tracks.length<20&&!options.signal?.aborted){
+            // Return the initial page promptly; a larger shelf can be fetched on a later lookup.
+            // The first response alone is sufficient to corroborate identity when two tracks match.
+          }
+          return tracks;
+        });
+        trace("artist-catalog",{ms:Math.round(performance.now()-started),count:items.length});
+      }
+      const corroborated=matches(items);
+      // Two distinct matching recommendations, or an already independently matched
+      // provider artist ID, are required before persisting an artist page association.
+      const trusted=known.some(item=>item.artistCredits?.some(c=>c.id===candidate&&artistKey(c.name)===artistKey(name))&&matches([item]).length);
+      if(trusted||new Set(corroborated.map(t=>norm(t.title))).size>=2)verified.push({key,items,candidate});
+    }
+    if(verified.length===1){
+      const page=verified[0];if(page.items.length){persistent.set(page.key,{items:page.items},7*86400000);remember(page.items);}
+      for(const item of page.items)collected.set(item.id,item);
+      trace("artist-catalog-match",{count:matches(page.items).length,total:wanted.length});
+    }else trace("artist-catalog-match",{state:verified.length?"ambiguous":"unverified",count:0,total:wanted.length});
+    return [...collected.values()].slice(0,100);
   };
   return search;
 }
@@ -239,4 +380,4 @@ function exactMusicCandidate(wanted, items) {
   const unique=[...new Map(exact.map(item=>[item.url,item])).values()];
   return unique.length===1?unique[0]:null;
 }
-module.exports={createYouTubeMusicSearch,createYouTubeMusicRadio,mapSearchResponse,mapRadioResponse,safeThumbnail,isJunkVideo,matchesQuery,exactMusicCandidate};
+module.exports={mapArtistPage,mapArtistSongs,createYouTubeMusicSearch,createYouTubeMusicRadio,mapSearchResponse,mapRadioResponse,safeThumbnail,isJunkVideo,matchesQuery,exactMusicCandidate};
