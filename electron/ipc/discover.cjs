@@ -7,6 +7,7 @@ const { createLastfmClient, createLastfmResponseCache } = require("../discover/l
 const { discover, withoutOwned, reuseRecommendationArtwork } = require("../discover/recommend.cjs");
 const { catalogArtwork, createArtworkLookup, matchArtistArtwork, matchMusicArtwork, firstArtwork, withoutFailedArtwork, enrichCatalogTrack } = require("../discover/artwork.cjs");
 const { rankCatalog, searchTerms } = require("../discover/catalog.cjs");
+const { suitableVocaDbQuery } = require("../discover/vocadb.cjs");
 const { safeDisplayCover } = require("../runtime/remote-cover.cjs");
 
 const RESULT_TTL_MS = 12 * 60 * 60 * 1000;
@@ -42,7 +43,7 @@ function normalizeCatalog(kind, items) {
 }
 
 /** Public catalog needs only opt-in; Last.fm personalized results require a valid key. */
-function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile, fetch, musicBrainzClient, searchStore, lookupAudioDb, searchYouTubeMusic, searchYouTubeMusicRadio, searchYouTubeArtwork, lookupDeezer, lookupFanart, now = Date.now }) {
+function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile, fetch, musicBrainzClient, searchStore, searchVocaDb, lookupAudioDb, searchYouTubeMusic, searchYouTubeMusicRadio, searchYouTubeArtwork, lookupDeezer, lookupFanart, now = Date.now }) {
   let saved = null;
   let running = null;
   let catalogRunning = null;
@@ -210,6 +211,11 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
                 : direct.filter(item => normalize(item.title) === query || normalize(item.title).startsWith(query + " "));
               if (relevant.length) return relevant;
             }
+          }
+          if (searchVocaDb && suitableVocaDbQuery(term) && active()) {
+            const specialist = await searchVocaDb(kind, term).catch(() => []);
+            if (!active()) return [];
+            if (specialist.length) return specialist;
           }
           // Artist searches retain the structured catalog; song searches combine
           // exact-title MusicBrainz matches, store metadata and listening popularity.
