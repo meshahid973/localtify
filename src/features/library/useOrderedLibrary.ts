@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { SetStateAction } from "react";
 import type { Song, LibraryDropSide } from "./song.types";
 import { reorderSongList, saveLibraryOrder } from "./library.utils";
+import { lookupLibrarySong } from "../search/incrementalLibraryIndex";
 import { runLocaltifyIdleTask } from "../../app/runtime/idle";
 
 export function useOrderedLibrary(ready: boolean) {
@@ -10,12 +11,12 @@ export function useOrderedLibrary(ready: boolean) {
   const savedOrder = useRef<string[]>([]);
   const setSongs = useCallback((update: SetStateAction<Song[]>) => {
     const next = typeof update === "function" ? update(current.current) : update;
+    if (next === current.current) return;
     current.current = next;
     publish(next);
   }, []);
   const getSong = useCallback((id: string, hint?: number) => {
-    const list = current.current;
-    return hint !== undefined && list[hint]?.id === id ? list[hint] : list.find(song => song.id === id);
+    return lookupLibrarySong(current.current, id, hint);
   }, []);
   const persist = useCallback((next: Song[]) => {
     saveLibraryOrder(next);

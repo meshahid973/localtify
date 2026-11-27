@@ -177,7 +177,7 @@ server.listen(5173,async()=>{
       await win.webContents.executeJavaScript("document.querySelector('.sidebar [data-nav-id=settings]').click()");
       await until(()=>win.webContents.executeJavaScript(`Boolean(${liquidGlassToggle})`),"fallback appearance toggle");
       await win.webContents.executeJavaScript(`${liquidGlassToggle}.click()`);
-      await until(()=>win.webContents.executeJavaScript("document.querySelector('.app')?.dataset.liquidGlass==='true' && Boolean(document.querySelector('.ltOpticalCard'))"),"glass CSS fallback");
+      await until(()=>win.webContents.executeJavaScript("document.querySelector('.app')?.dataset.liquidGlass==='true' && document.querySelectorAll('.settingsModeButton').length===2"),"glass CSS fallback");
       assert.equal(await win.webContents.executeJavaScript("document.querySelectorAll('[data-glass-ready]').length"),0);
       await screenshot(win,"glass-no-webgl-settings");
       await win.webContents.executeJavaScript("document.querySelector('.sidebar [data-nav-id=library]').click()");
@@ -299,15 +299,27 @@ server.listen(5173,async()=>{
       }
       const firstOpticalPaintMs=performance.now()-switchStarted;
       await until(()=>win.webContents.executeJavaScript("window.localitfy.getSettings().then(settings=>settings.liquidGlass===true)"),"glass persists in the settings store");
-      for(const mode of ["oled","dark","light"]){
+      await win.webContents.executeJavaScript("document.querySelector('.settingsCategoryButton[aria-label=Playback]').click()");
+      const speedRange="#settings-playback-listening .ltOpticalRange";
+      const speedInput=`document.querySelector('${speedRange} input[type=range], ${speedRange} [role=slider]')`;
+      await until(()=>win.webContents.executeJavaScript(`Boolean(${speedInput})`),"optical playback speed control");
+      await win.webContents.executeJavaScript(`${speedInput}.focus()`);
+      win.webContents.sendInputEvent({type:"keyDown",keyCode:"Home"});
+      win.webContents.sendInputEvent({type:"keyUp",keyCode:"Home"});
+      await until(()=>win.webContents.executeJavaScript("window.localitfy.getSettings().then(settings=>settings.playbackSpeed===0.75)"),"fractional optical speed persisted");
+      await until(()=>win.webContents.executeJavaScript(`document.querySelector('${speedRange}')?.textContent.includes("0.75×")`),"optical speed label retains fractional value and units");
+      for(let i=1;i<=5;i++){
+        await win.webContents.executeJavaScript(`${speedInput}.focus()`);
+        win.webContents.sendInputEvent({type:"keyDown",keyCode:"Right"});
+        win.webContents.sendInputEvent({type:"keyUp",keyCode:"Right"});
+        await until(()=>win.webContents.executeJavaScript(`window.localitfy.getSettings().then(settings=>Math.abs(settings.playbackSpeed-${0.75+i*0.05})<0.000001)`),"optical speed keyboard step "+i);
+      }
+      await win.webContents.executeJavaScript("document.querySelector('.settingsCategoryButton[aria-label=Appearance]').click()");
+      for(const mode of ["dark","light"]){
         await openView("settings");
         await until(()=>win.webContents.executeJavaScript(`Boolean(document.querySelector('[data-preview-mode="${mode}"]'))`),"glass theme picker");
         await win.webContents.executeJavaScript(`document.querySelector('[data-preview-mode="${mode}"]').closest('button').click()`);
         await until(()=>win.webContents.executeJavaScript(`document.querySelector('[data-preview-mode="${mode}"]')?.closest('button')?.getAttribute('aria-pressed')==='true'`),"glass theme "+mode);
-        if(mode==="oled") {
-          assert.equal(await win.webContents.executeJavaScript("getComputedStyle(document.querySelector('.app')).backgroundColor"),"rgb(0, 0, 0)","OLED is pure black");
-          assert.equal(await win.webContents.executeJavaScript("document.querySelector('.workspaceArtworkBackdrop')"),null,"OLED keeps artwork out of its workspace foundation");
-        }
         for(const view of ["settings","home","library","liked","albums","artists","genres","playlists","discover","downloads","analytics"]){
           await openView(view);
           if(view==="discover") await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('section[aria-labelledby=discover-recommended] li').length===4"),"populated Discover recommendations");
@@ -331,6 +343,7 @@ server.listen(5173,async()=>{
             })()`);
             assert.notEqual(palette.warm,palette.cool,"transport tint follows artwork palette");
           }
+          if(view==="settings") assert.equal(await win.webContents.executeJavaScript("getComputedStyle(document.getElementById('settings-appearance-theme')).animationName"),"none","Glass settings panels render immediately");
           await screenshot(win,`glass-${mode}-${view}`);
           if(mode==="dark"&&view==="library") {
             const bounds=await win.webContents.executeJavaScript("(()=>{const r=document.querySelector('.ltOpticalTransport').getBoundingClientRect();return {x:Math.round(r.left+40),y:Math.round(r.top+4),width:Math.max(1,Math.round(r.width-80)),height:5}})()");
@@ -757,7 +770,7 @@ server.listen(5173,async()=>{
     const playingArtwork = await win.webContents.executeJavaScript("document.querySelector('.workspaceArtworkBackdrop .artworkBackdropLayer[data-visible=true] img').src");
     await screenshot(win,"home-next-track");
     await win.webContents.executeJavaScript("document.querySelector('.sidebar [data-nav-id=settings]').click()");
-    await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('.settingsModeButton').length===3 && document.querySelector('.app').dataset.workspaceArtwork==='on'").catch(()=>false),"appearance controls");
+    await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('.settingsModeButton').length===2 && document.querySelector('.app').dataset.workspaceArtwork==='on'").catch(()=>false),"appearance controls");
     assert.equal(await win.webContents.executeJavaScript("document.querySelector('.workspaceArtworkBackdrop .artworkBackdropLayer[data-visible=true] img')?.src"),playingArtwork,"navigation preserves active cover");
     for(const mode of ["light","dark"]){
       await win.webContents.executeJavaScript(`document.querySelector('.settingsModeButton:has([data-preview-mode="${mode}"])').click()`);
@@ -842,7 +855,7 @@ server.listen(5173,async()=>{
        // next opens Settings. Restore selection after exercising Discover.
        const appearanceRestored=await win.webContents.executeJavaScript("(()=>{const b=[...document.querySelectorAll('.settingsCategoryButton')].find(b=>b.textContent.includes('Appearance'));if(!b)return false;b.click();return true})()");
        assert.equal(appearanceRestored,true,"Appearance category must stay reachable");
-       await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('.settingsModeButton').length===3").catch(()=>false),"Appearance after Discover "+mode);
+       await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('.settingsModeButton').length===2").catch(()=>false),"Appearance after Discover "+mode);
       // Keep full 860/1280 coverage; exercise original wide-desktop layout
       // only for the player and the two recently redesigned pages.
       for (const width of [1280,860,1920]) {
@@ -977,7 +990,7 @@ server.listen(5173,async()=>{
       // The active Discover category is remembered when returning to Settings.
       const appearanceSelected=await win.webContents.executeJavaScript("(()=>{const button=[...document.querySelectorAll('.settingsCategoryButton')].find(button=>button.textContent.includes('Appearance'));if(!button)return false;button.click();return true;})()");
       assert.equal(appearanceSelected,true,"Appearance remains reachable from Settings");
-      await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('.settingsModeButton').length===3").catch(()=>false),"appearance navigation");
+      await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('.settingsModeButton').length===2").catch(()=>false),"appearance navigation");
       const searched = await win.webContents.executeJavaScript("(()=>{const e=document.querySelector('#settings-section-search');if(!e)return false;Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,'crossfade');e.dispatchEvent(new Event('input',{bubbles:true}));return true})()");
       assert.ok(searched,"Settings control search must be accessible");
       await until(()=>win.webContents.executeJavaScript("Array.from(document.querySelectorAll('.settingsControlResult')).some(el=>el.textContent.includes('Crossfade'))").catch(()=>false),"crossfade control search");
@@ -987,8 +1000,9 @@ server.listen(5173,async()=>{
       await screenshot(win,"settings-search-crossfade");
       await win.webContents.executeJavaScript("document.querySelector('.settingsCategoryButton[title*=\"Lyrics\"]')?.click()");
       await until(()=>win.webContents.executeJavaScript("!!document.querySelector('[data-settings-category=lyrics] #settings-lyrics-display')").catch(()=>false),"independent lyrics settings");
+      assert.equal(await win.webContents.executeJavaScript("getComputedStyle(document.getElementById('settings-lyrics-display')).animationName"),"none","Settings panels do not fade in from invisible");
       await screenshot(win,"settings-lyrics");
-      const playbackSelected = await win.webContents.executeJavaScript("(()=>{const button=[...document.querySelectorAll('.settingsCategoryButton')].find(button=>button.textContent.trim()==='Playback');if(!button)return false;button.click();return true;})()");
+      const playbackSelected = await win.webContents.executeJavaScript("(()=>{const button=[...document.querySelectorAll('.settingsCategoryButton')].find(button=>button.getAttribute('aria-label')==='Playback');if(!button)return false;button.click();return true;})()");
       assert.ok(playbackSelected,"Playback settings remain reachable");
       await until(()=>win.webContents.executeJavaScript("!!document.querySelector('[data-settings-category=playback] #settings-playback-transitions')").catch(()=>false),"Playback Settings "+mode,5000);
       const playbackHeaderTop = await win.webContents.executeJavaScript("document.querySelector('.settingsPage .pageHeader')?.getBoundingClientRect().top ?? -999");
@@ -1023,13 +1037,13 @@ server.listen(5173,async()=>{
         await win.webContents.executeJavaScript(check.click);
         await until(()=>win.webContents.executeJavaScript(check.focused).catch(()=>false),"focused "+check.label);
       }
-      const discordSelected = await win.webContents.executeJavaScript("(()=>{const button=[...document.querySelectorAll('.settingsCategoryButton')].find(button=>button.textContent.trim()==='Discord');if(!button)return false;button.click();return true;})()");
+      const discordSelected = await win.webContents.executeJavaScript("(()=>{const button=[...document.querySelectorAll('.settingsCategoryButton')].find(button=>button.getAttribute('aria-label')==='Discord');if(!button)return false;button.click();return true;})()");
       assert.ok(discordSelected,"Discord settings remain reachable");
       await until(()=>win.webContents.executeJavaScript("!!document.querySelector('[data-settings-category=discord] #settings-discord-privacy')").catch(()=>false),"Discord Settings "+mode,5000);
       const discordHeaderTop = await win.webContents.executeJavaScript("document.querySelector('.settingsPage .pageHeader')?.getBoundingClientRect().top ?? -999");
       assert.ok(discordHeaderTop >= 0 && discordHeaderTop < 160, "Settings discord scroll reset: "+discordHeaderTop);
       await screenshot(win,"settings-discord-"+mode);
-      const librarySelected = await win.webContents.executeJavaScript("(()=>{const button=[...document.querySelectorAll('.settingsCategoryButton')].find(button=>button.textContent.trim()==='Library');if(!button)return false;button.click();return true;})()");
+      const librarySelected = await win.webContents.executeJavaScript("(()=>{const button=[...document.querySelectorAll('.settingsCategoryButton')].find(button=>button.getAttribute('aria-label')==='Library');if(!button)return false;button.click();return true;})()");
       assert.ok(librarySelected,"Library settings remain reachable");
       await until(()=>win.webContents.executeJavaScript("!!document.querySelector('[data-settings-category=library] #settings-library-folders')").catch(()=>false),"Library Settings "+mode,5000);
       const libraryHeaderTop = await win.webContents.executeJavaScript("document.querySelector('.settingsPage .pageHeader')?.getBoundingClientRect().top ?? -999");
@@ -1037,7 +1051,7 @@ server.listen(5173,async()=>{
       await screenshot(win,"settings-library-"+mode);
        const appearanceForNextTheme = await win.webContents.executeJavaScript("(()=>{const button=[...document.querySelectorAll('.settingsCategoryButton')].find(item=>item.textContent.includes('Appearance'));if(!button)return false;button.click();return true;})()");
        assert.equal(appearanceForNextTheme,true,"Appearance must be accessible after Lyrics");
-       await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('.settingsModeButton').length===3").catch(()=>false),"restore Appearance for next theme");
+       await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('.settingsModeButton').length===2").catch(()=>false),"restore Appearance for next theme");
 
     }
     // Render the actual title-bar update banner and remote What's New flow without installing a fake package.
@@ -1061,7 +1075,7 @@ server.listen(5173,async()=>{
       return (Math.max(text,fill)+0.05)/(Math.min(text,fill)+0.05);
     })()`);
     assert.ok(doneContrast>=4.5,"Changelog Done button must meet WCAG AA text contrast: "+doneContrast);
-    assert.equal(await win.webContents.executeJavaScript("getComputedStyle(document.querySelector('.releaseNotesDialog')).backgroundColor"),"rgb(0, 0, 0)","OLED release notes surface");
+    assert.equal(await win.webContents.executeJavaScript("getComputedStyle(document.querySelector('.releaseNotesDialog')).backgroundColor"),"rgb(0, 0, 0)","Dark release notes surface");
     const releaseWindowSize=win.getSize();
     win.setMinimumSize(320,320);
     for(const [width,height] of [[1280,800],[480,320],[390,844]]) {

@@ -54,12 +54,9 @@ button:disabled:active {
 }
 
 
-.settingsPage,
 .content > .pageTransition {
   animation: localtifyPageIn var(--motion-normal) var(--motion-ease) both;
 }
-.settingsPanelCard,
-.settingsPageCard,
 .queuePanel,
 .playlistPanel {
   animation: localtifyPanelIn 260ms var(--motion-ease) both;
@@ -106,7 +103,6 @@ button:disabled:active {
 .settingsCategoryMotion {
   min-width: 0;
   width: 100%;
-  animation: localtifyPanelIn 220ms var(--motion-ease) both;
 }
 
 

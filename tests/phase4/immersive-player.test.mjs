@@ -25,7 +25,7 @@ test("artwork follows background preferences and avoids backgrounded image work"
   const surface = read(dir + "ImmersivePlayer.tsx");
   assert.match(surface, /effectiveAmbient && backgroundStyle === "coverBlur" && !backgrounded/);
   assert.match(read(dir + "PhonePlayer.tsx"), /phonePlayerBackdropArt" preferThumbnail/);
-  assert.match(read(dir + "immersive-player.css"), /\[data-background="oledBlack"\]/);
+  assert.doesNotMatch(read(dir + "immersive-player.css"), /\[data-background="oledBlack"\]/);
   assert.match(read("src/features/lyrics/LyricsView.tsx"), /if \(!open \|\| embedded\) return/);
 });
 

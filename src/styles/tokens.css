@@ -50,12 +50,6 @@
   --lt-update-error-border: #a55465;
   --lt-update-ready-from: #16658a;
   --lt-update-ready-to: #1786a3;
-  --lt-oled-bg: #000000;
-  --lt-oled-rgb: 255, 255, 255;
-  --lt-oled-text: #ffffff;
-  --lt-oled-muted: #b9b9b9;
-  --lt-oled-surface: #111111;
-  --lt-oled-border: #292929;
 
   --lt-radius-sm: 12px;
   --lt-radius-md: 18px;

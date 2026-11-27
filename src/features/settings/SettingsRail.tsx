@@ -21,7 +21,7 @@ const SETTINGS_NAV_GROUPS: ReadonlyArray<{
   label: string;
   ids: ReadonlyArray<SettingsCategory>;
 }> = [
-  { label: "Appearance", ids: ["appearance"] },
+  { label: "Personalization", ids: ["appearance"] },
   { label: "Listening", ids: ["playback", "lyrics", "experimental"] },
   { label: "Your collection", ids: ["library", "downloads"] },
   { label: "Connections", ids: ["discover", "discord"] },
@@ -40,10 +40,12 @@ export default function SettingsRail({
     if (!selected || !rail) return;
     const rect = selected.getBoundingClientRect();
     const bounds = rail.getBoundingClientRect();
-    if (rect.top < bounds.top + 8) rail.scrollTop -= bounds.top + 8 - rect.top;
-    else if (rect.bottom > bounds.bottom - 8) rail.scrollTop += rect.bottom - bounds.bottom + 8;
+    if (rail.scrollHeight > rail.clientHeight) {
+      if (rect.top < bounds.top + 8) rail.scrollTop -= bounds.top + 8 - rect.top;
+      else if (rect.bottom > bounds.bottom - 8) rail.scrollTop += rect.bottom - bounds.bottom + 8;
+    }
     const nav = selected.closest("nav");
-    if (!nav) return;
+    if (!nav || nav.scrollWidth <= nav.clientWidth) return;
     const navBounds = nav.getBoundingClientRect();
     if (rect.left < navBounds.left + 8) nav.scrollLeft -= navBounds.left + 8 - rect.left;
     else if (rect.right > navBounds.right - 8) nav.scrollLeft += rect.right - navBounds.right + 8;
@@ -57,7 +59,7 @@ export default function SettingsRail({
           <input id="settings-section-search" type="search" value={search}
             onChange={(event) => onSearchChange(event.currentTarget.value)}
             onKeyDown={(event) => { if (event.key === "Escape" && search) { event.preventDefault(); event.stopPropagation(); onSearchChange(""); } }}
-            placeholder="Find a setting..." />
+            placeholder="Search settings..." />
           {search ? <IconButton type="button" className="settingsSearchClear" onClick={() => { onSearchChange(""); document.getElementById("settings-section-search")?.focus(); }} aria-label="Clear settings search">
             <X size={14} strokeWidth={2} aria-hidden="true" />
           </IconButton> : null}
@@ -82,7 +84,7 @@ export default function SettingsRail({
               const selected = activeCategory === tab.id;
               return <button key={tab.id} ref={selected ? selectedRef : undefined} className={`settingsCategoryButton ${selected ? "active" : ""}`}
                 type="button" onClick={() => onCategoryChange(tab.id)} title={tab.description}
-                aria-current={selected ? "page" : undefined}>
+                aria-label={tab.label} aria-current={selected ? "page" : undefined}>
                 <span className="settingsCategoryIcon" aria-hidden="true">
                   <SolidIcon className="settingsSolidIcon" name={tab.icon} size={20} />
                 </span>

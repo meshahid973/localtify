@@ -30,6 +30,7 @@ export type RangeSliderProps = {
   startIcon?: IconName | 'none'
   endIcon?: IconName | 'none'
   showValue?: boolean
+  valueSuffix?: string
   /** At rest: 1 (default) = a flat white pill, 0 = clear glass. Held, it is always clear glass. */
   restFrost?: number
   refraction?: number
@@ -64,6 +65,7 @@ export function RangeSlider({
   startIcon = 'none',
   endIcon = 'none',
   showValue = true,
+  valueSuffix = '',
   restFrost = 1,
   refraction = 37,
   dispersion = 0.12,
@@ -145,12 +147,13 @@ export function RangeSlider({
 
   const setFraction = (f: number) => {
     const raw = min + saturate(f) * (max - min)
-    setCurrent(Math.min(max, Math.max(min, Math.round(raw / step) * step)))
+    const snapped = min + Math.round((raw - min) / step) * step
+    setCurrent(Number(Math.min(max, Math.max(min, snapped)).toPrecision(12)))
   }
   const localX = (e: PointerEvent<HTMLDivElement>) => e.clientX - e.currentTarget.getBoundingClientRect().left
 
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return
+    if (e.button !== 0 || !e.isPrimary || areaW <= 0) return
     e.currentTarget.setPointerCapture(e.pointerId)
     sim.current.pressed = true
     const x = localX(e)
@@ -178,7 +181,7 @@ export function RangeSlider({
       {(label || showValue) && (
         <div className="flex items-center justify-between px-1 text-[13px] font-medium">
           <FieldLabel className="text-neutral-900 dark:text-white">{label}</FieldLabel>
-          {showValue && <span className="text-neutral-500 tabular-nums">{Math.round(current)}</span>}
+          {showValue && <span className="text-neutral-500 tabular-nums">{Number(current.toPrecision(12))}{valueSuffix}</span>}
         </div>
       )}
       <Slider

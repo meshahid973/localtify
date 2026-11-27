@@ -28,7 +28,7 @@ export const SETTINGS_CONTROL_LINKS: readonly SettingsControlLink[] = [
   { id: "theme", label: "Light or dark theme", description: "Appearance", category: "appearance", target: "settings-appearance-theme", keywords: "colors dark light palette" },
   { id: "ambience", label: "Artwork ambience", description: "Appearance", category: "appearance", target: "settings-appearance-ambience", keywords: "blur background cover gradient strength" },
   { id: "home", label: "Home layout and cards", description: "Appearance", category: "appearance", target: "settings-appearance-home", keywords: "banner hero artwork card size density" },
-  { id: "player-background", label: "Player background", description: "Appearance", category: "appearance", target: "settings-appearance-player", keywords: "fullscreen oled blur flat" },
+  { id: "player-background", label: "Player background", description: "Appearance", category: "appearance", target: "settings-appearance-player", keywords: "fullscreen artwork blur flat" },
   { id: "sidebar", label: "Sidebar layout", description: "Appearance", category: "appearance", target: "settings-appearance-sidebar", keywords: "collapsed expanded compact hover navigation", desktopOnly: true },
   { id: "tabs", label: "Arrange navigation tabs", description: "Appearance", category: "appearance", target: "settings-appearance-tabs", keywords: "hide show reorder sidebar bottom bar navigation tabs" },
   { id: "motion", label: "Motion and animations", description: "Appearance", category: "appearance", target: "settings-appearance-layout", keywords: "reduce glow gif visuals floating notes" },

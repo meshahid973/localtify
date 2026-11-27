@@ -84,3 +84,19 @@ test("explicit cover changes preserve custom provenance and reject invalid paths
   assert.equal(result.coverPath, selected);
   assert.ok(Number.isFinite(Date.parse(result.coverUpdatedAt)));
 });
+
+test("library snapshots check shared cover files once and recheck on the next request", () => {
+  const {createLibraryImportRuntime} = require("../../electron/runtime/library-import.cjs");
+  const rows = ["a", "b"].map(id => ({id, filePath: id + ".mp3", coverPath: "cover.jpg", coverSource: "folder"}));
+  let exists = true, coverChecks = 0;
+  const runtime = createLibraryImportRuntime({
+    getSongs: () => rows, getPixelArtFiles: () => [], isImageFile: file => file.endsWith(".jpg"),
+    fileExists: file => file === "cover.jpg" ? (++coverChecks, exists) : true,
+    safeMediaUrl: file => file, getCoverThumbnailUrl: file => file
+  });
+  assert.ok(runtime.listSongsShaped().every(song => song.coverExists));
+  assert.equal(coverChecks, 1);
+  exists = false;
+  assert.ok(runtime.listSongsShaped().every(song => !song.coverExists));
+  assert.equal(coverChecks, 2);
+});

@@ -106,9 +106,9 @@ export default function AppShell(props: AppShellProps) {
   const detail = nav.detail;
   const { isSeeking, isVolumeDragging, draggedSongId, isPlaying } = playerBar;
   const { isThreeAm } = home;
-  const playerBackground = effectiveTheme === "oled" ? "oledBlack" : effectiveTheme === "light" && settings.playerBackgroundStyle === "oledBlack" ? "flat" : settings.playerBackgroundStyle || "coverBlur";
+  const playerBackground = settings.playerBackgroundStyle || "coverBlur";
   const homeBanner = effectiveTheme === "light" && settings.homeBannerType === "cleanBlack" ? "none" : settings.homeBannerType || "dynamic";
-  const cardBackground = effectiveTheme === "light" && settings.mediaCardBackground === "oledFlat" ? "solid" : settings.mediaCardBackground || "glassy";
+  const cardBackground = settings.mediaCardBackground || "glassy";
   // The active track owns shell artwork; the mounted entity is a fallback.
   const route = view + ":" + (detail?.kind ?? "") + ":" + (detail?.id ?? "");
   const [pageArtwork, setPageArtwork] = useState<PageAtmosphereRegistration | null>(null);
@@ -121,7 +121,7 @@ export default function AppShell(props: AppShellProps) {
   // A paused current track remains the listening context; navigation never interrupts its backdrop.
   const trackSources = useMemo(() => trackArtworkSources(home.currentSong), [home.currentSong]);
   const workspaceSources = useMemo(() => resolveWorkspaceArtwork(trackSources, sources, Boolean(detail) && view !== "home"), [trackSources, sources, detail, view]);
-  const artworkEnabled = effectiveTheme !== "oled" && effectiveCoverColorSyncMode !== "off" && !isAppBackgrounded;
+  const artworkEnabled = effectiveCoverColorSyncMode !== "off" && !isAppBackgrounded;
   const { actions, menu } = useCollectionActions(nav, collections, modals.queuePanel.openSongContextMenu);
   const pageProps = { songs: library.songs, currentId: home.currentId, isPlaying, toggleLike: modals.songContextMenu.toggleLike, openPlaylistPicker: modals.songContextMenu.openPlaylistPicker };
   const openSimilarSongs = useStableCallback((songIds: string[], key: string, title: string) => {
@@ -166,8 +166,7 @@ export default function AppShell(props: AppShellProps) {
       }
       data-platform={platformId}
       data-linux={platformId === "linux" ? "on" : "off"}
-      data-theme={effectiveTheme === "oled" ? "dark" : effectiveTheme}
-      data-oled={effectiveTheme === "oled" ? "true" : undefined}
+      data-theme={effectiveTheme}
       data-liquid-glass={settings.liquidGlass === true ? "true" : undefined}
       data-anime-visuals={settings.animeVisuals || screensaverPreviewActive || screensaverVisible ? "on" : "off"}
       data-gif-visuals={settings.gifVisualsMode}

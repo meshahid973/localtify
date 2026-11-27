@@ -192,7 +192,7 @@ function MainModeApp() {
   const {
     settings, setSettings, settingsRef, settingsSaveError, retrySettingsSave,
     settingsCategory, setSettingsCategory,
-    settingsSearch, setSettingsSearch, deferredSettingsSearch,
+    settingsSearch, setSettingsSearch,
     themeSettling,
     themeMotionReady, setThemeMotionReady,
     writeSettings,
@@ -371,7 +371,7 @@ function MainModeApp() {
     return () => { active = false; };
   }, [view]);
   const availableSettingsTabs = useMemo(() => settingsCategoryTabs.map(tab => tab.id === "experimental" && analysisSupported ? { ...tab, label: "Analysis & history" } : tab), [analysisSupported]);
-  const settingsSearchQuery = normalizeSettingsSearch(deferredSettingsSearch);
+  const settingsSearchQuery = normalizeSettingsSearch(settingsSearch);
 
   const visibleSettingsTabs = useMemo(() => {
     if (!settingsSearchQuery) return availableSettingsTabs;
@@ -2795,7 +2795,6 @@ function MainModeApp() {
         message: "Choose audio files to read their tags and add them to your library."
       })
     );
-    showAppToast("scanning local music...", "work");
 
     try {
       const imported = applyLibraryOrder(sanitizeSongList(await window.localitfy.importSongs()));
@@ -2859,7 +2858,7 @@ function MainModeApp() {
       setPlayerError("Couldn’t import music.");
       setLibraryScanMessage("Couldn’t import music.");
       setStatusText("import failed");
-      showAppToast("import failed safely", "error");
+      showAppToast("Couldn’t import music. Try again.", "error");
       hideImportAnimation(1700);
     } finally {
       importingSongsRef.current = false;

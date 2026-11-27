@@ -783,10 +783,14 @@ function getSong(id) {
   }
 }
 
+const songInsertTransactions = new WeakMap();
 function insertSongs(songs) {
   const database = ensureDb();
   const list = Array.isArray(songs) ? songs : [];
 
+  if (!list.length) return 0;
+  const cached = songInsertTransactions.get(database);
+  if (cached) return cached(list);
   const stmt = database.prepare(`
     INSERT INTO songs (
       id, title, artist, album, genre, filePath, coverPath, coverSource, coverUpdatedAt, liked, playCount,
@@ -875,6 +879,7 @@ function insertSongs(songs) {
     return changed;
   });
 
+  songInsertTransactions.set(database, tx);
   return tx(list);
 }
 
@@ -1003,6 +1008,7 @@ function getSettings() {
   return settings;
 }
 
+const settingsWriteTransactions = new WeakMap();
 function saveSettings(settings) {
   const database = ensureDb();
 
@@ -1011,17 +1017,20 @@ function saveSettings(settings) {
   const entries = Object.entries(settings).filter(([key, value]) => typeof value !== "undefined" && (key !== "playlistMigrationCompleted" || value === true));
   if (!entries.length) return getSettings();
 
-  const stmt = database.prepare(`
-    INSERT INTO settings (key, value)
-    VALUES (?, ?)
-    ON CONFLICT(key) DO UPDATE SET value = excluded.value WHERE settings.value IS NOT excluded.value
-  `);
-
-  const tx = database.transaction((items) => {
-    for (const [key, value] of items) {
-      stmt.run(key, JSON.stringify(value));
-    }
-  });
+  let tx = settingsWriteTransactions.get(database);
+  if (!tx) {
+    const stmt = database.prepare(`
+      INSERT INTO settings (key, value)
+      VALUES (?, ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value WHERE settings.value IS NOT excluded.value
+    `);
+    tx = database.transaction((items) => {
+      for (const [key, value] of items) {
+        stmt.run(key, JSON.stringify(value));
+      }
+    });
+    settingsWriteTransactions.set(database, tx);
+  }
 
   try {
     tx(entries);

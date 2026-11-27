@@ -44,8 +44,7 @@
 .settingsPage.settingsPageV027 .settingsPanelHeader strong { color: var(--settings-text);  }
 .settingsPage.settingsPageV027 .settingsPanelHeader span,
 .settingsPage.settingsPageV027 .settingsPanelHeader p { color: var(--settings-muted); font-size: 12px; line-height: 1.5; }
-.settingsPage.settingsPageV027 .settingsTwoColumn,
-.settingsPage.settingsPageV027 .settingsGrid.twoCols { gap: 17px; }
+.settingsPage.settingsPageV027 .settingsTwoColumn { gap: 17px; }
 .settingsPage.settingsPageV027 .settingsMiniGrid { gap: 13px; }
 .settingsPage.settingsPageV027 .settingsAudioEffectsPanel { grid-column: 1 / -1; }
 .settingsPage.settingsPageV027 .settingsAudioEffectsPanel .settingsSelectField { max-width: 540px; }
@@ -248,11 +247,11 @@
 .settingsPage.settingsPageV027 { width: min(100%,1180px); margin: 0 auto; gap: 18px; padding: 0 0 var(--lt-space-5); }
 .settingsPage.settingsPageV027 .settingsLayout {
   display: grid; grid-template-columns: 206px minmax(0,1fr);
-  align-items: start; gap: clamp(20px,3vw,38px);
+  align-items: start; gap: clamp(24px,3vw,44px);
 }
 .settingsPage.settingsPageV027 .settingsCategoryRail {
   position: sticky; top: 16px; max-height: calc(100dvh - 170px);
-  min-width: 0; padding: 0 14px 0 0; gap: 14px;
+  min-width: 0; padding: 0 14px 0 0; gap: 12px;
   border: 0; border-right: 1px solid var(--lt-border); border-radius: 0;
   background: transparent; box-shadow: none; overflow-y: auto; scrollbar-width: thin;
 }
@@ -273,7 +272,7 @@
 }
 .settingsPage.settingsPageV027 .settingsCategoryButton:hover { color: var(--lt-text); background: var(--lt-fill-hover); }
 .settingsPage.settingsPageV027 .settingsCategoryButton[aria-current="page"] {
-  color: var(--lt-text); border-color: transparent; background: var(--lt-fill-selected);
+  color: var(--lt-text); border-color: var(--lt-border); background: var(--lt-fill-selected);
 }
 .settingsPage.settingsPageV027 .settingsCategoryIcon {
   display: grid; place-items: center; flex: 0 0 18px;
@@ -284,32 +283,31 @@
 .settingsPage.settingsPageV027 .settingsCategoryButton[aria-current="page"] .settingsCategoryIcon { color: var(--lt-accent); }
 .settingsPage.settingsPageV027 .settingsCategoryCopy { gap: 0; }
 .settingsPage.settingsPageV027 .settingsCategoryCopy strong { font-size: 13px; font-weight: 580; }
-.settingsPage.settingsPageV027 .settingsCategoryCopy small { display: none; }
 .settingsPage.settingsPageV027 .settingsSearchBoxV027 { gap: 6px; padding: 0 2px 6px; }
 .settingsPage.settingsPageV027 .settingsSearchBoxV027 .settingsSearchField input {
   min-height: 40px; background: var(--lt-surface-soft);
   border: 1px solid var(--lt-border); border-radius: 8px;
 }
 .settingsPage.settingsPageV027 .settingsCategoryContent { min-width: 0; max-width: 100%; }
-.settingsPage.settingsPageV027 .settingsCategoryPage { gap: 10px; }
+.settingsPage.settingsPageV027 .settingsCategoryPage { gap: 16px; }
 .settingsPage.settingsPageV027 .settingsCategoryHeader {
-  min-height: 48px; padding: 0 0 14px; margin: 0 0 4px;
+  min-height: 48px; padding: 0 0 12px; margin: 0 0 2px;
   align-items: center; border-bottom: 1px solid var(--lt-border);
 }
 .settingsPage.settingsPageV027 .settingsCategoryHeader h4 { font-size: 22px; line-height: 1.25; font-weight: 660; }
 .settingsPage.settingsPageV027 .settingsPanelCard {
-  min-width: 0; display: grid; gap: 12px;
-  padding: 16px 0 18px; margin: 0;
+  min-width: 0; display: grid; gap: 10px;
+  padding: 10px 0 18px; margin: 0;
   border: 0; border-bottom: 1px solid var(--lt-border);
   border-radius: 0; background: transparent; box-shadow: none;
 }
 .settingsPage.settingsPageV027 .settingsPanelCard:last-child { border-bottom-color: transparent; }
 .settingsPage.settingsPageV027 .settingsPanelHeader { align-items: start; gap: 12px; }
 .settingsPage.settingsPageV027 .settingsPanelHeader > svg { color: var(--lt-muted); opacity: .8; }
-.settingsPage.settingsPageV027 .settingsPanelHeader strong { font-size: 14px; font-weight: 650; }
+.settingsPage.settingsPageV027 .settingsPanelHeader strong { font-size: 16px; font-weight: 650; }
 .settingsPage.settingsPageV027 .settingsPanelHeader :is(span,p) { line-height: 1.45; font-size: 12px; }
 .settingsPage.settingsPageV027 :is(.toggleRow,.rangeRow) {
-  min-height: 48px; padding: 8px 0; gap: 14px; border-bottom: 1px solid var(--lt-border);
+  min-height: 54px; padding: 10px 0; gap: 14px; border-bottom: 1px solid var(--lt-border);
 }
 .settingsPage.settingsPageV027 :is(.toggleRow,.rangeRow):last-child { border-bottom-color: transparent; }
 .settingsPage.settingsPageV027 :is(.toggleRow,.rangeRow) strong { font-size: 13px; font-weight: 590; }
@@ -366,9 +364,10 @@
 }
 @media (max-width: 600px) {
  .settingsPage.settingsPageV027 { width: 100%; padding-bottom: 80px; }
- .settingsPage.settingsPageV027 .settingsTwoColumn,
- .settingsPage.settingsPageV027 .settingsGrid.twoCols { grid-template-columns: minmax(0,1fr); }
- .settingsPage.settingsPageV027 .settingsCategoryButton { min-width: 40px; }
+ .settingsPage.settingsPageV027 .settingsTwoColumn { grid-template-columns: minmax(0,1fr); }
+ .settingsPage.settingsPageV027 .settingsCategoryRail nav { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 6px; overflow: visible; }
+ .settingsPage.settingsPageV027 .settingsNavGroup { display: contents; }
+ .settingsPage.settingsPageV027 .settingsCategoryButton { width: 100%; min-width: 0; }
  .settingsPage.settingsPageV027 .settingsActionRow { gap: 7px; }
  .settingsPage.settingsPageV027 .settingsActionRow > button { max-width: 100%; }
 }
@@ -412,7 +411,7 @@
   border-radius: 999px;
 }
 .settingsPage.settingsPageV027 .settingsControlResult { scroll-margin-block: 12px; }
-.settingsPage.settingsPageV027 .settingsCategoryPage :is(.settingsTwoColumn,.settingsGrid.twoCols) { min-width: 0; }
+.settingsPage.settingsPageV027 .settingsCategoryPage .settingsTwoColumn { min-width: 0; }
 @media (max-width: 600px) {
   .settingsPage.settingsPageV027 .settingsChoiceRowV491 { gap: 6px; }
   .settingsPage.settingsPageV027 :is(.settingsChoice,.settingsChoicePillV491) { min-width: 0; }
@@ -426,16 +425,7 @@
 }
 
 .settingsPage.settingsPageV027 .settingsRangeValue { color: var(--lt-muted); font-variant-numeric: tabular-nums; }
-.settingsPage.settingsPageV027 .settingsRowHelpVisuallyHidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
+.settingsPage.settingsPageV027 .settingsRowHelp { color: var(--settings-muted); font-size: 12px; line-height: 1.45; }
 .settingsPage.settingsPageV027 .settingsChoicePillV491 {
   min-height: 39px;
   padding: 8px 10px;

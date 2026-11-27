@@ -20,7 +20,7 @@ test("playlist picker preserves keyboard focus and Escape semantics", () => {
 test("song editor and delete dialog use clean, readable copy", () => {
   const editor = read("src/features/library/components/SongEditorModal.tsx");
   const confirm = read("src/features/library/components/DeleteSongModal.tsx");
-  assert.match(editor, /placeholder="artist name"/);
+  assert.match(editor, /<label>Artist<input value=\{editArtist\}/);
   assert.doesNotMatch(editor, /coderpixel \//);
   assert.match(confirm, /remove <span/);
   assert.match(confirm, /<\/span> from localtify/);

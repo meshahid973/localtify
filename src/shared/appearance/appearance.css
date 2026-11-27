@@ -1,8 +1,3 @@
-.app[data-oled="true"] {
-  background: #000;
-  --lt-glass-background: #0b0b0b;
-}
-
 .app[data-liquid-glass="true"] {
   --lt-optical-fill: color-mix(in srgb, var(--lt-bg-elevated) 78%, transparent);
   --lt-optical-edge: color-mix(in srgb, var(--lt-accent) 18%, transparent);
@@ -266,17 +261,6 @@
   min-width: 32px;
 }
 
-.settingsModePreview[data-preview-mode="oled"] {
-  --preview-bg: #000;
-  --preview-nav: #121212;
-  --preview-fill: #242424;
-  --preview-text: #fff;
-}
-
-.settingsAppearanceCleanV491 .settingsModeGrid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
 .app[data-liquid-glass="true"] :is(.playerBar, .titleBar, .sidebar, .queuePanel) {
   background-color: var(--lt-optical-fill);
 }
@@ -307,7 +291,7 @@
 ) .ltOpticalTransport {
   --glass-tint: color-mix(in srgb, var(--lt-transport-base), var(--cover-average, var(--lt-transport-base)) var(--lt-transport-artwork-share));
 }
-.app[data-liquid-glass="true"]:is([data-player-background="flat"], [data-player-background="oledBlack"]) .playerBar .ltOpticalTransport {
+.app[data-liquid-glass="true"][data-player-background="flat"] .playerBar .ltOpticalTransport {
   --glass-tint: var(--lt-transport-base);
 }
 html:has(.app[data-liquid-glass="true"]) [data-glass-popup] {
