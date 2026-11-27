@@ -115,7 +115,7 @@ async function requestCatalog(fetchImpl,endpoint,payload) {
 }
 function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPending=2) {
   const cache=new Map(),pending=new Map(),waiting=[];
-  const limit=Math.max(2,Math.min(6,maxPending));
+  const limit=Math.max(1,Math.min(6,maxPending));
   const backgroundLimit=Math.max(1,limit-2);
   let blockedUntil=0,hardBlockedUntil=0,running=0,backgroundRunning=0;
   function pump(){

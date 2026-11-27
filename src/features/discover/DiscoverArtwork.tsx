@@ -181,7 +181,7 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
       attempts++;
       if(attempts>1)discoverTrace("artwork-retry",{count:attempts-1});
       if(!request){
-        if(attempts<3)retryTimer=window.setTimeout(start,attempts*900);
+        if(attempts<4)retryTimer=window.setTimeout(start,attempts*900);
         return;
       }
       releaseRequest=request.release;
@@ -192,6 +192,7 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
           // A temporary provider failure is already subject to a shared backend cooldown.
           // A bounded number of delayed retries per visible consumer, never continuous polling.
           if(attempts<4&&answer?.status!=="off")retryTimer=window.setTimeout(start,answer?.status==="error"?15000*attempts:900*attempts);
+          else if(!exhausted&&answer?.status!=="off")setResolved({key,value:{},fallback:false,epoch:retryEpoch,unavailable:true});
           return;
         }
         if(answer.outcome==="busy" || (exhausted&&answer.outcome==="unavailable")){

@@ -287,24 +287,40 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
     const jobActive=()=>jobLive&&requestActive();
     const initial=new Promise(resolve=>{publish=resolve;});
     const promise = Promise.resolve().then(async()=>{
-      let result, batchBudget=6;
+      let result, batchBudget=6, artistCatalogBudget=4;
       const generationStart=performance.now();
       const previous=saved?.apiKey===apiKey&&now()-saved.result.generatedAt<86400000?saved.result:null;
       try {
         result=await discover({...current,client,now:now(),active:jobActive,
           cachedArtwork:track=>jobActive()&&(!track.recordingId||track.providerId)&&(!track.album||track.providerId)?lookupArtwork.cached(track.title,track.artist,track):{},
-          // Reuse existing catalog data without widening unofficial endpoint usage.
-          // Additional batch requests use the documented MusicBrainz search API.
-          catalog:async(name,tracks)=>{
+          // Reuse ordinary catalog adapters; never query owned tracks or change recommendation rank.
+          catalog:async(name,tracks,source)=>{
             if(!jobActive())return [];
             const cached=[...(searchYouTubeMusic?.cachedArtist?.(name)||[]),...(searchYouTubeArtwork!==searchYouTubeMusic?(searchYouTubeArtwork?.cachedArtist?.(name)||[]):[])];
             const missing=tracks.filter(track=>!track.coverUrl&&!enrichCatalogTrack(track,cached).coverUrl&&(MBID.test(track.recordingId||"")||cleanText(track.title)));
-            if(!missing.length||!musicBrainzClient?.searchRecordingBatch||!jobActive()||batchBudget<=0)return cached;
-            batchBudget--;
+            if(!missing.length)return cached;
+            const deadline=Date.now()+1500, controller=new AbortController();
+            const extra=[];
+            // Only new recommended artists (not private library seeds) use an
+            // artist-level query through the existing public catalog adapter.
+            if(source==="recommended"&&artistCatalogBudget>0&&missing.length>=2&&missing.some(track=>!MBID.test(track.recordingId||""))&&searchYouTubeArtwork&&name.length<=160){
+              artistCatalogBudget--;
+              extra.push(timed("provider-artist-catalog",()=>searchYouTubeArtwork("recording",name,{artwork:true,signal:controller.signal})).then(rows=>Array.isArray(rows)?rows:[],()=>[]));
+            }
+            if(musicBrainzClient?.searchRecordingBatch&&batchBudget>0){
+              batchBudget--;
+              extra.push(timed("provider-musicbrainz-batch",()=>musicBrainzClient.searchRecordingBatch(name,missing,{background:true,deadlineAt:deadline})).then(rows=>Array.isArray(rows)?rows:[],()=>[]));
+            }
+            if(!extra.length)return cached;
+            const completed=[];
+            let timer;
             try{
-              const records=await timed("provider-musicbrainz-batch",()=>musicBrainzClient.searchRecordingBatch(name,missing,{background:true,deadlineAt:Date.now()+1500}));
-              return jobActive()?[...cached,...records]:[];
-            }catch{return cached;}
+              await Promise.race([
+                Promise.all(extra.map(job=>job.then(rows=>{completed.push(...rows);}))),
+                new Promise(resolve=>{timer=setTimeout(resolve,Math.max(0,deadline-Date.now()));})
+              ]);
+              return jobActive()?[...cached,...completed]:[];
+            }finally{clearTimeout(timer);controller.abort();}
           },
           trace,onProgress:partial=>{trace("first-shelf",{ms:Math.round(performance.now()-generationStart)});publish(reuseRecommendationArtwork(partial,previous));}});
         result=reuseRecommendationArtwork(result,previous);

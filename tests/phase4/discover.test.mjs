@@ -581,7 +581,7 @@ test("persistent artwork cache separates entity types and preserves display-only
     let calls = 0;
     const setup = () => {
       const handlers = new Map();
-      registerDiscoverIpc({ handle: (name, handler) => handlers.set(name, handler) }, {
+      const lifecycle=registerDiscoverIpc({ handle: (name, handler) => handlers.set(name, handler) }, {
         cacheFile, getSongs: () => [], getSettings: () => ({ discoverEnabled: true }),
         searchYouTubeArtwork: async (kind) => {
           calls++;
@@ -590,16 +590,18 @@ test("persistent artwork cache separates entity types and preserves display-only
             : [{ title: "Same", artist: "Same", coverUrl: trackCover }];
         }
       });
-      return (kind, artist) => handlers.get("discover:get")({}, { artwork: { kind, title: "Same", artist } });
+      const get=(kind, artist) => handlers.get("discover:get")({}, { artwork: { kind, title: "Same", artist } });
+      return {get,close:lifecycle.close};
     };
-    const get = setup();
+    const {get,close} = setup();
     assert.equal((await get("artist", "Same")).coverUrl, artistCover);
     assert.equal((await get("recording", "Same")).coverUrl, trackCover);
-    await new Promise(resolve => setTimeout(resolve, 350));
-    const restart = setup();
+    close();
+    const {get:restart,close:closeRestart} = setup();
     assert.equal((await restart("artist", "Same")).coverUrl, artistCover);
     assert.equal((await restart("recording", "Same")).coverUrl, trackCover);
     assert.equal(calls, 2);
+    closeRestart();
     const { validArtworkResult, safeProviderCover } = require("../../electron/runtime/remote-cover.cjs");
     const displayOnly = "https://e-cdns-images.dzcdn.net/images/cover/123456789abcdef0123456789abcdef0/250x250-000000-80-0-0.jpg";
     assert.equal(validArtworkResult({ coverUrl: displayOnly }), true);

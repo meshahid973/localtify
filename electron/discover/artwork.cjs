@@ -93,7 +93,7 @@ function enrichCatalogTrack(track, items) {
   const confirmed=releases.some(release=>release["cover-art-archive"]?.front===true);
   // Prefer the representative release-group image when availability is unknown.
   // Leave the existing name-based fallback available if this provisional image fails.
-  const covers=[...new Set([...(confirmed?[art.coverUrl,art.fallbackCoverUrl]:[art.fallbackCoverUrl,art.coverUrl]),...(art.coverAlternatives||[])].filter(Boolean))].slice(0,6);
+  const covers=[...new Set([...(confirmed?[art.coverUrl,art.fallbackCoverUrl]:[art.fallbackCoverUrl,art.coverUrl]),...(art.coverAlternatives||[])].filter(Boolean))].slice(0,confirmed?6:2);
   return {...track,...art,coverUrl:covers[0],fallbackCoverUrl:covers[1],coverAlternatives:covers,
     ...(confirmed?{providerId:recording.id}:{}),recordingId:recording.id,
     artistIds:[...new Set((recording["artist-credit"]||[]).map(c=>c.artist?.id).filter(validId))],

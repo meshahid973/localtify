@@ -121,14 +121,14 @@ async function discover({ songs, hiddenArtists = [], client, now = Date.now(), c
   let catalogRunning=0;
   function pump(){
     while(catalogRunning<2&&waiting.length){
-      const {name,tracks,finish}=waiting.shift();
+      const {name,tracks,source,finish}=waiting.shift();
       if(!active()){finish([]);continue;}
       catalogRunning++;
-      Promise.resolve().then(()=>catalog(name,tracks)).then(items=>finish(Array.isArray(items)?items:[]),()=>finish([]))
+      Promise.resolve().then(()=>catalog(name,tracks,source)).then(items=>finish(Array.isArray(items)?items:[]),()=>finish([]))
         .finally(()=>{catalogRunning--;pump();});
     }
   }
-  async function enrich(name,tracks){
+  async function enrich(name,tracks,source){
     if(cachedArtwork&&active())tracks=await Promise.all(tracks.map(async track=>{
       if(safeDisplayCover(track.coverUrl)||!active())return track;
       try{const art=await cachedArtwork(track);return {...track,...art,durationMs:track.durationMs||art.durationMs};}catch{return track;}
@@ -137,7 +137,7 @@ async function discover({ songs, hiddenArtists = [], client, now = Date.now(), c
     const id=key(name);
     let batch=batches.get(id);
     if(!batch){
-      batch=new Promise(finish=>waiting.push({name,tracks,finish}));
+      batch=new Promise(finish=>waiting.push({name,tracks,source,finish}));
       batches.set(id,batch);pump();
     }
     const items=await batch;
@@ -160,7 +160,7 @@ async function discover({ songs, hiddenArtists = [], client, now = Date.now(), c
     if(!active())return [];
     const index=rankedArtists.indexOf(artist);
     const tracks=filter(await client.topTracks(artist.name),artist.name);
-    topTracks[index]=await enrich(artist.name,tracks);
+    topTracks[index]=await enrich(artist.name,tracks,"recommended");
     completedArtists.add(index);publish();
     return topTracks[index];
   });
@@ -168,7 +168,7 @@ async function discover({ songs, hiddenArtists = [], client, now = Date.now(), c
     if(!active())return [];
     const index=favourites.indexOf(seed);
     const tracks=filter(await client.topTracks(seed.name,15),seed.name).slice(0,MISSING_SONGS_PER_ARTIST);
-    favouriteTracks[index]=await enrich(seed.name,tracks);
+    favouriteTracks[index]=await enrich(seed.name,tracks,"popular");
     publish();return favouriteTracks[index];
   });
   await Promise.all([rankedJobs,favouriteJobs]);
