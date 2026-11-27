@@ -121,7 +121,8 @@ async function discover({ songs, hiddenArtists = [], client, now = Date.now(), c
   let catalogRunning=0;
   function pump(){
     while(catalogRunning<2&&waiting.length){
-      const {name,tracks,source,finish}=waiting.shift();
+      const priority=waiting.findIndex(job=>job.source==="recommended");
+      const {name,tracks,source,finish}=waiting.splice(priority<0?0:priority,1)[0];
       if(!active()){finish([]);continue;}
       catalogRunning++;
       Promise.resolve().then(()=>catalog(name,tracks,source)).then(items=>finish(Array.isArray(items)?items:[]),()=>finish([]))
@@ -156,7 +157,7 @@ async function discover({ songs, hiddenArtists = [], client, now = Date.now(), c
       published=true;clearTimeout(firstDeadline);onProgress(snapshot(true,force));
     }
   }
-  function armFirstDeadline(){if(!published&&firstDeadline===undefined)firstDeadline=setTimeout(()=>publish(true),450);}
+  function armFirstDeadline(){if(!published&&firstDeadline===undefined)firstDeadline=setTimeout(()=>{firstDeadline=undefined;publish(true);},450);}
   const rankedJobs=settleAll(rankedArtists.slice(0,TOP_TRACK_ARTISTS),async(artist)=>{
     if(!active())return [];
     const index=rankedArtists.indexOf(artist);

@@ -134,8 +134,7 @@ function mapArtistPage(body,id){
         if(track&&track.artistIds?.includes("ytmusic:"+id))tracks.set(track.id,track);
       }
       const endpoint=browse(runs(shelf.title)[0])||shelf.bottomEndpoint?.browseEndpoint;
-      if(typeof endpoint?.browseId==="string"&&/^[A-Za-z0-9_-]{1,120}$/.test(endpoint.browseId)&&typeof endpoint.params==="string"&&endpoint.params.length<=512)
-        topSongs={browseId:endpoint.browseId,params:endpoint.params};
+      if(validBrowse(endpoint))topSongs={browseId:endpoint.browseId,...(endpoint.params?{params:endpoint.params}:{})};
       return true;
     }
     const carousel=node.musicCarouselShelfRenderer;
@@ -234,7 +233,7 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
       if(index<0)return;
       const [job]=waiting.splice(index,1);
       clearTimeout(job.timer);job.detach?.();
-      if(job.background&&job.signal?.aborted){job.reject(capacity());continue;}
+      if(job.signal?.aborted){job.reject(capacity());continue;}
       if(now()<hardBlockedUntil||(job.background&&now()<blockedUntil)){job.reject(unavailable());continue;}
       trace("catalog-queue",{ms:Math.round(performance.now()-job.queuedAt)});
       running++;const wasBackground=job.background;if(wasBackground)backgroundRunning++;
@@ -280,7 +279,7 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
     job.promise=result.finally(()=>{pending.delete(key);clearTimeout(job.timer);job.detach();});
     job.timer=setTimeout(cancelQueued,background?3500:8000);
     pending.set(key,job);waiting.push(job);
-    if(background&&options.signal){options.signal.addEventListener("abort",cancelQueued,{once:true});if(options.signal.aborted)cancelQueued();}
+    if(options.signal){options.signal.addEventListener("abort",cancelQueued,{once:true});if(options.signal.aborted)cancelQueued();}
     pump();
     return job.promise.then(select);
   };
@@ -324,26 +323,26 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
   search.setTrace=fn=>{trace=typeof fn==="function"?fn:()=>{};};
   search.artistCatalog=async(name,wanted,options={})=>{
     await persistent.hydrate();
-    const {enrichCatalogTrack}=require("./artwork.cjs");
+    const {enrichCatalogTrack,matchMusicArtwork}=require("./artwork.cjs");
     const matches=items=>wanted.filter(track=>{const match=enrichCatalogTrack({...track,coverUrl:undefined},items);return !!match.coverUrl&&items.some(item=>item.id===match.providerId);});
     let known=search.cachedArtist(name);
-    if(wanted.length===1&&!matches(known).length&&!options.signal?.aborted){
+    if((wanted.length===1||options.allowNameSearch===false)&&!matches(known).length&&!options.signal?.aborted){
       const query=(wanted[0].title+" "+wanted[0].artist).slice(0,160);
       const candidates=await search("recording",query,{...options,artwork:true}).catch(()=>[]);
       known=[...new Map([...known,...candidates].map(row=>[row.id,row])).values()].slice(0,100);
-      if(matches(known).length)return known;
+      if(matches(known).length===wanted.length)return known;
     }
     const matchedIds=new Set(wanted.map(track=>enrichCatalogTrack({...track,coverUrl:undefined},known)).filter(track=>track.coverUrl).map(track=>track.providerId));
     const ids=new Set(known.filter(item=>matchedIds.has(item.id)).flatMap(item=>(item.artistCredits||[]).filter(c=>artistKey(c.name)===artistKey(name)).map(c=>c.id)).filter(id=>/^ytmusic:UC[A-Za-z0-9_-]{22}$/.test(id||"")));
     trace("artist-identity-cache",{state:ids.size?"hit":"miss",count:ids.size});
-    if(ids.size!==1){
+    if(ids.size!==1&&options.allowNameSearch!==false){
       const artists=await search("artist",name.replace(/\s+[-–—]\s+Topic$/i,""),{...options,artwork:true}).catch(()=>[]);
       const exact=artists.filter(item=>artistKey(item.title)===artistKey(name));
       if(exact.length>2&&!ids.size){trace("artist-catalog-match",{state:"ambiguous",count:0,total:wanted.length});return known;}
       for(const artist of exact.slice(0,2))ids.add(artist.id);
     }
     const collected=new Map(known.map(item=>[item.id,item]));
-    const verified=[];
+    const verified=[],individualCandidates=new Map();
     for(const candidate of [...ids].slice(0,2)){
       if(options.signal?.aborted)break;
       const id=candidate.slice(8);if(!artistId.test(id))continue;
@@ -370,6 +369,9 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
         const release=releases.get(item.albumId);
         return release?{...item,coverUrl:release.coverUrl||item.coverUrl,releaseDate:release.releaseDate}:item;
       });
+      // Keep plausible individual rows in memory even if the page association is not verified.
+      // The final matcher sees all plausible alternatives and still rejects ambiguity.
+      for(const item of items)if(wanted.some(track=>matchMusicArtwork([item],track.title,track.artist,track).coverUrl))individualCandidates.set(item.id,item);
       const corroborated=matches(items);
       // Two distinct matching recommendations, or an already independently matched
       // provider artist ID, are required before persisting an artist page association.
@@ -384,12 +386,18 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
       for(const item of page.items)collected.set(item.id,item);
       trace("artist-catalog-match",{count:matches(page.items).length,total:wanted.length});
     }else trace("artist-catalog-match",{state:verified.length?"ambiguous":"unverified",count:0,total:wanted.length});
-    if(!matches([...collected.values()]).length&&!options.signal?.aborted&&wanted.length>1){
-      const query=(wanted[0].title+" "+wanted[0].artist).slice(0,160);
-      const fallback=await search("recording",query,{...options,artwork:true}).catch(()=>[]);
-      for(const row of fallback)collected.set(row.id,row);
+    for(const row of individualCandidates.values())collected.set(row.id,row);
+    const resolved=new Set(matches([...collected.values()]));
+    // At most two selected public recommendations receive direct catalog fallbacks;
+    // other unresolved items remain eligible for the existing visible artwork pipeline.
+    const missing=wanted.filter(track=>!resolved.has(track)).slice(0,2);
+    if(!options.signal?.aborted&&missing.length){
+      const more=await Promise.all(missing.map(track=>search("recording",(track.title+" "+track.artist).slice(0,160),{...options,artwork:true}).catch(()=>[])));
+      for(const rows of more)for(const row of rows)collected.set(row.id,row);
     }
-    return [...collected.values()].slice(0,100);
+    const all=[...collected.values()];
+    const relevant=all.filter(item=>wanted.some(track=>matchMusicArtwork([item],track.title,track.artist,track).coverUrl));
+    return [...new Map([...relevant,...all].map(row=>[row.id,row])).values()].slice(0,100);
   };
   // Explicit artist detail retrieval uses the very same queue and parsed page.
   // Discography expansion is requested only by an explicit caller, not every

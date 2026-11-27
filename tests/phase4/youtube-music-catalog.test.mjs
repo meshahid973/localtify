@@ -120,3 +120,14 @@ test("album collection rows reuse verified album identity and cover",()=>{
   const body={header:{musicResponsiveHeaderRenderer:{title:{runs:[{text:"Album"}]},straplineTextOne:{runs:[linked("Kenshi Yonezu","MUSIC_PAGE_TYPE_ARTIST","UCabcdefghijklmnopqrstuv")]},thumbnail:{musicThumbnailRenderer:{thumbnail:{thumbnails:[{url:"https://lh3.googleusercontent.com/album=w512-h512"}]}}}}},contents:[{musicShelfRenderer:{contents:[item]}}]};
   const album=mapAlbumPage(body,id);assert.equal(album.tracks[0].albumId,"ytmusic:"+id);assert.equal(album.tracks[0].artist,"Kenshi Yonezu");assert.equal(album.tracks[0].coverUrl,"https://lh3.googleusercontent.com/album=w256-h256-l90-rj");
 });
+
+test("unverified artist pages retain individual candidates without persisting a name association",async()=>{
+  const id="UCabcdefghijklmnopqrstuv";
+  const artist={musicResponsiveListItemRenderer:{flexColumns:[col([linked("Kenshi Yonezu","MUSIC_PAGE_TYPE_ARTIST",id)])],navigationEndpoint:linked("Kenshi Yonezu","MUSIC_PAGE_TYPE_ARTIST",id).navigationEndpoint}};
+  const body={header:{musicImmersiveHeaderRenderer:{title:{runs:[{text:"Kenshi Yonezu"}]}}},contents:[{musicShelfRenderer:{title:{runs:[{text:"Songs"}]},contents:[row("KICK BACK")]}}]};
+  const search=createYouTubeMusicSearch(async(url,options)=>({ok:true,text:async()=>JSON.stringify(url.includes("/browse?")?body:JSON.parse(options.body).query==="Kenshi Yonezu"?response([artist]):response([]))}));
+  const wanted=[{title:"KICK BACK",artist:"Kenshi Yonezu"},{title:"Missing",artist:"Kenshi Yonezu"}];
+  const result=await search.artistCatalog("Kenshi Yonezu",wanted);
+  assert.equal(result.length,1);assert.equal(search.cachedArtist("Kenshi Yonezu").length,0);
+  search.close();
+});

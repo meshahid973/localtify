@@ -59,7 +59,7 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
   searchYouTubeMusic?.setTrace?.(trace);
   let saved = null;
   let running = null;
-  let catalogRunning = null;
+  const catalogRunning = new Map();
   let artworkClient = null, artworkKey = "", closed = false;
   const active = () => !closed && getSettings().discoverEnabled === true;
   const strict = (provider,...args) => active() ? (provider.resolve || provider)(...args) : Promise.resolve({});
@@ -218,9 +218,9 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
       if(artistId!==undefined&&(kind!=="recording"||radioSeed!==undefined||!/^ytmusic:UC[A-Za-z0-9_-]{22}$/.test(artistId||"")||!searchYouTubeMusic?.getArtist))return {status:"error",error:"Artist catalog unavailable."};
       if (radioSeed !== undefined && (kind !== "recording" || typeof radioSeed !== "string" || !/^[A-Za-z0-9_-]{11}$/.test(radioSeed) || !searchYouTubeMusicRadio)) return { status: "error", error: "Related songs unavailable." };
       const key = JSON.stringify([kind, term.toLowerCase(), radioSeed || "",artistId||"",albumId||""]);
-      if (catalogRunning && catalogRunning.key !== key)
-        return { status: "error", error: "Another catalog search is in progress. Try again when it finishes." };
-      if (!catalogRunning) {
+      if (!catalogRunning.has(key) && catalogRunning.size>=4)
+        return { status: "error", error: "Catalog searches are busy. Try again shortly." };
+      if (!catalogRunning.has(key)) {
         const promise = Promise.resolve().then(async () => {
           if (getSettings().discoverEnabled !== true) return [];
           if (radioSeed) return searchYouTubeMusicRadio(radioSeed);
@@ -270,11 +270,11 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
           if(settled.slice(0,2).every(result=>result.status==="rejected")&&settled.slice(2).every(result=>result.status==="rejected"||!result.value?.length))throw Error("Catalog unavailable");
           return [];
         })
-          .finally(() => { if (catalogRunning?.promise === promise) catalogRunning = null; });
-        catalogRunning = { key, promise };
+          .finally(() => { if (catalogRunning.get(key) === promise) catalogRunning.delete(key); });
+        catalogRunning.set(key,promise);
       }
       try {
-        const items = await catalogRunning.promise;
+        const items = await catalogRunning.get(key);
         return getSettings().discoverEnabled === true ? { status: "catalog", kind, items } : { status: "off" };
       } catch {
         return getSettings().discoverEnabled === true
@@ -296,7 +296,7 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
     const jobActive=()=>jobLive&&requestActive();
     const initial=new Promise(resolve=>{publish=resolve;});
     const promise = Promise.resolve().then(async()=>{
-      let result, batchBudget=6, artistCatalogBudget=6;
+      let result, batchBudget=6, artistCatalogBudget=6,popularCatalogBudget=4;
       const generationStart=performance.now();
       await searchYouTubeMusic?.hydrate?.();
       const previous=saved?.apiKey===apiKey&&now()-saved.result.generatedAt<86400000?saved.result:null;
@@ -311,11 +311,11 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
             if(!missing.length)return cached;
             const deadline=Date.now()+3000, controller=new AbortController();
             const extra=[];
-            // Only new recommended artists (not private library seeds) use an
-            // artist-level query through the existing public catalog adapter.
-            if(source==="recommended"&&artistCatalogBudget>0&&missing.length>=1&&missing.some(track=>!MBID.test(track.recordingId||""))&&searchYouTubeArtwork&&name.length<=160){
-              artistCatalogBudget--;
-              extra.push(timed("provider-artist-catalog",()=>searchYouTubeArtwork.artistCatalog ? searchYouTubeArtwork.artistCatalog(name,missing,{artwork:true,signal:controller.signal}) : searchYouTubeArtwork("recording",name,{artwork:true,artistCatalog:true,signal:controller.signal})).then(rows=>Array.isArray(rows)?rows:[],()=>[]));
+            // New artist-name discovery is limited to recommended artists. Popular
+            // shelves may query only selected public unowned recordings.
+            if((source==="recommended"?artistCatalogBudget>0:popularCatalogBudget>0)&&missing.length>=1&&missing.some(track=>!MBID.test(track.recordingId||""))&&searchYouTubeArtwork&&name.length<=160){
+              if(source==="recommended")artistCatalogBudget--;else popularCatalogBudget--;
+              extra.push(timed("provider-artist-catalog",()=>searchYouTubeArtwork.artistCatalog ? searchYouTubeArtwork.artistCatalog(name,missing,{artwork:true,signal:controller.signal,allowNameSearch:source==="recommended"}) : source==="recommended"?searchYouTubeArtwork("recording",name,{artwork:true,artistCatalog:true,signal:controller.signal}):Promise.resolve([])).then(rows=>Array.isArray(rows)?rows:[],()=>[]));
             }
             if(musicBrainzClient?.searchRecordingBatch&&batchBudget>0){
               batchBudget--;
