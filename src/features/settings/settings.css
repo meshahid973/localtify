@@ -54,6 +54,14 @@
 .settingsPage .settingsMiniGrid,
 .settingsPage .settingsResetGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr)); gap: 12px; }
 .settingsPage .settingsSelectField { min-width: 0; display: grid; gap: 7px; color: var(--settings-muted); font-size: 12px; }
+.settingsPage .settingsSelectRow {
+  grid-template-columns: minmax(0, 1fr) minmax(130px, 190px);
+  align-items: center;
+  gap: var(--lt-space-3);
+  min-height: var(--lt-control-height);
+}
+.settingsPage .settingsSelectRow > span { color: var(--lt-text); font-weight: 550; }
+.settingsPage .settingsSelectRow > button { max-width: 100%; }
 .settingsPage :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="search"]), select, textarea) {
   min-width: 0; max-width: 100%; min-height: var(--lt-control-height); padding: 9px 12px;
   border: 1px solid var(--settings-edge); border-radius: var(--lt-radius-item);

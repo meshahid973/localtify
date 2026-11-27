@@ -74,13 +74,16 @@ export default function AppearanceSettings(props: AppearanceSettingsProps) {
         </details>
       </div>
 
-      {!phone ? <div id="settings-appearance-sidebar" className="settingsPanelCard">
-        <div className="settingsPanelHeader"><div><strong>Sidebar layout</strong></div></div>
-        <SettingsChoiceGroup compact label="Sidebar layout" value={settings.sidebarBehavior}
+      <div id="settings-appearance-sidebar" className="settingsPanelCard">
+        <div className="settingsPanelHeader"><div><strong>Navigation</strong></div></div>
+        {!phone ? <SettingsChoiceGroup compact label="Sidebar layout" value={settings.sidebarBehavior}
           options={[{ value: "slim", label: "Collapsed" }, { value: "fixed", label: "Expanded" }, { value: "hover", label: "On hover" }]}
-          onChange={mode => void updateSetting("sidebarBehavior", mode)} />
-      </div> : null}
-
+          onChange={mode => void updateSetting("sidebarBehavior", mode)} /> : null}
+        <details id="settings-appearance-tabs" className="settingsDisclosure settingsSidebarDisclosure">
+          <summary>{phone ? "Arrange tabs" : "Arrange sidebar"}</summary>
+          <div className="settingsDisclosureBody"><SidebarTabsSettings settings={settings} updateSetting={updateSetting} /></div>
+        </details>
+      </div>
 
       <div id="settings-appearance-home" className="settingsPanelCard">
         <div className="settingsPanelHeader"><div><strong>Home & library</strong></div></div>
@@ -112,10 +115,6 @@ export default function AppearanceSettings(props: AppearanceSettingsProps) {
           options={[{value:"none",label:"Off"},{value:"loadingOnly",label:"Only while loading"},{value:"everywhere",label:"Everywhere"}]}
           onChange={value => void updateSetting("gifVisualsMode", value)} />
       </div>
-      <details id="settings-appearance-tabs" className="settingsDisclosure settingsSidebarDisclosure">
-        <summary>{phone ? "Arrange tabs" : "Arrange sidebar"}</summary>
-        <div className="settingsDisclosureBody"><SidebarTabsSettings settings={settings} updateSetting={updateSetting} /></div>
-      </details>
     </section>
   );
 }

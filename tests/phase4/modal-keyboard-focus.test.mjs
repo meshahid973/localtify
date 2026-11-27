@@ -15,9 +15,7 @@ test("all app-owned track dialogs share an active topmost keyboard focus trap", 
   assert.match(hook, /document\.addEventListener\("focusin", onFocusIn, true\)/);
   assert.match(hook, /document\.removeEventListener\("focusin", onFocusIn, true\)/);
   assert.match(hook, /previouslyFocused\.focus\(\{ preventScroll: true \}\)/);
-  assert.match(editor, /useModalFocus\(Boolean\(song\)\)/);
-  assert.match(editor, /ref=\{dialogRef\} tabIndex=\{-1\}/);
-  assert.match(editor, /aria-modal="true"/);
+  assert.match(editor, /<Dialog open\b/);
   assert.match(confirm, /<Dialog open\b/);
   assert.match(confirm, /dismissible=\{!busy\}/);
   const dialog = read("src/shared/ui/Dialog.tsx");

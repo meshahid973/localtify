@@ -357,7 +357,7 @@ function ShellDialogs({ modals, menu, actions, albums, collections, downloads, t
 
       {modals.whatsNew.open?<Suspense fallback={null}><WhatsNewModal {...modals.whatsNew} /></Suspense>:null}
 
-      {modals.songEditor.song ? <Suspense fallback={null}><SongEditorModal {...modals.songEditor} /></Suspense> : null}
+      {modals.songEditor.song ? <Suspense fallback={null}><SongEditorModal key={modals.songEditor.song.id} {...modals.songEditor} /></Suspense> : null}
 
       {modals.playlistPicker.song ? <Suspense fallback={null}><PlaylistPickerModal {...modals.playlistPicker} /></Suspense> : null}
 

@@ -4,6 +4,7 @@ import type { Settings } from "./settings.types";
 import { Slider } from "../../shared/ui/Slider";
 import { useAppearance } from "../../shared/appearance/appearance";
 import { Surface } from "../../shared/ui/Surface";
+import { ArcDropdownMenu, type ArcDropdownItem } from "../../shared/ui/ArcDropdownMenu";
 
 import { clampUpperFirst as clamp } from "../../shared/utils/format";
 import { getLocaltifyPlatformInfo, type LocaltifyPlatformInfo } from "../../app/platform";
@@ -129,6 +130,15 @@ export function detectSettingsPlatform(): Required<PlatformInfoLike> {
 }
 
 export type SettingsOption<T extends string> = { value: T; label: string; description?: string };
+
+export function SettingsSelectRow<T extends string>({ label, value, items, disabled, onChange }: {
+  label: string; value: T; items: readonly ArcDropdownItem<T>[]; disabled?: boolean; onChange: (value: T) => void;
+}) {
+  return <div className="settingsSelectField settingsSelectRow">
+    <span>{label}</span>
+    <ArcDropdownMenu ariaLabel={label} value={value} items={items} disabled={disabled} onValueChange={onChange} />
+  </div>;
+}
 
 export function SettingsChoiceGroup<T extends string>({ label, value, options, onChange, disabled, compact = false, id }: {
   label: string; value: T; options: readonly SettingsOption<T>[];

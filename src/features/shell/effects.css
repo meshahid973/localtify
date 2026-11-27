@@ -435,7 +435,7 @@
   background: rgba(var(--accent-rgb), .64) !important;
 }
 
-.app[data-platform="linux"] :is(.panel, .modalWrap, .editorModal, .playerBar, .sidebar){
+.app[data-platform="linux"] :is(.panel, .modalWrap, .playerBar, .sidebar){
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }

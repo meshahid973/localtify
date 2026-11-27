@@ -159,6 +159,7 @@ function MainModeApp() {
   const startupResumePositionRef = useRef<{ songId: string; time: number } | null>(null);
   const bootedRef = useRef(false);
   const importOverlayTimerRef = useRef<number | null>(null);
+  const importingSongsRef = useRef(false);
   const secretBufferRef = useRef("");
   const secretTimeoutRef = useRef<number | null>(null);
   const playButtonBurstTimerRef = useRef<number | null>(null);
@@ -2772,6 +2773,8 @@ function MainModeApp() {
   }
 
   async function importSongs() {
+    if (importingSongsRef.current || libraryScanBusy) return;
+    importingSongsRef.current = true;
     const beforeCount = songs.length;
     const previousSongIds = new Set<string>(songs.map((song) => song.id));
     const previousSongSources = new Set<string>(songs.map(stableSongSourceKey).filter((source): source is string => Boolean(source)));
@@ -2788,26 +2791,13 @@ function MainModeApp() {
     setImportAnimation(
       createImportAnimationState({
         active: true,
-        phase: "picking",
-        message: "waiting for your local files...",
-        count: 0,
-        total: Math.max(1, songs.length),
-        preview: songs.slice(0, 10)
+        phase: "scanning",
+        message: "Choose audio files to read their tags and add them to your library."
       })
     );
     showAppToast("scanning local music...", "work");
 
     try {
-      setImportAnimation((current) =>
-        createImportAnimationState({
-          ...current,
-          active: true,
-          phase: "scanning",
-          message: "reading titles, covers, folders, and metadata...",
-          total: Math.max(1, songs.length)
-        })
-      );
-
       const imported = applyLibraryOrder(sanitizeSongList(await window.localitfy.importSongs()));
 
       playbackUrlCacheRef.current.clear();
@@ -2831,51 +2821,31 @@ function MainModeApp() {
         return !previousSongIds.has(song.id) && (!sourceKey || !previousSongSources.has(sourceKey));
       });
       const addedCount = importedNewSongs.length;
-      const previewSongs = (importedNewSongs.length ? importedNewSongs : imported.slice(-12)).slice(0, 12);
 
       if (addedCount > 0) {
         setImportAnimation(
           createImportAnimationState({
             active: true,
             phase: "success",
-            message: `found ${addedCount} new song${addedCount === 1 ? "" : "s"}`,
+            message: `${addedCount} new track${addedCount === 1 ? "" : "s"} added to your library.`,
             count: addedCount,
-            total: imported.length,
-            preview: previewSongs
+            preview: importedNewSongs.slice(0, 5)
           })
         );
         setStatusText(`imported ${addedCount} new song${addedCount === 1 ? "" : "s"}`);
         showAppToast(`imported ${addedCount} new song${addedCount === 1 ? "" : "s"}`, "success");
         changeView("library", "unknown");
         hideImportAnimation(1500);
-      } else if (imported.length > 0) {
-        setImportAnimation(
-          createImportAnimationState({
-            active: true,
-            phase: "success",
-            message: "library checked — no duplicates added",
-            count: 0,
-            total: imported.length,
-            preview: previewSongs
-          })
-        );
-        setStatusText("no new songs added, maybe they were already imported");
-        showAppToast("no new songs added", "info");
-        hideImportAnimation(1200);
       } else {
         setImportAnimation(
           createImportAnimationState({
             active: true,
-            phase: "success",
-            message: "no songs imported",
-            count: 0,
-            total: 0,
-            preview: []
+            phase: "success"
           })
         );
         setStatusText("no songs imported");
         showAppToast("no songs imported", "info");
-        hideImportAnimation(950);
+        hideImportAnimation(1500);
       }
     } catch (error) {
       console.error("[localitfy import failed]", error);
@@ -2883,17 +2853,16 @@ function MainModeApp() {
         createImportAnimationState({
           active: true,
           phase: "error",
-          message: "import failed safely — your library was not deleted",
-          count: 0,
-          total: songs.length,
-          preview: songs.slice(0, 8)
+          message: "Try importing again. If the problem continues, check that the files are accessible."
         })
       );
-      setPlayerError("import failed. check the terminal for the real error.");
+      setPlayerError("Couldn’t import music.");
+      setLibraryScanMessage("Couldn’t import music.");
       setStatusText("import failed");
       showAppToast("import failed safely", "error");
       hideImportAnimation(1700);
     } finally {
+      importingSongsRef.current = false;
       setLibraryScanBusy(false);
     }
   }
@@ -4304,7 +4273,7 @@ function MainModeApp() {
   });
 
   async function saveEditor() {
-    if (!editorSong) return;
+    if (!editorSong) return false;
 
     const saved = await saveSongEdit(editorSong.id, {
       title: editTitle.trim() || "untitled",
@@ -4313,6 +4282,7 @@ function MainModeApp() {
     });
 
     if (saved) setEditorSong(current => current?.id === editorSong.id ? null : current);
+    return saved;
   }
 
   function dismissOnboarding() {

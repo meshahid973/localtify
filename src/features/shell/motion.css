@@ -60,7 +60,6 @@ button:disabled:active {
 }
 .settingsPanelCard,
 .settingsPageCard,
-.editorModal,
 .queuePanel,
 .playlistPanel {
   animation: localtifyPanelIn 260ms var(--motion-ease) both;

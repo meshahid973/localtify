@@ -1,6 +1,7 @@
 import { ArrowDown, ArrowUp, Eye, EyeOff } from "lucide-react";
 import { isAndroidApp } from "../../../app/platform";
 import { SolidIcon } from "../../../shared/ui/SolidIcon";
+import Button from "../../../shared/ui/Button";
 import { DESKTOP_ONLY_VIEWS, navItems } from "../../shell/navigation.constants";
 import { canMoveSidebarItem, moveSidebarItem, normalizeSidebarHidden, resolveSidebarGroups, toggleSidebarItemHidden } from "../../shell/sidebarLayout";
 import type { Settings } from "../settings.types";
@@ -25,17 +26,17 @@ export default function SidebarTabsSettings({ settings, updateSetting }: Sidebar
           <strong>{isAndroidApp() ? "Tabs" : "Sidebar tabs"}</strong>
           <span>{isAndroidApp() ? "The first four pages appear in your bottom bar." : "Move or hide sidebar tabs."}</span>
         </div>
-        <button
-          className="settingsTinyButton"
-          type="button"
+        <Button
+          size="sm"
+          variant="secondary"
           disabled={!isCustomized}
           onClick={() => {
             void updateSetting("sidebarNavOrder", {});
             void updateSetting("sidebarHiddenNav", []);
           }}
         >
-          reset
-        </button>
+          Reset
+        </Button>
       </div>
 
       <div className="sidebarTabsGroups">

@@ -13,11 +13,13 @@ type Props = {
   label?: string; labelledBy?: string; describedBy?: string;
   role?: "dialog" | "alertdialog"; portal?: boolean; dismissible?: boolean;
   animated?: boolean;
+  glassTint?: number;
+  glassBlur?: number;
 };
 
 export default function Dialog({ open, onClose, children, className, backdropClassName,
   label, labelledBy, describedBy, role = "dialog", portal = true,
-  dismissible = true, animated = true }: Props) {
+  dismissible = true, animated = true, glassTint = .66, glassBlur = 2 }: Props) {
   const dialogRef = useModalFocus<HTMLDivElement>(open);
   const { kit } = useAppearance();
   const reduced = useAppReducedMotion();
@@ -47,7 +49,7 @@ export default function Dialog({ open, onClose, children, className, backdropCla
       {children}
     </motion.div>;
   const body = <div className={backdropClassName} onPointerDown={onPointerDown} onClick={onBackdropClick}>
-    <GlassCard asChild optical={!!kit} className={kit ? "ltOpticalCard rounded-[inherit]" : undefined} tint={.66} blur={2} optics={panelOptics}>{dialog}</GlassCard>
+    <GlassCard asChild optical={!!kit} className={kit ? "ltOpticalCard rounded-[inherit]" : undefined} tint={glassTint} blur={glassBlur} optics={panelOptics}>{dialog}</GlassCard>
   </div>;
   return portal ? createPortal(body, document.querySelector(".app") || document.body) : body;
 }

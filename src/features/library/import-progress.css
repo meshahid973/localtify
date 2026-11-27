@@ -1,0 +1,47 @@
+.importOverlay { position: fixed; pointer-events: none; }
+
+.importOverlay[data-active="true"] {
+  inset: 0;
+  z-index: 125;
+  display: grid;
+  place-items: center;
+  padding: var(--lt-space-4);
+  background: var(--lt-overlay-scrim-soft);
+}
+
+.importOverlay .importPanel {
+  --glass-tint: var(--lt-bg-elevated);
+  width: min(100%, 472px);
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--lt-space-4);
+  padding: var(--lt-space-5);
+  border: 1px solid var(--lt-border);
+  border-radius: var(--lt-radius-panel);
+  background: var(--lt-bg-elevated);
+  color: var(--lt-text);
+  box-shadow: var(--lt-shadow-menu);
+}
+
+.importMascot { width: 100%; height: 52px; object-fit: contain; }
+.importMessage { display: grid; min-width: 0; gap: var(--lt-space-2); }
+.importMessage h2 { margin: 0; font-size: var(--lt-text-title); letter-spacing: -.025em; }
+.importMessage p { margin: 0; color: var(--lt-muted); font-size: var(--lt-text-sm); line-height: 1.45; }
+.importProgressBar { width: 100%; height: 5px; margin-top: var(--lt-space-2); accent-color: var(--lt-accent); }
+.importPreview {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  gap: var(--lt-space-2);
+  padding: 0;
+  margin: var(--lt-space-1) 0 0;
+  list-style: none;
+}
+.importPreview li { display: grid; min-width: 0; gap: var(--lt-space-1); }
+.importPreview li > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: var(--lt-text-sm); }
+.importPreviewCover { width: 100%; aspect-ratio: 1; border-radius: var(--lt-radius-control); overflow: hidden; }
+
+@media (prefers-reduced-motion: reduce) {
+  .importProgressBar { display: none; }
+}
+.app.reducedMotion .importProgressBar { display: none; }
