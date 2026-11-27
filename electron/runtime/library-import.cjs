@@ -203,24 +203,30 @@ function createLibraryImportRuntime({getSongs, getSong, insertSongs, patchSong, 
     if (savedCoverPath && fileExists(savedCoverPath) && isImageFile(savedCoverPath)) return savedCoverPath;
     return pickStablePixelCoverForSong(song, pixelArtFiles);
   }
-  function shapeSong(song, pixelArtFiles = null, artworkCache = null, coverExistsCache = null) {
+  // One bounded, request-local cache owns both file existence and resolved URLs.
+  // A new list request always checks the filesystem again.
+  function coverSnapshot(coverPath, artworkCache) {
+    const cached = artworkCache?.get(coverPath);
+    if (cached) return cached;
+    const entry = { exists: fileExists(coverPath), artwork: null };
+    if (artworkCache && artworkCache.size < 2048) artworkCache.set(coverPath, entry);
+    return entry;
+  }
+  function shapeSong(song, pixelArtFiles = null, artworkCache = null) {
     if (!song) return null;
     const exists = fileExists(song.filePath);
     const savedCoverPath = String(song.coverPath || "").trim();
-    const coverFileExists = (coverPath) => {
-      if (!coverExistsCache) return fileExists(coverPath);
-      if (!coverExistsCache.has(coverPath)) coverExistsCache.set(coverPath, fileExists(coverPath));
-      return coverExistsCache.get(coverPath);
-    };
-    const savedCoverExists = Boolean(savedCoverPath && isImageFile(savedCoverPath) && coverFileExists(savedCoverPath));
+    const savedCover = savedCoverPath && isImageFile(savedCoverPath) ? coverSnapshot(savedCoverPath, artworkCache) : null;
+    const savedCoverExists = Boolean(savedCover?.exists);
     const runtimeCoverPath = savedCoverExists ? savedCoverPath : pickStablePixelCoverForSong(song, pixelArtFiles);
-    const coverExists = savedCoverExists || Boolean(runtimeCoverPath && coverFileExists(runtimeCoverPath));
+    const runtimeCover = savedCoverExists ? savedCover : runtimeCoverPath ? coverSnapshot(runtimeCoverPath, artworkCache) : null;
+    const coverExists = Boolean(runtimeCover?.exists);
     const runtimeCoverSource = savedCoverExists ? String(song.coverSource || "unknown") : (runtimeCoverPath ? "fallback" : "none");
-    let artwork = coverExists ? artworkCache?.get(runtimeCoverPath) : null;
+    let artwork = runtimeCover?.artwork;
     if (!artwork) {
       artwork = { coverUrl: coverExists ? safeMediaUrl(runtimeCoverPath) : "",
         coverThumbUrl: coverExists ? getCoverThumbnailUrl(runtimeCoverPath, !artworkCache) : "" };
-      if (artworkCache && coverExists && artworkCache.size < 2048) artworkCache.set(runtimeCoverPath, artwork);
+      if (runtimeCover && coverExists) runtimeCover.artwork = artwork;
     }
     const { coverUrl, coverThumbUrl } = artwork;
     return { ...song, url: "", coverPath: savedCoverPath || runtimeCoverPath || "", coverSource: runtimeCoverSource, coverUpdatedAt: song.coverUpdatedAt || null, durationMs: Number(song.durationMs || (Number(song.duration || 0) * 1000) || 0), savedCoverPath, savedCoverExists, usesFallbackCover: runtimeCoverSource === "fallback" || !savedCoverExists, missingSavedCover: !savedCoverPath || (Boolean(savedCoverPath) && !savedCoverExists), coverUrl, coverThumbUrl, coverThumbnailUrl: coverThumbUrl, thumbnailUrl: coverThumbUrl, coverFullUrl: coverUrl, exists, fileExists: exists, coverExists, coverThumbnailReady: Boolean(coverThumbUrl) };
@@ -228,8 +234,7 @@ function createLibraryImportRuntime({getSongs, getSong, insertSongs, patchSong, 
   function listSongsShaped() {
     const pixelArtFiles = getPixelArtFiles();
     const artworkCache = new Map();
-    const coverExistsCache = new Map();
-    return getSongs().map((song) => shapeSong(song, pixelArtFiles, artworkCache, coverExistsCache));
+    return getSongs().map((song) => shapeSong(song, pixelArtFiles, artworkCache));
   }
   async function repairMissingSongMetadata(payload = {}) {
     const limit = Math.max(1, Math.min(1000, Number(payload?.limit || 180) || 180));

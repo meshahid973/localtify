@@ -25,7 +25,7 @@ function runElectronNode(source) {
   return result.stdout.trim();
 }
 
-test("audio-effect pitch presets survive a real database reopen", () => {
+test("audio and appearance settings survive repeated writes and a real database reopen", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "localtify-audio-settings-"));
   const dbPath = path.join(tempDir, "localtify.sqlite");
   const serializedDbModule = JSON.stringify(dbModulePath);
@@ -38,8 +38,13 @@ test("audio-effect pitch presets survive a real database reopen", () => {
       audioEffectMode: "nightcore",
       audioEffectAmount: 73,
       audioReverbAmount: 42,
-      playbackSpeed: 1.18
+      playbackSpeed: 1.18,
+      theme: "light",
+      liquidGlass: false,
+      mediaCardBackground: "solid",
+      playerBackgroundStyle: "flat"
     });
+    db.saveSettings({ theme: "dark", liquidGlass: true });
   `);
 
   const reopened = JSON.parse(runElectronNode(`
@@ -50,7 +55,11 @@ test("audio-effect pitch presets survive a real database reopen", () => {
       audioEffectMode: settings.audioEffectMode,
       audioEffectAmount: settings.audioEffectAmount,
       audioReverbAmount: settings.audioReverbAmount,
-      playbackSpeed: settings.playbackSpeed
+      playbackSpeed: settings.playbackSpeed,
+      theme: settings.theme,
+      liquidGlass: settings.liquidGlass,
+      mediaCardBackground: settings.mediaCardBackground,
+      playerBackgroundStyle: settings.playerBackgroundStyle
     }));
   `));
 
@@ -58,6 +67,10 @@ test("audio-effect pitch presets survive a real database reopen", () => {
     audioEffectMode: "nightcore",
     audioEffectAmount: 73,
     audioReverbAmount: 42,
-    playbackSpeed: 1.18
+    playbackSpeed: 1.18,
+    theme: "dark",
+    liquidGlass: true,
+    mediaCardBackground: "solid",
+    playerBackgroundStyle: "flat"
   });
 });
