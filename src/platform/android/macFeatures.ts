@@ -102,11 +102,13 @@ function hydrateArtwork() {
 export async function cachedArtworkFromMac(artwork: ArtworkQuery): Promise<DiscoverResult> {
   if (phoneLibrary.effectiveSettings().discoverEnabled !== true) return {status:"off"};
   const key=JSON.stringify([artwork.kind||"recording",artwork.providerId||"",artwork.title,artwork.artist,artwork.album||"",artwork.durationMs||0,!!artwork.fallback]);
-  const requestKey=key+":"+String(!!artwork.primaryOnly);
+  const excluded=artwork.failedUrls||[];
+  const hasCandidate=(result: ArtworkRow["result"])=>[result.coverUrl,result.fallbackCoverUrl,...(result.coverAlternatives||[])].some(url=>url&&!excluded.includes(url));
+  const requestKey=key+":"+String(!!artwork.primaryOnly)+":"+String(!!artwork.retryPrimary)+":"+JSON.stringify(excluded);
   if (key.length>2048) return {status:"error",error:"Artwork query too long"};
   await hydrateArtwork();
   const row=artworkRows.get(key);
-  if (row && Date.now()-row.at<86400000) { artworkRows.delete(key); artworkRows.set(key,row); return row.result; }
+  if (row && hasCandidate(row.result) && Date.now()-row.at<86400000) { artworkRows.delete(key); artworkRows.set(key,row); return row.result; }
   const pending=artworkPending.get(requestKey);
   if(pending) return pending;
   if(artworkPending.size>=8) return row?.result ?? {status:"artwork"};
@@ -121,8 +123,8 @@ export async function cachedArtworkFromMac(artwork: ArtworkQuery): Promise<Disco
       }
       return result;
     }
-    if(!answer.ok && row && Date.now()-row.at<7*86400000) return row.result;
-    return result ?? {status:"artwork"} as const;
+    if(!answer.ok && row && hasCandidate(row.result) && Date.now()-row.at<7*86400000) return row.result;
+    return result ?? {status:"error",error:"Artwork temporarily unavailable."} as const;
   }).finally(()=>artworkPending.delete(requestKey));
   artworkPending.set(requestKey,job);
   return job;

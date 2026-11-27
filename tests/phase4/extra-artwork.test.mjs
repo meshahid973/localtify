@@ -151,3 +151,13 @@ test("a cancelled AudioDB consumer never starts its follow-up album request",asy
   await assert.rejects(lookup.resolve("Song","Artist",controller.signal));
   assert.equal(calls,1);
 });
+
+test("a failed primary image cannot win the fallback race again",async()=>{
+  const {createArtworkLookup}=require("../../electron/discover/artwork.cjs");
+  const youtube="https://lh3.googleusercontent.com/abc=w256-h256-l90-rj";
+  const lookup=createArtworkLookup(null,Date.now,undefined,undefined,async()=>[{title:"Song",artist:"Artist",coverUrl:youtube}],async()=>({coverUrl:cover}));
+  assert.equal((await lookup("Song","Artist")).coverUrl,youtube);
+  const result=await lookup("Song","Artist",{fallback:true,excluded:[youtube]});
+  assert.equal(result.coverUrl,cover);
+  assert.ok(!result.coverAlternatives?.includes(youtube));
+});

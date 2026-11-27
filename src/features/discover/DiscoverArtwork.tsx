@@ -3,33 +3,57 @@ import { observeArtwork, getResolvedRemoteArtwork, invalidateResolvedRemoteArtwo
 import { Disc3, UserRound } from "lucide-react";
 import type { DiscoverArtwork, DiscoverResult } from "./discover.types";
 const cache = new Map<string, {at:number; value:DiscoverArtwork}>();
-type ArtworkJob = () => Promise<void>;
+type ArtworkJob = { users: number; started: boolean; promise: Promise<DiscoverResult | null>; run: () => Promise<void>; cancel: () => void };
 const primaryQueue: ArtworkJob[] = [], fallbackQueue: ArtworkJob[] = [];
-const sharedLookups = new Map<string, Promise<DiscoverResult | null>>();
+const sharedLookups = new Map<string, ArtworkJob>();
 let primaryRunning = 0, fallbackRunning = 0;
 function pumpArtwork() {
   while (primaryRunning < 4 && primaryQueue.length) {
     const job = primaryQueue.shift()!;
     primaryRunning++;
-    void job().catch(() => undefined).finally(() => { primaryRunning--; pumpArtwork(); });
+    void job.run().catch(() => undefined).finally(() => { primaryRunning--; pumpArtwork(); });
   }
   while (fallbackRunning < 2 && fallbackQueue.length) {
     const job = fallbackQueue.shift()!;
     fallbackRunning++;
-    void job().catch(() => undefined).finally(() => { fallbackRunning--; pumpArtwork(); });
+    void job.run().catch(() => undefined).finally(() => { fallbackRunning--; pumpArtwork(); });
   }
 }
-function enqueueArtwork(job: ArtworkJob, fallback: boolean) {
-  if (primaryQueue.length + fallbackQueue.length >= 128) return undefined;
-  const waiting = fallback ? fallbackQueue : primaryQueue;
-  waiting.push(job);
+function enqueueArtwork(key: string, fallback: boolean, work: () => Promise<DiscoverResult>) {
+  let job=sharedLookups.get(key);
+  if(!job){
+    if (primaryQueue.length + fallbackQueue.length >= 128) return undefined;
+    let settle: (value: DiscoverResult | null) => void = () => {};
+    const promise=new Promise<DiscoverResult | null>(resolve=>{settle=resolve;});
+    const waiting=fallback?fallbackQueue:primaryQueue;
+    const entry: ArtworkJob = {
+      users:0,started:false,promise,
+      run:async()=>{
+        entry.started=true;
+        try { settle(await work()); }
+        catch { settle(null); }
+        finally { sharedLookups.delete(key); }
+      },
+      cancel:()=>{
+        const index=waiting.indexOf(entry);
+        if(index<0)return;
+        waiting.splice(index,1);
+        sharedLookups.delete(key);
+        settle(null);
+      }
+    };
+    job=entry;sharedLookups.set(key,entry);
+    waiting.push(entry);
+  }
+  job.users++;
+  const entry=job;
+  let released=false;
   pumpArtwork();
-  return () => {
-    const index = waiting.indexOf(job);
-    if (index < 0) return false;
-    waiting.splice(index, 1);
-    return true;
-  };
+  return {promise:entry.promise,release:()=>{
+    if(released)return;
+    released=true;
+    if(--entry.users===0&&!entry.started)entry.cancel();
+  }};
 }
 function cachedArtwork(key: string) {
   const hit = cache.get(key);
@@ -66,7 +90,7 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
   const album = providerId ? artwork?.album || "" : "";
   const durationMs = providerId ? artwork?.durationMs || 0 : 0;
   const key = artworkKey(title, artist, person, providerId, album, durationMs);
-  const [resolved, setResolved] = useState<{ key: string; value: DiscoverArtwork; fallback: boolean }>();
+  const [resolved, setResolved] = useState<{ key: string; value: DiscoverArtwork; fallback: boolean; unavailable?: boolean }>();
   const [loaded, setLoaded] = useState<{key:string; url:string}>();
   const [local, setLocal] = useState<{source:string; url:string}>();
   const [badLocal, setBadLocal] = useState("");
@@ -101,6 +125,8 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
   const rejectLocal = () => { if (src) invalidateResolvedRemoteArtwork(src); setBadLocal(localSrc); };
   const exhausted = Boolean(resolved?.key === key && (resolved.fallback || !src));
   const requestKey = exhausted ? key + ":fallback" : key;
+  const excludedKey=JSON.stringify(failed.slice(-8).sort());
+  const retryPrimary=exhausted && resolved?.key===key && resolved.unavailable===true;
   useEffect(() => {
     if (!near || !src || !displaySrc || imageReady) return;
     const timer = window.setTimeout(() => {
@@ -112,47 +138,41 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
   useEffect(() => {
     if (!needsLookup || (!person && !artist) || !title || !near) return;
     let live = true;
-    let cancelQueued: (() => boolean) | undefined;
+    let releaseRequest: (()=>void) | undefined;
     let retryTimer: number | undefined;
     let attempts = 0;
+    const excluded: string[]=JSON.parse(excludedKey);
+    const hasCandidate=(value: DiscoverArtwork) => [value.coverUrl,value.fallbackCoverUrl,...(value.coverAlternatives||[])].some(url=>url&&!excluded.includes(url));
     const start = () => {
       if (!live) return;
       const cached = cachedArtwork(requestKey);
-      if (cached) { setResolved({ key, value: cached, fallback: exhausted }); return; }
-      cancelQueued = enqueueArtwork(async () => {
-        if (!live) return;
-        let value = cachedArtwork(requestKey);
-        if (!value) {
-          attempts++;
-          let shared = sharedLookups.get(requestKey);
-          if (!shared) {
-            shared = window.localitfy.getDiscoveries({ artwork: { title, artist, kind: person ? "artist" : "recording", fallback: exhausted, primaryOnly: !exhausted && !providerId, providerId, album, durationMs } })
-              .catch(()=>null).finally(()=>sharedLookups.delete(requestKey));
-            sharedLookups.set(requestKey,shared);
-          }
-          const answer = await shared;
-          if (answer?.status !== "artwork") {
-            if (live && attempts < 3 && answer?.status !== "off") retryTimer = window.setTimeout(start, attempts * 900);
-            return;
-          }
-          value = answer;
-          if (!value.coverUrl && !value.fallbackCoverUrl && !value.coverAlternatives?.length) {
-            // A successful empty primary lookup must advance to the fallback
-            // providers. Keep misses component-local so future mounts can retry.
-            if (live) setResolved({ key, value, fallback: exhausted });
-            return;
-          }
-          cache.set(requestKey, { at: Date.now(), value });
-          const oldest = cache.keys().next().value;
-          if (cache.size > 512 && oldest !== undefined) cache.delete(oldest);
+      if (cached && hasCandidate(cached)) { setResolved({ key, value: cached, fallback: exhausted }); return; }
+      const request=enqueueArtwork(requestKey+excludedKey+String(retryPrimary),exhausted,()=>window.localitfy.getDiscoveries({
+        artwork: {title,artist,kind:person?"artist":"recording",fallback:exhausted,primaryOnly:!exhausted&&!providerId,providerId,album,durationMs,failedUrls:excluded,retryPrimary}
+      }));
+      attempts++;
+      if(!request){
+        if(attempts<3)retryTimer=window.setTimeout(start,attempts*900);
+        return;
+      }
+      releaseRequest=request.release;
+      void request.promise.then(answer=>{
+        request.release();
+        if(!live)return;
+        if(answer?.status!=="artwork"){
+          if(attempts<3&&answer?.status!=="off")retryTimer=window.setTimeout(start,attempts*900);
+          return;
         }
-        if (live) setResolved({ key, value, fallback: exhausted });
-      }, exhausted);
-      if (!cancelQueued && live && ++attempts < 3) retryTimer = window.setTimeout(start, attempts * 900);
+        if(hasCandidate(answer)){
+          cache.set(requestKey,{at:Date.now(),value:answer});
+          while(cache.size>512)cache.delete(cache.keys().next().value!);
+        }
+        setResolved({key,value:answer,fallback:exhausted,unavailable:answer.outcome==="unavailable"});
+      });
     };
     start();
-    return () => { live = false; cancelQueued?.(); if (retryTimer !== undefined) window.clearTimeout(retryTimer); };
-  }, [key, title, artist, needsLookup, near, person, exhausted, requestKey, providerId, album, durationMs]);
+    return () => { live = false; releaseRequest?.(); if (retryTimer !== undefined) window.clearTimeout(retryTimer); };
+  }, [key, title, artist, needsLookup, near, person, exhausted, requestKey, providerId, album, durationMs, excludedKey, retryPrimary]);
   return <span ref={ref} className="discoverCover" aria-hidden="true">
     {!imageReady ? (person ? <UserRound size={24} /> : <Disc3 size={24} />) : null}
     {(near || imageReady) && src && displaySrc ? <img key={displaySrc} ref={imageRef} src={displaySrc} alt="" loading="eager" decoding="async" fetchPriority="auto" referrerPolicy="no-referrer" data-ready={imageReady}

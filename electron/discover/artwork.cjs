@@ -65,7 +65,14 @@ function matchArtistArtwork(items,name,providerId = "") {
 // Stop unstarted hedges and follow-up searches, not shared provider HTTP requests.
 const { validArtworkResult } = require("../runtime/remote-cover.cjs");
 const { unavailable } = require("./provider-health.cjs");
-function firstArtwork(jobs, { active = () => true, staggerMs = 350 } = {}) {
+function withoutFailedArtwork(value, excluded = []) {
+  if (!validArtworkResult(value)) return {};
+  if (!excluded.length) return value;
+  const covers=[...new Set([value.coverUrl,value.fallbackCoverUrl,...(value.coverAlternatives||[])].filter(url=>url&&!excluded.includes(url)))];
+  if(!covers.length)return {};
+  return {coverUrl:covers[0],...(covers[1]?{fallbackCoverUrl:covers[1],coverAlternatives:covers.slice(0,6)}:{}),...(value.durationMs?{durationMs:value.durationMs}:{})};
+}
+function firstArtwork(jobs, { active = () => true, staggerMs = 350, excluded = [] } = {}) {
   const providers = jobs.filter(Boolean);
   if (!providers.length) return Promise.resolve({});
   return new Promise((resolve, reject) => {
@@ -91,7 +98,8 @@ function firstArtwork(jobs, { active = () => true, staggerMs = 350 } = {}) {
       Promise.resolve().then(() => active()&&!controller.signal.aborted ? work(controller.signal) : {}).then(value => {
         if (settled) return;
         if (!active()) { finish({}); return; }
-        if (validArtworkResult(value)) finish(value);
+        const candidate=withoutFailedArtwork(value,excluded);
+        if (candidate.coverUrl || candidate.fallbackCoverUrl) finish(candidate);
       }, () => { failed = true; }).finally(() => {
         running--;
         if (!settled) advance();
@@ -121,20 +129,21 @@ function createArtworkLookup(client,now=Date.now,trackInfo,lookupAudioDb,lookupM
   const brainz = boundedProvider(client?.searchRecordings && (async (title,artist,recordingId) => validId(recordingId)&&client.getRecording ? [await client.getRecording(recordingId,{background:true})] : client.searchRecordings(title,artist,{background:true})), 2);
   const fanart = boundedProvider(lookupFanart, 2);
   let primaryRunning=0, fallbackRunning=0;
-  return async (title,artist,{fallback=false,primaryOnly=false,active=()=>true}={}) => {
-    const key=JSON.stringify([norm(title),norm(artist),fallback,primaryOnly]), hit=cache.get(key);
+  return async (title,artist,{fallback=false,primaryOnly=false,active=()=>true,excluded=[],retryPrimary=false}={}) => {
+    const key=JSON.stringify([norm(title),norm(artist),fallback]), hit=cache.get(key);
+    const requestKey=JSON.stringify([key,primaryOnly,retryPrimary,excluded]);
     if(hit && now()-hit.at<86400000) {
       cache.delete(key); cache.set(key,hit);
-      return hit.value;
-    }
-    cache.delete(key);
-    if(pending.has(key)) return pending.get(key);
+      const candidate=withoutFailedArtwork(hit.value,excluded);
+      if(candidate.coverUrl||candidate.fallbackCoverUrl)return candidate;
+    } else cache.delete(key);
+    if(pending.has(requestKey)) return pending.get(requestKey);
     if(fallback ? fallbackRunning>=2 : primaryRunning>=4) throw unavailable();
     if(fallback)fallbackRunning++;else primaryRunning++;
     const task=Promise.resolve().then(async()=>{
       let track, failed=false;
       const run = async jobs => {
-        try { return await firstArtwork(jobs,{active}); }
+        try { return await firstArtwork(jobs,{active,excluded}); }
         catch { failed=true; return {}; }
       };
       const lastfmJob = lastfm && (async () => {
@@ -145,12 +154,10 @@ function createArtworkLookup(client,now=Date.now,trackInfo,lookupAudioDb,lookupM
         return primary.coverUrl ? {...primary,...(release?{fallbackCoverUrl:release}:{})} :
           (release ? {coverUrl:release} : {});
       });
+      const musicJob = music && (async signal => matchMusicArtwork(await music(title,artist,{},signal,excluded),title,artist));
+      const deezerJob = deezer && (() => deezer("recording",title,artist));
       if (!fallback) {
-        const primary = await run([
-          music && (async signal => matchMusicArtwork(await music(title,artist,{},signal),title,artist)),
-          lastfmJob,
-          deezer && (() => deezer("recording",title,artist))
-        ]);
+        const primary = await run([musicJob,lastfmJob,deezerJob]);
         if (primary.coverUrl || !active()) return primary;
         if (primaryOnly) {
           if (failed) throw unavailable();
@@ -166,7 +173,8 @@ function createArtworkLookup(client,now=Date.now,trackInfo,lookupAudioDb,lookupM
         if(!matched)return {};
         const result=catalogArtwork("recording",matched);
         const groups=[...new Set((Array.isArray(matched.releases)?matched.releases:[]).filter(r=>!r.status||r.status==="Official").map(r=>r?.["release-group"]?.id).filter(validId))];
-        if(fanart && groups.length===1 && (!result.coverUrl || fallback)){
+        const candidate=withoutFailedArtwork(result,excluded);
+        if(fanart && groups.length===1 && (!candidate.coverUrl || (fallback&&!excluded.length))){
           try {
             const supplemental=await fanart("album",groups[0]);
             if(supplemental.coverUrl){
@@ -178,7 +186,7 @@ function createArtworkLookup(client,now=Date.now,trackInfo,lookupAudioDb,lookupM
         return result;
       });
       const alternate = await run(fallback
-        ? [catalog,lastfmJob,audioDb&&(signal=>audioDb(title,artist,signal))]
+        ? [catalog,lastfmJob,audioDb&&(signal=>audioDb(title,artist,signal)),...((excluded.length||retryPrimary)?[deezerJob,musicJob]:[])]
         : [audioDb&&(signal=>audioDb(title,artist,signal)),catalog]);
       if (!alternate.coverUrl && failed && active()) throw unavailable();
       return alternate;
@@ -186,9 +194,9 @@ function createArtworkLookup(client,now=Date.now,trackInfo,lookupAudioDb,lookupM
       if(active() && validArtworkResult(value)) cache.set(key,{at:now(),value});
       while(cache.size>512) cache.delete(cache.keys().next().value);
       return value;
-    }).finally(()=>{pending.delete(key);if(fallback)fallbackRunning--;else primaryRunning--;});
-    pending.set(key,task);
+    }).finally(()=>{pending.delete(requestKey);if(fallback)fallbackRunning--;else primaryRunning--;});
+    pending.set(requestKey,task);
     return task;
   };
 }
-module.exports={catalogArtwork,createArtworkLookup,lastfmArtwork,matchMusicArtwork,matchArtistArtwork,firstArtwork};
+module.exports={catalogArtwork,createArtworkLookup,lastfmArtwork,matchMusicArtwork,matchArtistArtwork,firstArtwork,withoutFailedArtwork};
