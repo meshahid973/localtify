@@ -144,7 +144,7 @@ async function discover({ songs, hiddenArtists = [], client, now = Date.now(), c
     const items=await batch;
     if(!active())return tracks;
     const began=performance.now();
-    const enriched=tracks.map(track=>enrichCatalogTrack(track,items));
+    const enriched=tracks.map(track=>enrichCatalogTrack(track,items,trace));
     trace("identity-match",{ms:Math.round(performance.now()-began),total:tracks.length,attached:enriched.filter(t=>t.coverUrl).length});
     return enriched;
   }
@@ -208,7 +208,7 @@ function reuseRecommendationArtwork(result,previous){
     const alternatives=(before.coverAlternatives||[]).filter(safeDisplayCover).slice(0,6);
     return {...track,coverUrl:before.coverUrl,providerId:track.providerId||before.providerId,
       album:track.album||before.album,durationMs:track.durationMs||before.durationMs,
-      recordingId:track.recordingId||before.recordingId,artistIds:track.artistIds||before.artistIds,catalogArtistIds:track.catalogArtistIds||before.catalogArtistIds,catalogAlbumId:track.catalogAlbumId||before.catalogAlbumId,
+      identity:track.identity||before.identity,recordingId:track.recordingId||before.recordingId,artistIds:track.artistIds||before.artistIds,catalogArtistIds:track.catalogArtistIds||before.catalogArtistIds,catalogAlbumId:track.catalogAlbumId||before.catalogAlbumId,
       ...(safeDisplayCover(before.fallbackCoverUrl)?{fallbackCoverUrl:before.fallbackCoverUrl}:{}),...(alternatives.length?{coverAlternatives:alternatives}:{})};
   };
   return {...result,artists:result.artists.map(artist=>({...artist,topTracks:artist.topTracks.map(reuse)})),tracks:result.tracks.map(reuse)};

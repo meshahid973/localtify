@@ -20,9 +20,13 @@ const VERSION_PATTERNS = [
   { tag: "live", regex: /\b(live(?:\s+at[^)]+)?|лайв|концерт)\b/i },
   { tag: "cover", regex: /\b(cover|кавер)\b/i },
   { tag: "bass_boosted", regex: /\b(bass\s*boost(?:ed)?|басс\s*буст)\b/i },
+  { tag: "remaster", regex: /\bremaster(?:ed)?\b|リマスター/i },
+  { tag: "demo", regex: /\bdemo\b|デモ版/i },
+  { tag: "karaoke", regex: /\bkaraoke\b|カラオケ/i },
 ];
 
 function getVersionTags(value) {
+  value=String(value||"").normalize("NFKC");
   const tags = new Set();
   for (const { tag, regex } of VERSION_PATTERNS) {
     if (regex.test(value)) tags.add(tag);

@@ -829,3 +829,15 @@ test("artwork title formatting tolerates verified artist prefixes and credit joi
   assert.deepEqual(matchMusicArtwork([{...plain,title:"Song (slowed remix)"}],"Song (slowed)","Artist"),{});
   assert.deepEqual(matchMusicArtwork([plain],"Song","Artist, Guest"),{});
 });
+
+test("recording identity ranks verified credits, version, duration and release without arbitrary ties",()=>{
+  const {evaluateRecording}=require("../../electron/discover/track-identity.cjs");
+  const source={title:"Ｍｏｓｕ． (feat. KASANE TETO)",artist:"Shü",durationMs:180000};
+  const correct={id:"ytmusic:abcdefghijk",title:"Mosu.",artist:"Shü, KASANE TETO",durationMs:180000};
+  assert.equal(evaluateRecording(source,[correct]).status,"matched");
+  assert.equal(evaluateRecording(source,[{...correct,title:"Mosu. (slowed)"}]).status,"unresolved");
+  assert.equal(evaluateRecording(source,[{...correct,durationMs:200000}]).status,"unresolved");
+  assert.equal(evaluateRecording(source,[correct,{...correct,id:"ytmusic:abcdefghij2"}]).status,"ambiguous");
+  const known={...source,album:"Original Album"};
+  assert.equal(evaluateRecording(known,[{...correct,album:"Other Album"},{...correct,id:"ytmusic:abcdefghij2",album:"Original Album"}]).candidate.id,"ytmusic:abcdefghij2");
+});

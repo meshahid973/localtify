@@ -27,6 +27,7 @@ function lastfmArtwork(track,title,artist) {
 // Reuse the catalog's actual artwork, accounting for formatting differences
 // without stripping version markers (live, remix, slowed, etc.).
 const {sameVersion}=require("./version-tags.cjs");
+const {evaluateRecording,canonicalIdentity}=require("./track-identity.cjs");
 const musicKey = value => norm(value).replace(/[^\p{L}\p{N}\p{M}]+/gu," ").trim();
 const titleKey = value => musicKey(norm(value).replace(/\s*[([]\s*(?:official\s+(?:music\s+)?video|official\s+audio|lyric\s+video|official\s+lyric\s+video)\s*[)\]]\s*$/i,""));
 const artistKey = value => musicKey(norm(value).replace(/\s+[-–—]\s+topic$/i,""));
@@ -45,7 +46,16 @@ function matchMusicArtwork(items,title,artist,identity = {}) {
   const {safeThumbnail}=require("./youtube-music.cjs");
   const wantedArtist=artistKey(artist);
   const wantedTitle=titleKey(title);
-  const matches=(Array.isArray(items)?items:[]).filter(item=>equivalentTitle(item?.title,title,artist)&&equivalentArtist(item?.artist,artist) &&
+  const source={title,artist,...identity};
+  const identified=(Array.isArray(items)?items:[]).filter(item=>/^ytmusic:[A-Za-z0-9_-]{11}$/.test(item?.id||""));
+  const decision=identified.length?evaluateRecording(source,identified,{requireKnownDuration:false}):null;
+  if(decision?.status==="ambiguous"){
+    const rows=decision.candidates,release=rows[0]?.albumId,cover=safeThumbnail(rows[0]?.coverUrl);
+    return release&&cover&&rows.every(row=>row.albumId===release&&safeThumbnail(row.coverUrl)===cover)?{coverUrl:cover}:{};
+  }
+  if(decision?.status==="unresolved")return {};
+  const pool=decision?.status==="matched"?[decision.candidate]:Array.isArray(items)?items:[];
+  const matches=pool.filter(item=>(decision?.status==="matched"||equivalentTitle(item?.title,title,artist)&&equivalentArtist(item?.artist,artist)) &&
     (!identity.providerId || item.id === identity.providerId) &&
     (!identity.album || !item.album || norm(item.album) === norm(identity.album)) &&
     (!identity.durationMs || !Number.isFinite(item.durationMs) || Math.abs(item.durationMs-identity.durationMs) <= 5000))
@@ -63,30 +73,41 @@ function matchMusicArtwork(items,title,artist,identity = {}) {
   }))].slice(0,6);
   return {coverUrl:item.coverUrl,...(covers.length>1?{coverAlternatives:covers}:{}),...(Number.isFinite(item.durationMs)&&item.durationMs>0?{durationMs:item.durationMs}:{})};
 }
-function enrichCatalogTrack(track, items) {
+function enrichCatalogTrack(track, items, trace=()=>{}) {
   if (track.coverUrl && require("../runtime/remote-cover.cjs").safeDisplayCover(track.coverUrl)) return track;
   const identity={album:track.album||"",durationMs:track.durationMs||0,providerId:track.providerId||"",recordingId:validId(track.recordingId)?track.recordingId:""};
-  // Do not substitute a different version or attach an arbitrary ID from an ambiguous result.
-  const exact=(Array.isArray(items)?items:[]).filter(item=>
-    /^ytmusic:[A-Za-z0-9_-]{11}$/.test(item?.id||"") &&
-    equivalentTitle(item.title,track.title,track.artist) && equivalentArtist(item.artist,track.artist) &&
-    (!identity.providerId||item.id===identity.providerId) &&
-    (!identity.album||norm(item.album)===norm(identity.album)) &&
-    (!identity.durationMs||(Number.isFinite(item.durationMs)&&Math.abs(item.durationMs-identity.durationMs)<=5000)) &&
-    matchMusicArtwork([item],track.title,track.artist,identity).coverUrl);
-  const unique=[...new Map(exact.map(item=>[item.id,item])).values()];
-  if(unique.length===1){
-    const item=unique[0],art=matchMusicArtwork([item],track.title,track.artist,identity);
-    return {...track,...art,providerId:item.id,album:track.album||item.album||undefined,durationMs:track.durationMs||art.durationMs,...(item.artistIds?.length?{catalogArtistIds:item.artistIds}:{}),...(item.albumId?{catalogAlbumId:item.albumId}:{})};
+  // Rank whole identities before selecting artwork. Do not discard a competing
+  // candidate merely because it lacks a cover URL.
+  const catalog=(Array.isArray(items)?items:[]).filter(item=>/^ytmusic:[A-Za-z0-9_-]{11}$/.test(item?.id||""));
+  const wanted={...track,...identity};
+  const decision=evaluateRecording(wanted,catalog);
+  trace("recording-match",{state:decision.status,count:catalog.length});
+  for(const [state,count] of Object.entries(decision.rejected||{}))trace("recording-rejection",{state,count});
+  if(decision.status==="matched"){
+    const item=decision.candidate,art=matchMusicArtwork([item],item.title,item.artist,{providerId:item.id});
+    return {...track,...art,providerId:item.id,album:track.album||item.album||undefined,durationMs:track.durationMs||item.durationMs,
+      ...(item.artistIds?.length?{catalogArtistIds:item.artistIds}:{}),...(item.albumId?{catalogAlbumId:item.albumId}:{}),
+      identity:canonicalIdentity(item,{confidence:decision.score})};
   }
-  if(unique.length>1 || identity.providerId&&!validId(identity.providerId))return track;
-  const recordings=(Array.isArray(items)?items:[]).filter(item=>validId(item?.id)&&
-    norm(item.title)===norm(track.title)&&norm(credit(item))===norm(track.artist)&&
-    (!identity.providerId||item.id===identity.providerId)&&(!identity.recordingId||item.id===identity.recordingId)&&
-    (!identity.durationMs||(Number.isFinite(item.length)&&Math.abs(item.length-identity.durationMs)<=5000)));
-  const matches=[...new Map(recordings.map(item=>[item.id,item])).values()];
-  if(matches.length!==1)return track;
-  const recording=matches[0];
+  if(decision.status==="ambiguous"){
+    const rows=decision.candidates;
+    const releaseId=rows[0]?.albumId,cover=rows[0]?.coverUrl;
+    if(releaseId&&cover&&rows.every(item=>item.albumId===releaseId&&item.coverUrl===cover)&&require("../runtime/remote-cover.cjs").safeDisplayCover(cover))
+      return {...track,coverUrl:cover};
+    return track;
+  }
+  if(identity.providerId&&!validId(identity.providerId))return track;
+  const recordings=(Array.isArray(items)?items:[]).filter(item=>validId(item?.id)).map(item=>Array.isArray(item["artist-credit"])?{...item,artist:credit(item),durationMs:item.length,album:identity.album&&item.releases?.some(r=>norm(r.title)===norm(identity.album))?identity.album:undefined}:item);
+  const matched=evaluateRecording(wanted,recordings);
+  if(matched.status!=="matched")return track;
+  const recording=matched.candidate;
+  // A previously normalized provider record retains its validated identity.
+  if(!Array.isArray(recording.releases)){
+    const safe=require("../runtime/remote-cover.cjs").safeDisplayCover;
+    const coverUrl=safe(recording.coverUrl)?recording.coverUrl:undefined;
+    return {...track,...(coverUrl?{coverUrl}:{}),recordingId:recording.id,album:track.album||recording.album,
+      durationMs:track.durationMs||recording.durationMs,identity:canonicalIdentity(recording,{confidence:matched.score})};
+  }
   // Recording search omits the front-art flag. An exact recording may supply
   // a release-based CAA candidate, just as ordinary catalog search does.
   // Never treat the candidate as proof the image exists, or use explicitly
@@ -105,7 +126,8 @@ function enrichCatalogTrack(track, items) {
   return {...track,...art,coverUrl:covers[0],fallbackCoverUrl:covers[1],coverAlternatives:covers,
     ...(confirmed?{providerId:recording.id}:{}),recordingId:recording.id,
     artistIds:[...new Set((recording["artist-credit"]||[]).map(c=>c.artist?.id).filter(validId))],
-    album:track.album||(albumNames.length===1?albumNames[0]:undefined),durationMs:track.durationMs||art.durationMs};
+    album:track.album||(albumNames.length===1?albumNames[0]:undefined),durationMs:track.durationMs||art.durationMs,
+    identity:canonicalIdentity({...recording,artist:credit(recording),album:albumNames.length===1?albumNames[0]:undefined,durationMs:art.durationMs,releaseDate:recording["first-release-date"],releaseId:releases.length===1?releases[0].id:undefined,releaseGroupId:releases.length===1?releases[0]["release-group"]?.id:undefined,coverUrl:covers[0],coverAlternatives:covers,url:"https://musicbrainz.org/recording/"+recording.id},{confidence:matched.score})};
 }
 function matchArtistArtwork(items,name,providerId = "") {
   const {safeThumbnail}=require("./youtube-music.cjs");
