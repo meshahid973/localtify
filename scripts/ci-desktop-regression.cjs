@@ -177,7 +177,7 @@ server.listen(5173,async()=>{
       await win.webContents.executeJavaScript("document.querySelector('.sidebar [data-nav-id=settings]').click()");
       await until(()=>win.webContents.executeJavaScript(`Boolean(${liquidGlassToggle})`),"fallback appearance toggle");
       await win.webContents.executeJavaScript(`${liquidGlassToggle}.click()`);
-      await until(()=>win.webContents.executeJavaScript("document.querySelector('.app')?.dataset.liquidGlass==='true' && Boolean(document.querySelector('.ltOpticalCard'))"),"glass CSS fallback");
+      await until(()=>win.webContents.executeJavaScript("document.querySelector('.app')?.dataset.liquidGlass==='true' && document.querySelectorAll('.settingsModeButton').length===2"),"glass CSS fallback");
       assert.equal(await win.webContents.executeJavaScript("document.querySelectorAll('[data-glass-ready]').length"),0);
       await screenshot(win,"glass-no-webgl-settings");
       await win.webContents.executeJavaScript("document.querySelector('.sidebar [data-nav-id=library]').click()");
@@ -299,6 +299,22 @@ server.listen(5173,async()=>{
       }
       const firstOpticalPaintMs=performance.now()-switchStarted;
       await until(()=>win.webContents.executeJavaScript("window.localitfy.getSettings().then(settings=>settings.liquidGlass===true)"),"glass persists in the settings store");
+      await win.webContents.executeJavaScript("document.querySelector('.settingsCategoryButton[aria-label=Playback]').click()");
+      const speedRange="#settings-playback-listening .ltOpticalRange";
+      const speedInput=`document.querySelector('${speedRange} input[type=range], ${speedRange} [role=slider]')`;
+      await until(()=>win.webContents.executeJavaScript(`Boolean(${speedInput})`),"optical playback speed control");
+      await win.webContents.executeJavaScript(`${speedInput}.focus()`);
+      win.webContents.sendInputEvent({type:"keyDown",keyCode:"Home"});
+      win.webContents.sendInputEvent({type:"keyUp",keyCode:"Home"});
+      await until(()=>win.webContents.executeJavaScript("window.localitfy.getSettings().then(settings=>settings.playbackSpeed===0.75)"),"fractional optical speed persisted");
+      await until(()=>win.webContents.executeJavaScript(`document.querySelector('${speedRange}')?.textContent.includes("0.75×")`),"optical speed label retains fractional value and units");
+      for(let i=1;i<=5;i++){
+        await win.webContents.executeJavaScript(`${speedInput}.focus()`);
+        win.webContents.sendInputEvent({type:"keyDown",keyCode:"Right"});
+        win.webContents.sendInputEvent({type:"keyUp",keyCode:"Right"});
+        await until(()=>win.webContents.executeJavaScript(`window.localitfy.getSettings().then(settings=>Math.abs(settings.playbackSpeed-${0.75+i*0.05})<0.000001)`),"optical speed keyboard step "+i);
+      }
+      await win.webContents.executeJavaScript("document.querySelector('.settingsCategoryButton[aria-label=Appearance]').click()");
       for(const mode of ["dark","light"]){
         await openView("settings");
         await until(()=>win.webContents.executeJavaScript(`Boolean(document.querySelector('[data-preview-mode="${mode}"]'))`),"glass theme picker");

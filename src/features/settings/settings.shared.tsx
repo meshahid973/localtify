@@ -53,7 +53,7 @@ export function RangeRow({ label, value, min, max, step, suffix, disabled, onCha
   const pointerEditing = useRef(false);
   const currentDraft = useRef(value);
   const activeValue = editing ? draftValue : value;
-  const shownValue = `${activeValue}${suffix || ""}`;
+  const shownValue = `${Number(activeValue.toPrecision(12))}${suffix || ""}`;
   const fill = ((activeValue - min) / (max - min || 1)) * 100;
 
   useEffect(() => {
@@ -79,7 +79,7 @@ export function RangeRow({ label, value, min, max, step, suffix, disabled, onCha
         onPointerUp={() => { if (pointerEditing.current) commit(currentDraft.current); }}
         onLostPointerCapture={() => { if (pointerEditing.current) commit(currentDraft.current); }}
         onPointerCancel={() => { pointerEditing.current = false; setDraftValue(value); setEditing(false); }}>
-        <controls.RangeSlider label={label} value={activeValue} min={min} max={max} step={step} theme={tone} size="sm"
+        <controls.RangeSlider label={label} value={activeValue} min={min} max={max} step={step} theme={tone} size="sm" valueSuffix={suffix}
           color={tone === "light" ? "#303037" : "#777782"} startIcon="none" endIcon="none"
           onChange={next => { currentDraft.current = next; setDraftValue(next); if (!pointerEditing.current) commit(next); }} />
       </div>
