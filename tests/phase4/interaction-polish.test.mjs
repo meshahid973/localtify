@@ -51,18 +51,21 @@ test("shared icon buttons retain names, form safety and disabled semantics", () 
   assert.match(html, /ltIconButton transport/);
 });
 
-test("import progress distinguishes picker, processing and errors without claiming rollback", () => {
+test("import progress reflects the combined picker and import operation without claiming rollback", () => {
   const { ImportProgress } = compile("src/features/library/ImportProgress.tsx", {
     "../covers/Cover": { Cover: () => null },
     "../../shared/ui/LocaltifyViewUi": { MascotStateArt: () => null },
     "../../shared/appearance/OpticalCard": { OpticalCard: props => React.createElement("div", props) },
     "./import-progress.css": {}
   });
-  const state = { active: true, phase: "picking", message: "Choose files", count: 0, preview: [] };
+  const state = { active: true, phase: "scanning", message: "Choose audio files to add to your library.", count: 0, preview: [] };
   const render = patch => renderToStaticMarkup(React.createElement(ImportProgress, { state: { ...state, ...patch } }));
-  assert.doesNotMatch(render({ active: false }), /importPanel|Choose music/);
-  assert.match(render({}), /Choose music to import/);
-  assert.match(render({ phase: "scanning" }), /Importing music/);
+  assert.doesNotMatch(render({ active: false }), /importPanel|Choose audio files/);
+  assert.match(render({}), /Import music/);
+  assert.match(render({}), /Choose audio files/);
+  assert.match(render({}), /<progress[^>]*aria-label="Importing music"/);
+  assert.match(render({ phase: "success", count: 1, message: "" }), /Import complete/);
+  assert.match(render({ phase: "success", message: "" }), /No tracks added/);
   const error = render({ phase: "error", message: "Could not read the folder" });
   assert.match(error, /Couldn’t import music/);
   assert.match(error, /Could not read the folder/);

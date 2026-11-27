@@ -2795,7 +2795,6 @@ function MainModeApp() {
         message: "Choose audio files to read their tags and add them to your library."
       })
     );
-    showAppToast("scanning local music...", "work");
 
     try {
       const imported = applyLibraryOrder(sanitizeSongList(await window.localitfy.importSongs()));
@@ -2859,7 +2858,7 @@ function MainModeApp() {
       setPlayerError("Couldn’t import music.");
       setLibraryScanMessage("Couldn’t import music.");
       setStatusText("import failed");
-      showAppToast("import failed safely", "error");
+      showAppToast("Couldn’t import music. Try again.", "error");
       hideImportAnimation(1700);
     } finally {
       importingSongsRef.current = false;
