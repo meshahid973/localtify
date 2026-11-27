@@ -4,18 +4,24 @@ import { Disc3, UserRound } from "lucide-react";
 import type { DiscoverArtwork, DiscoverResult } from "./discover.types";
 const cache = new Map<string, {at:number; value:DiscoverArtwork}>();
 type ArtworkJob = () => Promise<void>;
-const waiting: ArtworkJob[] = [];
+const primaryQueue: ArtworkJob[] = [], fallbackQueue: ArtworkJob[] = [];
 const sharedLookups = new Map<string, Promise<DiscoverResult | null>>();
-let running = 0;
+let primaryRunning = 0, fallbackRunning = 0;
 function pumpArtwork() {
-  while (running < 4 && waiting.length) {
-    const job = waiting.shift()!;
-    running++;
-    void job().catch(() => undefined).finally(() => { running--; pumpArtwork(); });
+  while (primaryRunning < 4 && primaryQueue.length) {
+    const job = primaryQueue.shift()!;
+    primaryRunning++;
+    void job().catch(() => undefined).finally(() => { primaryRunning--; pumpArtwork(); });
+  }
+  while (fallbackRunning < 2 && fallbackQueue.length) {
+    const job = fallbackQueue.shift()!;
+    fallbackRunning++;
+    void job().catch(() => undefined).finally(() => { fallbackRunning--; pumpArtwork(); });
   }
 }
-function enqueueArtwork(job: ArtworkJob) {
-  if (waiting.length >= 128) return undefined;
+function enqueueArtwork(job: ArtworkJob, fallback: boolean) {
+  if (primaryQueue.length + fallbackQueue.length >= 128) return undefined;
+  const waiting = fallback ? fallbackQueue : primaryQueue;
   waiting.push(job);
   pumpArtwork();
   return () => {
@@ -120,7 +126,7 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
           attempts++;
           let shared = sharedLookups.get(requestKey);
           if (!shared) {
-            shared = window.localitfy.getDiscoveries({ artwork: { title, artist, kind: person ? "artist" : "recording", fallback: exhausted, providerId, album, durationMs } })
+            shared = window.localitfy.getDiscoveries({ artwork: { title, artist, kind: person ? "artist" : "recording", fallback: exhausted, primaryOnly: !exhausted && !providerId, providerId, album, durationMs } })
               .catch(()=>null).finally(()=>sharedLookups.delete(requestKey));
             sharedLookups.set(requestKey,shared);
           }
@@ -141,7 +147,7 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
           if (cache.size > 512 && oldest !== undefined) cache.delete(oldest);
         }
         if (live) setResolved({ key, value, fallback: exhausted });
-      });
+      }, exhausted);
       if (!cancelQueued && live && ++attempts < 3) retryTimer = window.setTimeout(start, attempts * 900);
     };
     start();

@@ -103,3 +103,28 @@ test("fallback mode skips the failed Deezer image and reaches catalog releases",
    "https://coverartarchive.org/release/"+id+"/front-250");
  assert.equal(deezer,0);
 });
+
+test("staggered artwork resolution returns a verified faster provider without waiting for a slow one", async () => {
+  const {createArtworkLookup}=require("../../electron/discover/artwork.cjs");
+  let release, youtubeCalls=0, deezerCalls=0, supplementalCalls=0;
+  const lookup=createArtworkLookup({searchRecordings:async()=>{supplementalCalls++;return [];}},Date.now,undefined,undefined,
+    async()=>{youtubeCalls++;return new Promise(resolve=>{release=resolve;});},
+    async()=>{deezerCalls++;return {coverUrl:cover};});
+  const started=performance.now();
+  const values=await Promise.all([lookup("Bang Bang","B.A. Robertson"),lookup("bang bang","b.a. robertson")]);
+  console.log("[artwork-resolution] controlled staggered winner ms="+Math.round(performance.now()-started)+" primary="+youtubeCalls+" hedge="+deezerCalls);
+  assert.equal(values[0].coverUrl,cover);
+  assert.deepEqual(values[0],values[1]);
+  assert.equal(youtubeCalls,1);assert.equal(deezerCalls,1);assert.equal(supplementalCalls,0);
+  assert.equal(typeof release,"function","the slower provider has not completed");
+  release([]);
+});
+test("failed providers release capacity and unsafe candidates cannot win",async()=>{
+  const {firstArtwork}=require("../../electron/discover/artwork.cjs");
+  let calls=0;
+  const result=await firstArtwork([async()=>{throw Error("offline");},async()=>({coverUrl:"https://evil.test/cover.jpg"}),async()=>{calls++;return {coverUrl:cover};}],{staggerMs:5});
+  assert.equal(result.coverUrl,cover);assert.equal(calls,1);
+  await assert.rejects(firstArtwork([async()=>{throw Error("offline");}],{staggerMs:5}),/temporarily unavailable/);
+  assert.deepEqual(await firstArtwork([async()=>({})]),{});
+  assert.deepEqual(await firstArtwork([async()=>{throw Error("must not run");}],{active:()=>false}),{});
+});

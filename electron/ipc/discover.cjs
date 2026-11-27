@@ -5,7 +5,7 @@ const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 const { createLastfmClient } = require("../discover/lastfm.cjs");
 const { discover, withoutOwned } = require("../discover/recommend.cjs");
-const { catalogArtwork, createArtworkLookup, matchArtistArtwork, matchMusicArtwork } = require("../discover/artwork.cjs");
+const { catalogArtwork, createArtworkLookup, matchArtistArtwork, matchMusicArtwork, firstArtwork } = require("../discover/artwork.cjs");
 const { rankCatalog, searchTerms } = require("../discover/catalog.cjs");
 const { createResourceCache } = require("../runtime/resource-cache.cjs");
 const { validArtworkResult } = require("../runtime/remote-cover.cjs");
@@ -47,21 +47,23 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
   let saved = null;
   let running = null;
   let catalogRunning = null;
-  let artworkClient = null, artworkKey = "";
+  let artworkClient = null, artworkKey = "", closed = false;
+  const active = () => !closed && getSettings().discoverEnabled === true;
+  const strict = (provider,...args) => active() ? (provider.resolve || provider)(...args) : Promise.resolve({});
   // Persist only positive provider lookup results, separate from user artwork.
   const artworkResults = createResourceCache({
     file: cacheFile ? cacheFile + ".resolved-artwork-v1" : "", now,
     validate: validArtworkResult
   });
   const artworkRequests = new Map();
-  async function lookupMusicArtwork(title,artist,identity = {}) {
+  async function lookupMusicArtwork(title,artist,identity = {},signal) {
     const cleanedArtist=artist.replace(/\s+[-–—]\s+Topic$/i,"").trim();
     const query=(title+" "+cleanedArtist).trim().slice(0,160);
-    if(getSettings().discoverEnabled!==true)return [];
-    const songs=await searchYouTubeArtwork("recording",query,{artwork:true}).catch(()=>[]);
+    if(!active()||signal?.aborted)return [];
+    const songs=await searchYouTubeArtwork("recording",query,{artwork:true});
     if(matchMusicArtwork(songs,title,artist,identity).coverUrl)return songs;
-    if(getSettings().discoverEnabled!==true)return [];
-    const videos=await searchYouTubeArtwork("video",query,{artwork:true}).catch(()=>[]);
+    if(!active()||signal?.aborted)return [];
+    const videos=await searchYouTubeArtwork("video",query,{artwork:true});
     return [...songs,...videos];
   }
   const lookupArtwork = createArtworkLookup(musicBrainzClient, now, async (title, artist) => {
@@ -74,34 +76,30 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
     }
     const client = artworkClient;
     try { return await client.trackInfo(title, artist); } finally { client.flush(); }
-  }, lookupAudioDb ? (title, artist) => getSettings().discoverEnabled === true ? lookupAudioDb(title, artist) : Promise.resolve({}) : undefined, searchYouTubeArtwork ? lookupMusicArtwork : undefined,
-    lookupDeezer ? (...args) => getSettings().discoverEnabled===true ? lookupDeezer(...args) : Promise.resolve({}) : undefined,
-    lookupFanart ? (...args) => getSettings().discoverEnabled===true ? lookupFanart(...args) : Promise.resolve({}) : undefined);
+  }, lookupAudioDb ? (...args) => strict(lookupAudioDb,...args) : undefined, searchYouTubeArtwork ? lookupMusicArtwork : undefined,
+    lookupDeezer ? (...args) => strict(lookupDeezer,...args) : undefined,
+    lookupFanart ? (...args) => strict(lookupFanart,...args) : undefined);
   // The outer resource cache owns retention and coalescing for both entity types.
-  async function lookupArtistArtwork(name,fallback=false) {
-    return (async()=>{
-      const cleaned=name.replace(/\s+[-–—]\s+Topic$/i,"").trim();
-      if(getSettings().discoverEnabled!==true)return {};
-      if(searchYouTubeArtwork&&!fallback){
-        const value=matchArtistArtwork(await searchYouTubeArtwork("artist",cleaned.slice(0,160),{artwork:true}).catch(()=>[]),name);
-        if(value.coverUrl)return value;
-      }
-      // Resolve a validated artist MBID before trying the intermittently
-      // forbidden Deezer search. The result cannot borrow a lookalike artist.
-      if(lookupFanart&&musicBrainzClient?.searchCatalog){
-        const items=await musicBrainzClient.searchCatalog("artist",cleaned).catch(()=>[]);
-        const exact=(Array.isArray(items)?items:[]).filter(i=>MBID.test(i?.id||"")&&cleanText(i.name).normalize("NFKC").toLowerCase()===cleaned.normalize("NFKC").toLowerCase());
-        const ids=[...new Set(exact.map(i=>i.id))];
-        if(ids.length===1&&getSettings().discoverEnabled===true){
-          const result=await lookupFanart("artist",ids[0]).catch(()=>({}));
-          if(result.coverUrl)return result;
-        }
-      }
-      // A fallback request follows an image failure; don't offer the same
-      // Deezer image again if it was the originally chosen cover.
-      return !fallback&&lookupDeezer&&getSettings().discoverEnabled===true
-        ? lookupDeezer("artist",cleaned).catch(()=>({})) : {};
-    })();
+  async function lookupArtistArtwork(name,fallback=false,primaryOnly=false) {
+    const cleaned=name.replace(/\s+[-–—]\s+Topic$/i,"").trim();
+    let failed=false;
+    if(!fallback) {
+      try {
+        const result=await firstArtwork([
+          searchYouTubeArtwork&& (async()=>matchArtistArtwork(await searchYouTubeArtwork("artist",cleaned.slice(0,160),{artwork:true}),name)),
+          lookupDeezer&& (()=>strict(lookupDeezer,"artist",cleaned))
+        ],{active});
+        if(result.coverUrl||primaryOnly||!active())return result;
+      } catch(error) { if(primaryOnly)throw error; failed=true; }
+    }
+    if(lookupFanart&&musicBrainzClient?.searchCatalog&&active()) {
+      const items=await musicBrainzClient.searchCatalog("artist",cleaned,{background:true});
+      const exact=(Array.isArray(items)?items:[]).filter(i=>MBID.test(i?.id||"")&&cleanText(i.name).normalize("NFKC").toLowerCase()===cleaned.normalize("NFKC").toLowerCase());
+      const ids=[...new Set(exact.map(i=>i.id))];
+      if(ids.length===1&&active())return strict(lookupFanart,"artist",ids[0]);
+    }
+    if(failed)throw Error("Artwork unavailable");
+    return {};
   }
   // Explicit catalog IDs are authoritative. Never borrow another recording's
   // artwork just because its name and artist happen to match.
@@ -159,7 +157,7 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
     }
     if (settings.discoverEnabled !== true) return { status: "off" };
     if (payload?.artwork !== undefined) {
-      const { title, artist, kind = "recording", fallback = false, providerId = "", album = "", durationMs = 0 } = payload.artwork || {};
+      const { title, artist, kind = "recording", fallback = false, primaryOnly = false, providerId = "", album = "", durationMs = 0 } = payload.artwork || {};
       if (!["artist","recording"].includes(kind) || typeof title !== "string" || typeof artist !== "string" || !title.trim() || (kind === "recording" && !artist.trim()) || title.length > 300 || artist.length > 300)
         return { status: "error", error: "Invalid artwork lookup." };
       if (typeof providerId !== "string" || (providerId && !MBID.test(providerId) && !(kind === "artist" ? /^ytmusic:UC[A-Za-z0-9_-]{22}$/ : /^ytmusic:[A-Za-z0-9_-]{11}$/).test(providerId)) ||
@@ -168,7 +166,7 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
       try {
         const normalizeKey = value => value.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase();
         const identity = { providerId, album: normalizeKey(album), durationMs };
-        const key = JSON.stringify([kind, normalizeKey(title), normalizeKey(artist), providerId, identity.album, durationMs, fallback === true]);
+        const key = JSON.stringify([kind, normalizeKey(title), normalizeKey(artist), providerId, identity.album, durationMs, fallback === true, primaryOnly === true]);
         await artworkResults.hydrate();
         let artwork = artworkResults.get(key);
         if (!artwork) {
@@ -178,8 +176,8 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
             pending = Promise.resolve().then(() => providerId
               ? lookupIdentifiedArtwork(kind, title.trim(), artist.trim(), identity)
               : kind === "artist"
-                ? lookupArtistArtwork(title.trim(), fallback === true)
-                : lookupArtwork(title.trim(), artist.trim(), { fallback: fallback === true }))
+                ? lookupArtistArtwork(title.trim(), fallback === true, primaryOnly === true)
+                : lookupArtwork(title.trim(), artist.trim(), { fallback: fallback === true, primaryOnly: primaryOnly === true, active }))
               .then(value => {
                 if (getSettings().discoverEnabled === true && (value.coverUrl || value.fallbackCoverUrl)) {
                   artworkResults.set(key, value, 86400000);
@@ -190,8 +188,8 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
           }
           artwork = await pending;
         }
-        return getSettings().discoverEnabled === true ? { status: "artwork", ...artwork } : { status: "off" };
-      } catch { return { status: "error", error: "Artwork unavailable." }; }
+        return active() ? { status: "artwork", ...artwork } : { status: "off" };
+      } catch { return !active() ? {status:"off"} : primaryOnly === true && !providerId ? {status:"artwork",outcome:"unavailable"} : { status: "error", error: "Artwork unavailable." }; }
     }
     if (payload?.catalog !== undefined) {
       const query = payload.catalog;
@@ -361,7 +359,7 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
       return stored ? bioAnswer(stored) : { status: "error", error: error?.message || "Couldn't load the biography." };
     }
   });
-  return { flush: artworkResults.flush };
+  return { flush: artworkResults.flush, close(){closed=true; artworkResults.flush();} };
 }
 
 module.exports = { registerDiscoverIpc };

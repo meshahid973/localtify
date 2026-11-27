@@ -101,7 +101,7 @@ function hydrateArtwork() {
 }
 export async function cachedArtworkFromMac(artwork: ArtworkQuery): Promise<DiscoverResult> {
   if (phoneLibrary.effectiveSettings().discoverEnabled !== true) return {status:"off"};
-  const key=JSON.stringify([artwork.kind||"recording",artwork.providerId||"",artwork.title,artwork.artist,artwork.album||"",artwork.durationMs||0,!!artwork.fallback]);
+  const key=JSON.stringify([artwork.kind||"recording",artwork.providerId||"",artwork.title,artwork.artist,artwork.album||"",artwork.durationMs||0,!!artwork.fallback,!!artwork.primaryOnly]);
   if (key.length>2048) return {status:"error",error:"Artwork query too long"};
   await hydrateArtwork();
   const row=artworkRows.get(key);
