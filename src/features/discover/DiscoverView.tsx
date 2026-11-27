@@ -233,7 +233,7 @@ export default function DiscoverView({ settings, updateSetting, sendToDownloads,
       {catalog?.status === "catalog" ? catalog.items.length ? <>
         <div className="discoverSectionHead"><h3 className="discoverHeading">{relatedTitle ? `Related to ${relatedTitle}` : "Top result"}</h3>{catalog.kind === "recording" && /^https:\/\/www\.youtube\.com\/watch\?v=[A-Za-z0-9_-]{11}$/.test(catalog.items[0].url) ? <OpticalButton type="button" className="softButton" disabled={catalogLoading} onClick={() => void searchRelated(catalog.items[0])}>Similar songs</OpticalButton> : null}</div>
         {catalog.items.slice(0,1).map(item => <div key={item.id} className="discoverTopResult">
-          <DiscoverCover title={item.title} artist={item.artist} artwork={item} providerId={/^(?:ytmusic:(?:UC[A-Za-z0-9_-]{22}|[A-Za-z0-9_-]{11})|[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12})$/i.test(item.id) ? item.id : ""} lookup person={catalog.kind === "artist"} />
+          <DiscoverCover priority title={item.title} artist={item.artist} artwork={item} providerId={/^(?:ytmusic:(?:UC[A-Za-z0-9_-]{22}|[A-Za-z0-9_-]{11})|[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12})$/i.test(item.id) ? item.id : ""} lookup person={catalog.kind === "artist"} />
           <span className="discoverSongText"><button type="button" className="discoverName" onClick={() => openLink(item.url)} title={item.title}>{item.title}</button><small>{item.subtitle}</small></span>
           {catalog.kind === "recording" ? <><span className="discoverDuration">{duration(item.durationMs)}</span>{pickButton(item)}</> : null}
         </div>)}
@@ -254,8 +254,8 @@ export default function DiscoverView({ settings, updateSetting, sendToDownloads,
     {recommendedTracks.length ? <section className="discoverSection" aria-labelledby="discover-recommended">
       <div className="discoverSectionHead"><h2 id="discover-recommended" className="discoverHeading">Recommended songs</h2>{recommendedTracks.length > 10 ? <button type="button" className="discoverName discoverMore" aria-expanded={showAllRecommended} onClick={() => setShowAllRecommended(value => !value)}>{showAllRecommended ? "Show less" : "See all"}</button> : null}</div>
       <ul className="discoverSongList">
-        {(showAllRecommended ? recommendedTracks : recommendedTracks.slice(0, 10)).map(track => <li key={trackId(track)}>
-          <DiscoverCover title={track.title} artist={track.artist} artwork={track} providerId={track.providerId} lookup />
+        {(showAllRecommended ? recommendedTracks : recommendedTracks.slice(0, 10)).map((track,index) => <li key={trackId(track)}>
+          <DiscoverCover priority={index<4} title={track.title} artist={track.artist} artwork={track} providerId={track.providerId} lookup />
           <span className="discoverSongText"><button type="button" className="discoverName" onClick={() => openLink(track.url)} title={track.title}>{track.title}</button><small>{track.artist}</small></span>
           {pickButton(track)}
         </li>)}

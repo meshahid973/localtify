@@ -122,7 +122,13 @@ export function resolveRemoteArtwork(source: string) {
   const pending = remotePending.get(source);
   if (pending) return pending;
   if (!window.localitfy?.resolveRemoteArtwork || remotePending.size >= 16) return Promise.resolve("");
-  const task = window.localitfy.resolveRemoteArtwork(source).catch(()=>null).then(result=>{
+  // Existing bytes only. A cold image belongs to Chromium's normal image
+  // loader and HTTP cache, not a simultaneous main-process download.
+  let timer: ReturnType<typeof setTimeout>;
+  const peek = window.localitfy.resolveRemoteArtwork(source,true).catch(()=>null);
+  const deadline = new Promise<null>(resolve=>{timer=setTimeout(()=>resolve(null),35);});
+  const task = Promise.race([peek,deadline]).then(result=>{
+    clearTimeout(timer);
     const url = result?.url || "";
     const ttl = url ? Math.max(0,Math.min(30_000,result?.cacheTtlMs || 0)) : 5000;
     if (ttl) remoteResults.set(source,{url,until:Date.now()+ttl});

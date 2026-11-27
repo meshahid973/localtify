@@ -78,8 +78,8 @@ const deezerCover = /^https:\/\/(?:e-cdns-images|cdns-images|cdn-images)\.dzcdn\
 const fanartCover = /^https:\/\/assets\.fanart\.tv\/fanart\/music\/[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}\/(?:albumcover|artistthumb)\/[-a-z0-9_.%]+\.(?:jpg|jpeg|png)\/preview$/i;
 export const isDisplayOnlyCover = (value?: string) => Boolean(value && (deezerCover.test(value) || fanartCover.test(value)));
 const safeCover = (value?: string) => value && (deezerCover.test(value) || fanartCover.test(value) || youtubeCover.test(value) || audioDbCover.test(value) || /^https:\/\/coverartarchive\.org\/(release|release-group)\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/front-250$/i.test(value) || (/^https:\/\/(?:lastfm\.freetls\.fastly\.net|lastfm-img2\.akamaized\.net)\/i\/u\/(?:[0-9]+x[0-9]+|[0-9]+s)\/[a-f0-9]{32}\.(?:png|jpe?g|webp)$/i.test(value) && !/2a96cbd8b46e442fc41c2b86b821562f|4128a6eb29f94943c9d206c08e625904/i.test(value))) ? value : undefined;
-export function DiscoverCover({ title, artist, artwork, lookup = false, person = false, providerId = "" }: {
-  title: string; artist: string; artwork?: DiscoverArtwork & { album?: string }; lookup?: boolean; person?: boolean; providerId?: string;
+export function DiscoverCover({ title, artist, artwork, lookup = false, person = false, providerId = "", priority = false }: {
+  title: string; artist: string; artwork?: DiscoverArtwork & { album?: string }; lookup?: boolean; person?: boolean; providerId?: string; priority?: boolean;
 }) {
   const ref = useRef<HTMLSpanElement>(null);
   const [near, setNear] = useState(false);
@@ -116,7 +116,9 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
     });
     return () => { active = false; };
   }, [src, near, eligibleLocal]);
-  const localCandidate = eligibleLocal ? (remembered ?? (local && local.source === src ? local.url : "")) : "";
+  // Once selected, keep the same display source. A later cache lease must not
+  // swap out a decoded image or duplicate an in-flight browser download.
+  const localCandidate = eligibleLocal ? (local?.source === src ? local.url : remembered ?? "") : "";
   const localSrc = localCandidate !== badLocal ? localCandidate : "";
   const displaySrc = pendingLocal ? "" : localSrc || src;
   const imageReady = Boolean(displaySrc && loaded?.key === key && loaded.url === displaySrc);
@@ -182,7 +184,7 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
   }, [key, title, artist, needsLookup, near, person, exhausted, requestKey, providerId, album, durationMs, excludedKey, retryPrimary, finishedMissing, tooManyFailures]);
   return <span ref={ref} className="discoverCover" aria-hidden="true">
     {!imageReady ? (person ? <UserRound size={24} /> : <Disc3 size={24} />) : null}
-    {(near || imageReady) && src && displaySrc ? <img key={displaySrc} ref={imageRef} src={displaySrc} alt="" loading="eager" decoding="async" fetchPriority="auto" referrerPolicy="no-referrer" data-ready={imageReady}
+    {(near || imageReady) && src && displaySrc ? <img key={displaySrc} ref={imageRef} src={displaySrc} alt="" loading={priority ? "eager" : "lazy"} decoding="async" fetchPriority={priority ? "high" : "auto"} referrerPolicy="no-referrer" data-ready={imageReady}
       onLoad={() => setLoaded({key,url:displaySrc})}
       onError={() => { if (localSrc) rejectLocal(); else setFailure(current => ({key,urls:[...new Set([...(current.key === key ? current.urls : []),src])]})); }} /> : null}
   </span>;

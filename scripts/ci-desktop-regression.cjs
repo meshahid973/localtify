@@ -79,6 +79,7 @@ const dist=path.join(root,"dist"),mime={".html":"text/html",".js":"text/javascri
 const server=http.createServer((req,res)=>{
   try{
     const name=decodeURIComponent(new URL(req.url,"http://localhost").pathname);
+    if(name==="/qa-discover-cover.png"){res.writeHead(200,{"Content-Type":"image/png","Cache-Control":"public,max-age=3600"});fs.createReadStream(songs[0].coverPath).pipe(res);return;}
     const file=path.resolve(dist,"."+ (name==="/"?"/index.html":name));
     if(!file.startsWith(dist+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile()){res.writeHead(404);res.end();return;}
     res.writeHead(200,{"Content-Type":mime[path.extname(file)]||"application/octet-stream"});fs.createReadStream(file).pipe(res);
@@ -791,13 +792,22 @@ server.listen(5173,async()=>{
       if(payload?.progress&&firstRecommendation){firstRecommendation=false;return {...result(discoverTracks.slice(0,3)),partial:true};}
       if(!completedRecommendation){
         await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('section[aria-labelledby=discover-recommended] img[data-ready=true]').length>=2"),"early catalog-supplied images before final recommendation reply",5000,25);
+        assert.ok(!slowPeekCompleted,"catalog images decoded while the slow disk lookup is still pending");
         completedRecommendation=true;
       }
       return result(discoverTracks);
     });
     ipcMain.removeHandler("covers:resolve-remote");
-    ipcMain.handle("covers:resolve-remote",(event)=>{
+    let slowPeekCompleted=false, directImageRequests=0;
+    const directFixture="https://lh3.googleusercontent.com/qaNightBus=w256-h256-l90-rj";
+    session.defaultSession.webRequest.onBeforeRequest((details,callback)=>{
+      if(details.url===directFixture){directImageRequests++;return callback({redirectURL:"http://localhost:5173/qa-discover-cover.png"});}
+      callback({cancel:/^https?:/i.test(details.url)&&!/^https?:\/\/(?:localhost|127\.0\.0\.1)(?::|\/)/i.test(details.url)});
+    });
+    ipcMain.handle("covers:resolve-remote",async(event,url,cacheOnly)=>{
       assert.equal(event.sender,win.webContents);
+      assert.equal(cacheOnly,true,"renderer must never trigger a competing download");
+      if(url===directFixture){await sleep(500);slowPeekCompleted=true;}
       return {url:fixtureImage,cacheTtlMs:30000};
     });
     for(const mode of ["light","dark"]){
@@ -878,6 +888,7 @@ server.listen(5173,async()=>{
       assert.equal(artworkCalls.get("Paper Boats:true"),1,"missing primary must resolve via independent fallback");
       assert.equal(artworkCalls.get("Night Bus:false"),undefined,"catalog artwork avoids per-track resolution");
       assert.equal(artworkCalls.get("Blue Hour:false"),undefined,"second catalog artwork avoids per-track resolution");
+      assert.ok(directImageRequests>=1,"cold catalog artwork uses the browser image loader");
       console.log("[discover-rendered]",JSON.stringify({mode,elapsedMs:Math.round(performance.now()-discoverStarted),metadataRequests:[...artworkCalls.values()].reduce((a,b)=>a+b,0)}));
       await screenshot(win,"discover-"+mode);
        // Discover's configuration lives in Settings, never an inline provider form.
