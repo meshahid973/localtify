@@ -124,8 +124,10 @@ function createMusicBrainzClient({ userAgent, fetchImpl = fetch, minIntervalMs =
       if(typeof artist!=="string"||!artist.trim()||artist.length>300||!unique.length)return Promise.resolve([]);
       const ids=unique.filter(term=>term.startsWith("rid:"));
       const titles=unique.filter(term=>!term.startsWith("rid:"));
-      const clauses=[...ids,...(titles.length?[`(artist:${phrase(artist)} AND (${titles.join(" OR ")}))`]:[])];
-      const query=ids.length?`(${clauses.join(" OR ")})`:`artist:${phrase(artist)} AND (${titles.join(" OR ")})`;
+      const artistIds=[...new Set(selected.flatMap(track=>Array.isArray(track?.artistIds)?track.artistIds:[]).filter(id=>typeof id==="string"&&/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(id)))];
+      const artistQuery=artistIds.length===1?"arid:"+phrase(artistIds[0]):"artist:"+phrase(artist);
+      const clauses=[...ids,...(titles.length?[`(${artistQuery} AND (${titles.join(" OR ")}))`]:[])];
+      const query=ids.length?`(${clauses.join(" OR ")})`:`${artistQuery} AND (${titles.join(" OR ")})`;
       return request("recording",{query,limit:titles.length?"100":"10"},options).then(body=>Array.isArray(body.recordings)?body.recordings:[]);
     },
     searchRecordings: (title, artist, options) => request("recording", { query: `recording:${phrase(title)}${artist ? ` AND artist:${phrase(artist)}` : ""}`, limit: "25" }, options).then((body) => body.recordings || []),

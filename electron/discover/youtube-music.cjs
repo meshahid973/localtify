@@ -58,7 +58,7 @@ function coverFor(row,id) {
   return candidates[0]?.url || (videoId.test(id)?"https://i.ytimg.com/vi/"+id+"/hqdefault.jpg":undefined);
 }
 function column(row,index) {return row?.flexColumns?.[index]?.musicResponsiveListItemFlexColumnRenderer?.text;}
-function mapRow(row,kind) {
+function mapRow(row,kind,context={}) {
   const title=text(column(row,0) ?? row.title);
   if(!title)return null;
   const titleRun=runs(column(row,0) ?? row.title)[0];
@@ -80,13 +80,15 @@ function mapRow(row,kind) {
   const artistIds=[...new Set(artistRuns.map(r=>browse(r)?.browseId).filter(id=>artistId.test(id||"")))].map(id=>"ytmusic:"+id);
   const segments=text(byline).split("•").map(clean).filter(Boolean);
   if(["song","video"].includes(segments[0]?.toLowerCase()))segments.shift();
-  const artist=artists.join(", ")||segments.find(v=>!duration(v)&&!/^\d[\d,.]*\s*(?:views|plays)$/i.test(v))||"";
+  const bylineArtist=segments.find(v=>!duration(v)&&!/^\d[\d,.]*\s*(?:views|plays)$/i.test(v)&&artistKey(v)!==artistKey(context.album));
+  const fallback=!artists.length&&context.credits?.length&&(!bylineArtist||context.credits.some(c=>artistKey(c.name)===artistKey(bylineArtist)))?context.credits:[];
+  const artist=artists.join(", ")||fallback.map(c=>c.name).join(", ")||bylineArtist||"";
   if(!artist)return null;
   const albumRun=metadata.find(r=>kindOf(r)==="MUSIC_PAGE_TYPE_ALBUM");
-  const album=clean(albumRun?.text),albumId=browse(albumRun)?.browseId;
+  const album=clean(albumRun?.text)||context.album||"",albumId=browse(albumRun)?.browseId||context.albumId;
   const fixed=arr(row.fixedColumns).flatMap(c=>runs(c?.musicResponsiveListItemFixedColumnRenderer?.text));
   const durationMs=[...metadata,...fixed].map(r=>duration(clean(r?.text))).find(Boolean);
-  return {id:"ytmusic:"+id,title,artist,album,subtitle:[artist,album].filter(Boolean).join(" · "),url:"https://www.youtube.com/watch?v="+id,durationMs,coverUrl:coverFor(row,id),artistCredits:artistRuns.flatMap(r=>{const name=clean(r.text),id=browse(r)?.browseId;return name?[{name,...(artistId.test(id||"")?{id:"ytmusic:"+id}:{})}]:[];}),...(artistIds.length?{artistIds}:{}),...(/^MPREb_[A-Za-z0-9_-]{1,80}$/.test(albumId||"")?{albumId:"ytmusic:"+albumId}:{})};
+  return {id:"ytmusic:"+id,title,artist,album,subtitle:[artist,album].filter(Boolean).join(" · "),url:"https://www.youtube.com/watch?v="+id,durationMs,coverUrl:coverFor(row,id),artistCredits:artistRuns.length?artistRuns.flatMap(r=>{const name=clean(r.text),id=browse(r)?.browseId;return name?[{name,...(artistId.test(id||"")?{id:"ytmusic:"+id}:{})}]:[];}):fallback.length?fallback:[{name:artist}],...((artistIds.length||fallback.some(c=>c.id))?{artistIds:artistIds.length?artistIds:fallback.map(c=>c.id).filter(Boolean)}:{}),...(/^MPREb_[A-Za-z0-9_-]{1,80}$/.test(albumId||"")?{albumId:"ytmusic:"+albumId}:{})};
 }
 function mapSearchResponse(body,kind,query,strictQuery=true,limit=25,filterJunk=true) {
   const tabs=arr(body?.contents?.tabbedSearchResultsRenderer?.tabs);
@@ -118,6 +120,9 @@ function validBrowse(endpoint){return typeof endpoint?.browseId==="string"&&/^[A
 function mapArtistPage(body,id){
   if(!artistId.test(id))return null;
   let header,topSongs;
+  walkRecords(body,node=>{header ||= node.musicImmersiveHeaderRenderer||node.musicVisualHeaderRenderer||node.musicHeaderRenderer||node.musicResponsiveHeaderRenderer;return !!header;});
+  const headerName=text(header?.title);
+  const context=headerName?{credits:[{id:"ytmusic:"+id,name:headerName}]}:{};
   const discography=[];
   const tracks=new Map(),releases=new Map();
   walkRecords(body,node=>{
@@ -125,7 +130,7 @@ function mapArtistPage(body,id){
     const shelf=node.musicShelfRenderer;
     if(shelf&&/^(?:songs|top songs|popular songs)$/i.test(text(shelf.title))){
       for(const item of arr(shelf.contents).slice(0,100)){
-        const track=mapRow(item?.musicResponsiveListItemRenderer||{},"recording");
+        const track=mapRow(item?.musicResponsiveListItemRenderer||{},"recording",context);
         if(track&&track.artistIds?.includes("ytmusic:"+id))tracks.set(track.id,track);
       }
       const endpoint=browse(runs(shelf.title)[0])||shelf.bottomEndpoint?.browseEndpoint;
@@ -157,11 +162,11 @@ function mapArtistPage(body,id){
   if(!name)return null;
   return {id:"ytmusic:"+id,name,coverUrl:coverFor(header,undefined),tracks:[...tracks.values()].slice(0,100),releases:[...releases.values()].slice(0,100),topSongs,discography:discography.slice(0,2)};
 }
-function mapArtistSongs(body,id){
+function mapArtistSongs(body,id,name){
   const rows=new Map();
   walkRecords(body,node=>{
     if(!node.musicResponsiveListItemRenderer)return false;
-    const item=mapRow(node.musicResponsiveListItemRenderer,"recording");
+    const item=mapRow(node.musicResponsiveListItemRenderer,"recording",name?{credits:[{id:"ytmusic:"+id,name}]}:{});
     if(item&&item.artistIds?.includes("ytmusic:"+id))rows.set(item.id,item);
     return true;
   });
@@ -179,8 +184,25 @@ function mapDiscography(body,kind){
 }
 const artistKey=value=>clean(value).normalize("NFKC").trim().replace(/\s+[-–—]\s+Topic$/i,"").replace(/\s+/g," ").toLowerCase();
 const diskKey=(type,value)=>type+":"+createHash("sha256").update(value).digest("hex");
-const isTrack=row=>row&&/^ytmusic:[A-Za-z0-9_-]{11}$/.test(row.id||"")&&typeof row.title==="string"&&typeof row.artist==="string"&&(!row.coverUrl||safeThumbnail(row.coverUrl)===row.coverUrl);
+const isTrack=row=>row&&/^ytmusic:[A-Za-z0-9_-]{11}$/.test(row.id||"")&&typeof row.title==="string"&&typeof row.artist==="string"&&row.url==="https://www.youtube.com/watch?v="+row.id.slice(8)&&(!row.coverUrl||safeThumbnail(row.coverUrl)===row.coverUrl)&&(!row.artistCredits||Array.isArray(row.artistCredits)&&row.artistCredits.length<=32&&row.artistCredits.every(c=>c&&typeof c.name==="string"&&(!c.id||/^ytmusic:UC[A-Za-z0-9_-]{22}$/.test(c.id))))&&(!row.artistIds||Array.isArray(row.artistIds)&&row.artistIds.every(id=>/^ytmusic:UC[A-Za-z0-9_-]{22}$/.test(id)))&&(!row.albumId||/^ytmusic:MPREb_[A-Za-z0-9_-]{1,80}$/.test(row.albumId));
 const isRelease=row=>row&&/^ytmusic:MPREb_[A-Za-z0-9_-]{1,80}$/.test(row.id||"")&&typeof row.title==="string"&&(!row.coverUrl||safeThumbnail(row.coverUrl)===row.coverUrl);
+function mapAlbumPage(body,id){
+  if(!albumIdPattern.test(id))return null;
+  let header;
+  walkRecords(body,node=>{header ||= node.musicResponsiveHeaderRenderer;return !!header;});
+  const title=text(header?.title),credits=runs(header?.straplineTextOne).filter(r=>kindOf(r)==="MUSIC_PAGE_TYPE_ARTIST"&&artistId.test(browse(r)?.browseId||"")).map(r=>({name:clean(r.text),id:"ytmusic:"+browse(r).browseId})).filter(c=>c.name);
+  if(!title||!credits.length)return null;
+  const coverUrl=coverFor(header),releaseDate=runs(header.subtitle).map(r=>clean(r.text)).find(v=>/^\d{4}$/.test(v));
+  const tracks=new Map();
+  walkRecords(body,node=>{
+    const shelf=node.musicShelfRenderer||node.musicPlaylistShelfRenderer;if(!shelf)return false;
+    for(const row of arr(shelf.contents).slice(0,100)){
+      const track=mapRow(row?.musicResponsiveListItemRenderer||{},"recording",{album:title,albumId:id,credits:credits.some(c=>/^various artists$/i.test(c.name))?[]:credits});
+      if(track&&track.albumId==="ytmusic:"+id)tracks.set(track.id,{...track,coverUrl:coverUrl||track.coverUrl,releaseDate});
+    }return true;
+  });
+  return {id:"ytmusic:"+id,title,coverUrl,releaseDate,artistCredits:credits,tracks:[...tracks.values()].slice(0,100)};
+}
 const isPage=page=>page&&/^ytmusic:UC[A-Za-z0-9_-]{22}$/.test(page.id||"")&&typeof page.name==="string"&&(!page.coverUrl||safeThumbnail(page.coverUrl)===page.coverUrl)&&Array.isArray(page.releases)&&page.releases.length<=100&&page.releases.every(isRelease);
 async function requestCatalog(fetchImpl,endpoint,payload) {
   const response=await fetchImpl(origin+endpoint+"?prettyPrint=false",{method:"POST",redirect:"error",credentials:"omit",headers:{"content-type":"application/json",accept:"application/json","x-youtube-client-name":"67","x-youtube-client-version":clientVersion,"x-origin":"https://music.youtube.com"},body:JSON.stringify({...payload,context:{client:{clientName:"WEB_REMIX",clientVersion,hl:"en",gl:"US"}}}),signal:AbortSignal.timeout(6500)});
@@ -200,7 +222,7 @@ async function requestCatalog(fetchImpl,endpoint,payload) {
 }
 function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPending=2,{file=""}={}) {
   const cache=new Map(),pending=new Map(),waiting=[];
-  const persistent=createResourceCache({file,now,maxEntries:512,maxBytes:12*1024*1024,validate:value=>value&&typeof value==="object"&&Array.isArray(value.items)&&value.items.length<=100&&value.items.every(isTrack)&&(!value.page||isPage(value.page))});
+  const persistent=createResourceCache({file,now,maxEntries:512,maxBytes:12*1024*1024,validate:value=>value&&typeof value==="object"&&Array.isArray(value.items)&&value.items.length<=100&&value.items.every(isTrack)&&(!value.page||isPage(value.page))&&(!value.album||isRelease(value.album))});
   let trace=()=>{};
   const limit=Math.max(1,Math.min(6,maxPending));
   const backgroundLimit=Math.max(1,limit-2);
@@ -304,12 +326,18 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
     await persistent.hydrate();
     const {enrichCatalogTrack}=require("./artwork.cjs");
     const matches=items=>wanted.filter(track=>{const match=enrichCatalogTrack({...track,coverUrl:undefined},items);return !!match.coverUrl&&items.some(item=>item.id===match.providerId);});
-    const known=search.cachedArtist(name);
+    let known=search.cachedArtist(name);
+    if(wanted.length===1&&!matches(known).length&&!options.signal?.aborted){
+      const query=(wanted[0].title+" "+wanted[0].artist).slice(0,160);
+      const candidates=await search("recording",query,{...options,artwork:true}).catch(()=>[]);
+      known=[...new Map([...known,...candidates].map(row=>[row.id,row])).values()].slice(0,100);
+      if(matches(known).length)return known;
+    }
     const matchedIds=new Set(wanted.map(track=>enrichCatalogTrack({...track,coverUrl:undefined},known)).filter(track=>track.coverUrl).map(track=>track.providerId));
     const ids=new Set(known.filter(item=>matchedIds.has(item.id)).flatMap(item=>(item.artistCredits||[]).filter(c=>artistKey(c.name)===artistKey(name)).map(c=>c.id)).filter(id=>/^ytmusic:UC[A-Za-z0-9_-]{22}$/.test(id||"")));
     trace("artist-identity-cache",{state:ids.size?"hit":"miss",count:ids.size});
     if(ids.size!==1){
-      const artists=await search("artist",name,{...options,artwork:true}).catch(()=>[]);
+      const artists=await search("artist",name.replace(/\s+[-–—]\s+Topic$/i,""),{...options,artwork:true}).catch(()=>[]);
       const exact=artists.filter(item=>artistKey(item.title)===artistKey(name));
       if(exact.length>2&&!ids.size){trace("artist-catalog-match",{state:"ambiguous",count:0,total:wanted.length});return known;}
       for(const artist of exact.slice(0,2))ids.add(artist.id);
@@ -330,7 +358,7 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
         items=page.tracks;
         if(page.topSongs&&matches(items).length<wanted.length&&!options.signal?.aborted){
           try{
-            const more=await scheduled("songs:"+JSON.stringify(page.topSongs),{...options,artwork:true},async()=>mapArtistSongs(await requestCatalog(fetchImpl,"browse",page.topSongs),id));
+            const more=await scheduled("songs:"+JSON.stringify(page.topSongs),{...options,artwork:true},async()=>mapArtistSongs(await requestCatalog(fetchImpl,"browse",page.topSongs),id,page.name));
             items=[...new Map([...items,...more].map(item=>[item.id,item])).values()].slice(0,100);
           }catch{/* keep initial page when expansion fails */}
         }
@@ -356,6 +384,11 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
       for(const item of page.items)collected.set(item.id,item);
       trace("artist-catalog-match",{count:matches(page.items).length,total:wanted.length});
     }else trace("artist-catalog-match",{state:verified.length?"ambiguous":"unverified",count:0,total:wanted.length});
+    if(!matches([...collected.values()]).length&&!options.signal?.aborted&&wanted.length>1){
+      const query=(wanted[0].title+" "+wanted[0].artist).slice(0,160);
+      const fallback=await search("recording",query,{...options,artwork:true}).catch(()=>[]);
+      for(const row of fallback)collected.set(row.id,row);
+    }
     return [...collected.values()].slice(0,100);
   };
   // Explicit artist detail retrieval uses the very same queue and parsed page.
@@ -370,7 +403,7 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
     if(!page)return null;
     const tracks=new Map(page.tracks.map(track=>[track.id,track])),releases=new Map(page.releases.map(release=>[release.id,release]));
     const jobs=[];
-    if(page.topSongs)jobs.push(scheduled("songs:"+JSON.stringify(page.topSongs),options,async()=>mapArtistSongs(await requestCatalog(fetchImpl,"browse",page.topSongs),id)).then(rows=>{for(const row of rows)tracks.set(row.id,row);}));
+    if(page.topSongs)jobs.push(scheduled("songs:"+JSON.stringify(page.topSongs),options,async()=>mapArtistSongs(await requestCatalog(fetchImpl,"browse",page.topSongs),id,page.name)).then(rows=>{for(const row of rows)tracks.set(row.id,row);}));
     for(const {kind,...endpoint} of page.discography)jobs.push(scheduled("discography:"+JSON.stringify(endpoint),options,async()=>mapDiscography(await requestCatalog(fetchImpl,"browse",endpoint),kind)).then(rows=>{for(const row of rows)releases.set(row.id,row);}));
     const settled=await Promise.allSettled(jobs);
     const items=[...tracks.values()].slice(0,100),{tracks:_,topSongs:__,discography:___,...metadata}=page;
@@ -378,6 +411,17 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
     remember(items);persistent.set(diskKey("artist-page","ytmusic:"+id),{items,page:metadata},7*86400000);
     if(settled.every(job=>job.status==="fulfilled"))persistent.set(diskKey("artist-details","ytmusic:"+id),{items,page:metadata},7*86400000);
     return {...metadata,tracks:items};
+  };
+  search.getAlbum=async(providerId,options={})=>{
+    const id=String(providerId||"").replace(/^ytmusic:/,"");if(!albumIdPattern.test(id))return null;
+    await persistent.hydrate();
+    const key=diskKey("album","ytmusic:"+id),cached=persistent.get(key);
+    if(cached?.album){trace("release-cache",{state:"hit"});return {...cached.album,tracks:cached.items};}
+    const page=await scheduled("album:"+id,options,async()=>mapAlbumPage(await requestCatalog(fetchImpl,"browse",{browseId:id}),id));
+    if(!page)return null;
+    const {tracks:items,...album}=page;remember(items);
+    if(items.length)persistent.set(key,{items,album},7*86400000);
+    return page;
   };
   return search;
 }
@@ -430,4 +474,4 @@ function exactMusicCandidate(wanted, items) {
   const unique=[...new Map(exact.map(item=>[item.url,item])).values()];
   return unique.length===1?unique[0]:null;
 }
-module.exports={mapArtistPage,mapArtistSongs,mapDiscography,createYouTubeMusicSearch,createYouTubeMusicRadio,mapSearchResponse,mapRadioResponse,safeThumbnail,isJunkVideo,matchesQuery,exactMusicCandidate};
+module.exports={mapArtistPage,mapArtistSongs,mapDiscography,mapAlbumPage,createYouTubeMusicSearch,createYouTubeMusicRadio,mapSearchResponse,mapRadioResponse,safeThumbnail,isJunkVideo,matchesQuery,exactMusicCandidate};

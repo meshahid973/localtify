@@ -112,3 +112,11 @@ test("artist-name search is corroborated by multiple recording identities before
   const second=await search.artistCatalog("Kenshi Yonezu",wanted);assert.equal(second.length,2);assert.equal(calls,2);
   search.close();
 });
+
+test("album collection rows reuse verified album identity and cover",()=>{
+  const {mapAlbumPage}=require("../../electron/discover/youtube-music.cjs");
+  const id="MPREb_album";
+  const item=row("KICK BACK");item.musicResponsiveListItemRenderer.flexColumns=[col([{text:"KICK BACK"}])];
+  const body={header:{musicResponsiveHeaderRenderer:{title:{runs:[{text:"Album"}]},straplineTextOne:{runs:[linked("Kenshi Yonezu","MUSIC_PAGE_TYPE_ARTIST","UCabcdefghijklmnopqrstuv")]},thumbnail:{musicThumbnailRenderer:{thumbnail:{thumbnails:[{url:"https://lh3.googleusercontent.com/album=w512-h512"}]}}}}},contents:[{musicShelfRenderer:{contents:[item]}}]};
+  const album=mapAlbumPage(body,id);assert.equal(album.tracks[0].albumId,"ytmusic:"+id);assert.equal(album.tracks[0].artist,"Kenshi Yonezu");assert.equal(album.tracks[0].coverUrl,"https://lh3.googleusercontent.com/album=w256-h256-l90-rj");
+});

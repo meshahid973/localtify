@@ -213,10 +213,11 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
         return { status: "error", error: "Enter a search of 2–160 characters." };
       if (!musicBrainzClient) return { status: "error", error: "Public catalog is unavailable. Update the desktop application." };
       const radioSeed = query?.radioSeed;
-      const artistId=query?.artistId;
+      const artistId=query?.artistId,albumId=query?.albumId;
+      if(albumId!==undefined&&(kind!=="recording"||artistId!==undefined||radioSeed!==undefined||!/^ytmusic:MPREb_[A-Za-z0-9_-]{1,80}$/.test(albumId||"")||!searchYouTubeMusic?.getAlbum))return {status:"error",error:"Album catalog unavailable."};
       if(artistId!==undefined&&(kind!=="recording"||radioSeed!==undefined||!/^ytmusic:UC[A-Za-z0-9_-]{22}$/.test(artistId||"")||!searchYouTubeMusic?.getArtist))return {status:"error",error:"Artist catalog unavailable."};
       if (radioSeed !== undefined && (kind !== "recording" || typeof radioSeed !== "string" || !/^[A-Za-z0-9_-]{11}$/.test(radioSeed) || !searchYouTubeMusicRadio)) return { status: "error", error: "Related songs unavailable." };
-      const key = JSON.stringify([kind, term.toLowerCase(), radioSeed || "",artistId||""]);
+      const key = JSON.stringify([kind, term.toLowerCase(), radioSeed || "",artistId||"",albumId||""]);
       if (catalogRunning && catalogRunning.key !== key)
         return { status: "error", error: "Another catalog search is in progress. Try again when it finishes." };
       if (!catalogRunning) {
@@ -224,6 +225,7 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
           if (getSettings().discoverEnabled !== true) return [];
           if (radioSeed) return searchYouTubeMusicRadio(radioSeed);
           if(artistId){const page=await searchYouTubeMusic.getArtist(artistId);return page?.tracks||[];}
+          if(albumId){const page=await searchYouTubeMusic.getAlbum(albumId);return page?.tracks||[];}
           // Search YouTube Music only for explicit user queries, never library seeds.
           if (searchYouTubeMusic) {
             const direct = await searchYouTubeMusic(kind, term).catch(() => []);
@@ -311,7 +313,7 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
             const extra=[];
             // Only new recommended artists (not private library seeds) use an
             // artist-level query through the existing public catalog adapter.
-            if(source==="recommended"&&artistCatalogBudget>0&&missing.length>=2&&missing.some(track=>!MBID.test(track.recordingId||""))&&searchYouTubeArtwork&&name.length<=160){
+            if(source==="recommended"&&artistCatalogBudget>0&&missing.length>=1&&missing.some(track=>!MBID.test(track.recordingId||""))&&searchYouTubeArtwork&&name.length<=160){
               artistCatalogBudget--;
               extra.push(timed("provider-artist-catalog",()=>searchYouTubeArtwork.artistCatalog ? searchYouTubeArtwork.artistCatalog(name,missing,{artwork:true,signal:controller.signal}) : searchYouTubeArtwork("recording",name,{artwork:true,artistCatalog:true,signal:controller.signal})).then(rows=>Array.isArray(rows)?rows:[],()=>[]));
             }
