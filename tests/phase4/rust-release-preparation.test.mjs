@@ -7,6 +7,7 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const { prepareRelease } = require("../../scripts/prepare-release.cjs");
+const { verifyBundledLastfmKey } = require("../../scripts/check-release-artifacts.cjs");
 const { validatePackageTarget } = require("../../scripts/package-rust-release.cjs");
 
 function fixture(t) {
@@ -69,4 +70,26 @@ test("normal and native package scripts retain the stable installer identity", (
   assert.match(pkg.scripts["rust:dist:linux"], /package-rust-release/);
   assert.equal(pkg.build.appId, "com.meshahid973.localitfy");
   assert.equal(pkg.build.productName, "localtify");
+});
+
+test("official desktop releases require and verify the bundled application key", t => {
+  const { root } = fixture(t);
+  const required = { LOCALTIFY_REQUIRE_LASTFM_KEY: "1" };
+  const key = "a".repeat(32);
+  assert.throws(() => prepareRelease(root, false, required), /Configure LOCALTIFY_LASTFM_API_KEY/);
+  assert.throws(() => prepareRelease(root, false, { ...required, LOCALTIFY_LASTFM_API_KEY: "invalid" }), /32-character/);
+  assert.ok(fs.existsSync(path.join(root, "release", "old.txt")), "invalid configuration must not delete previous release");
+  prepareRelease(root, false, { ...required, LOCALTIFY_LASTFM_API_KEY: key });
+  const generated = path.join(root, "build", "provider-defaults.json");
+  assert.deepEqual(JSON.parse(fs.readFileSync(generated, "utf8")), { lastfmApiKey: key });
+  for (const [platform, directory] of [["win32", "win-unpacked"], ["linux", "linux-unpacked"]]) {
+    const resources = path.join(root, "release", directory, "resources");
+    fs.mkdirSync(resources, { recursive: true });
+    const bundled = path.join(resources, "provider-defaults.json");
+    fs.copyFileSync(generated, bundled);
+    verifyBundledLastfmKey(root, key, platform);
+    assert.throws(() => verifyBundledLastfmKey(root, "b".repeat(32), platform), /exactly the configured/);
+    fs.writeFileSync(bundled, JSON.stringify({ lastfmApiKey: key, sharedSecret: "not allowed" }));
+    assert.throws(() => verifyBundledLastfmKey(root, key, platform), /exactly the configured/);
+  }
 });

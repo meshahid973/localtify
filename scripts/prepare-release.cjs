@@ -5,14 +5,13 @@ const path = require("node:path");
 
 const NATIVE_FILENAME = /^localtify_rust_kernels\.[a-z0-9_-]+\.[a-z0-9_-]+\.node$/i;
 
-function prepareRelease(root, includeRust = false) {
+function prepareRelease(root, includeRust = false, env = process.env) {
   const nativeDirectory = path.join(root, "electron", "native");
   const currentAddon = `localtify_rust_kernels.${process.platform}.${process.arch}.node`;
   if (includeRust && !fs.existsSync(path.join(nativeDirectory, currentAddon))) {
     throw new Error("The native release requires a built addon for this OS and architecture");
   }
 
-  fs.rmSync(path.join(root, "release"), { recursive: true, force: true });
   // Only the Last.fm APPLICATION API key may be packaged. Never include a
   // shared secret, arbitrary .env fields, or credentials in the renderer.
   // This is a distributed public client identifier, not a private credential:
@@ -20,8 +19,10 @@ function prepareRelease(root, includeRust = false) {
   const providerFile = path.join(root, "build", "provider-defaults.json");
   const localEnv = path.join(root, ".env");
   const parsed = fs.existsSync(localEnv) ? require("dotenv").parse(fs.readFileSync(localEnv)) : {};
-  const key = String(process.env.LOCALTIFY_LASTFM_API_KEY || parsed.LOCALTIFY_LASTFM_API_KEY || "").trim();
+  const key = String(env.LOCALTIFY_LASTFM_API_KEY || parsed.LOCALTIFY_LASTFM_API_KEY || "").trim();
   if (key && !/^[0-9a-f]{32}$/i.test(key)) throw new Error("LOCALTIFY_LASTFM_API_KEY must be a 32-character hexadecimal application key");
+  if (env.LOCALTIFY_REQUIRE_LASTFM_KEY === "1" && !key) throw new Error("Configure LOCALTIFY_LASTFM_API_KEY before publishing an official desktop release");
+  fs.rmSync(path.join(root, "release"), { recursive: true, force: true });
   fs.mkdirSync(path.dirname(providerFile), { recursive: true });
   fs.writeFileSync(providerFile, JSON.stringify({ lastfmApiKey: key || "" }) + "\n", { mode: 0o600 });
   if (!fs.existsSync(nativeDirectory)) return;
