@@ -14,7 +14,6 @@
 }
 
 .connectMenu{
-  position: fixed;
   z-index: 9001;
   width: 260px;
   display: grid;
@@ -26,13 +25,17 @@
   background: linear-gradient(var(--lt-surface-raised), var(--lt-surface-raised)), var(--lt-bg);
   box-shadow: var(--lt-shadow-menu);
   max-width: calc(100vw - 16px);
-  max-height: calc(100dvh - 32px);
+  max-height: var(--radix-dropdown-menu-content-available-height, calc(100dvh - 32px));
   overflow-y: auto;
 }
 
 .connectMenu-chip{
-  transform: translateX(-50%);
   width: min(300px, calc(100vw - 32px));
+}
+
+.connectMenu [role="group"] {
+  display: grid;
+  gap: 2px;
 }
 
 .connectMenuTitle{
@@ -56,8 +59,7 @@
   cursor: pointer;
 }
 
-.connectMenuItem:hover,
-.connectMenuItem:focus-visible{
+.connectMenuItem[data-highlighted]{
   background: var(--lt-surface-raised);
 }
 

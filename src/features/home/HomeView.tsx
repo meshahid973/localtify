@@ -35,10 +35,12 @@ export type HomeViewProps = {
   nowPlayingTransitionKey: string;
   openAnalysisSettings: () => unknown;
   openDailyMixes: () => unknown;
+  openPhoneSync: () => unknown;
   openSimilarSongs: (request: SimilarSeedRequest) => unknown;
   playableSongCount: number;
   playerError: string | null;
   playSongs: (songIds: string[], label: string) => unknown;
+  resumePlayback: () => unknown;
   selectSong: (songId: string, shouldPlay?: boolean) => unknown;
   songs: readonly Song[];
   songsById: Map<string, Song>;
@@ -65,9 +67,11 @@ export default function HomeView(props: HomeViewProps) {
     nowPlayingTransitionKey,
     openAnalysisSettings,
     openDailyMixes,
+    openPhoneSync,
     playableSongCount,
     playerError,
     playSongs,
+    resumePlayback,
     selectSong,
     songs,
     settings,
@@ -103,7 +107,7 @@ export default function HomeView(props: HomeViewProps) {
 
   const startListening = () => {
     if (currentSong?.id) {
-      void selectSong(currentSong.id, true);
+      void resumePlayback();
       return;
     }
     shuffleLibrarySongsAction();
@@ -127,7 +131,7 @@ export default function HomeView(props: HomeViewProps) {
           {isThreeAm && settings.volume > 0.8 ? <div className="homeInlineNotice">volume is above 80% · late night ears deserve mercy.</div> : null}
 
           <div className="homeJumpActions">
-            <OpticalButton primary className="homeStartButton" type="button" onClick={needsPhoneSync ? () => actions.nav.go("settings", "nav") : startListening} disabled={!needsPhoneSync && !currentSong && playableSongCount === 0}>
+            <OpticalButton primary className="homeStartButton" type="button" onClick={needsPhoneSync ? openPhoneSync : startListening} disabled={!needsPhoneSync && !currentSong && playableSongCount === 0}>
               {needsPhoneSync ? <Smartphone size={12} aria-hidden="true" /> : <SolidIcon name="play" size={13} />}
               <span>{needsPhoneSync ? "Set up phone sync" : android ? (currentSong ? "Play" : "Shuffle music") : currentSong ? "Play track" : "Start Listening"}</span>
             </OpticalButton>

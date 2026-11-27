@@ -20,6 +20,7 @@ export type AnalyticsViewProps = {
   importSongs: () => unknown;
   songs: Song[];
   onSelectSong?: (id: string) => unknown;
+  onRecapCopied: () => void;
 };
 
 const RANGE_OPTIONS = [
@@ -63,7 +64,7 @@ function breakdown(songs: Song[], summary: ListeningCalendarSummary | null) {
 }
 
 export default function AnalyticsView({
-  songs, importSongs, onSelectSong
+  songs, importSongs, onSelectSong, onRecapCopied
 }: AnalyticsViewProps) {
   const actions = useAppActions();
   const { kit } = useAppearance();
@@ -73,6 +74,7 @@ export default function AnalyticsView({
   const [summary, setSummary] = useState<ListeningCalendarSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  const [uncopiedRecap, setUncopiedRecap] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -117,7 +119,7 @@ export default function AnalyticsView({
       setOffset(0);
     }
   }
-  function copyRecap() {
+  async function copyRecap() {
     if (!summary) return;
     const lines = [
       "Localtify listening recap — " + listeningPeriodName(summary),
@@ -126,7 +128,14 @@ export default function AnalyticsView({
       "Active days: " + summary.activeDays.toLocaleString(),
       ...insight.topSongs.slice(0, 3).map((entry, i) => (i + 1) + ". " + (entry.song?.title || "Unavailable track") + " — " + readableDuration(entry.ms))
     ];
-    void navigator.clipboard?.writeText?.(lines.join("\n")).catch(() => undefined);
+    const text = lines.join("\n");
+    try {
+      await navigator.clipboard.writeText(text);
+      setUncopiedRecap("");
+      onRecapCopied();
+    } catch {
+      setUncopiedRecap(text);
+    }
   }
 
   return <section data-page-section="analytics" className="analyticsExperienceV4" aria-label="Listening analytics">
@@ -147,6 +156,12 @@ export default function AnalyticsView({
           { label: "Open library", onSelect: () => actions.nav.go("library") }
         ]} />
       </div>
+    {uncopiedRecap ? <div className="analyticsV4Recap">
+      <p role="status">Couldn’t copy the listening recap. You can select and copy it below.</p>
+      <textarea aria-label="Listening recap" readOnly value={uncopiedRecap} rows={6}
+        onFocus={event => event.currentTarget.select()} />
+      <OpticalButton type="button" onClick={() => setUncopiedRecap("")}>Dismiss</OpticalButton>
+    </div> : null}
     {!songs.length ? <div className="analyticsV4EmptyLibrary" role="status">
       <span>{isAndroidApp() ? "Sync your music library." : "Import music to get started."}</span>
       {!isAndroidApp() ? <OpticalButton type="button" onClick={importSongs}>Import music</OpticalButton> : null}

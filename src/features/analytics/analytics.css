@@ -48,6 +48,14 @@
 .analyticsV4EmptyLibrary { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; border-bottom:1px solid var(--lt-border); padding:10px 0 18px; color:var(--lt-muted); font-size:13px; }
 .analyticsV4EmptyLibrary button { padding:8px 14px; border-radius:var(--lt-radius-item); background:var(--lt-accent); border:0; color:var(--button-text-on-accent); font-size:12px; cursor:pointer; }
 
+.analyticsV4Recap { display:grid; gap:10px; justify-items:start; }
+.analyticsV4Recap p { margin:0; color:var(--lt-muted); }
+.analyticsV4Recap textarea {
+  width:min(100%, 540px); resize:vertical; padding:10px;
+  color:var(--lt-text); background:var(--lt-surface-soft);
+  border:1px solid var(--lt-border); border-radius:var(--lt-radius-item); font:inherit;
+}
+
 @media (max-width:520px) { .analyticsV4PeriodNav { margin-left:0; order:3; width:calc(100% - 46px); } .analyticsV4PeriodNav span { flex:1; max-width:none; } }
 
 .analyticsV4Controls [role="group"] { border-color: transparent; background: transparent; }

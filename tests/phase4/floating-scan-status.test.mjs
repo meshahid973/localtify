@@ -20,7 +20,7 @@ test("cover and library scans remain functional without floating mascot notifica
   assert.doesNotMatch(css, /^\s*\.scannerOrb(?:\s*\{|::)/m, "remove orphaned scanner orb styles");
   assert.doesNotMatch(shell, /libraryScanBusy|pixelArtBusy|libraryScanMessage/);
   assert.doesNotMatch(contract, /libraryScanBusy|pixelArtBusy|libraryScanMessage/);
-  assert.match(shell, /appToast \? <div className="appToast error"/, "preserve actionable error messages");
+  assert.match(shell, /appToast\.kind === "error" \? "alert" : "status"/, "preserve actionable error announcements");
   assert.match(shell, /<ImportProgress state=\{importAnimation\}/, "preserve the local import progress overlay");
   assert.match(read("src/features/library/ImportProgress.tsx"), /state\.active/, "show import progress only while active");
   assert.match(app, /libraryScanBusy, setLibraryScanBusy/, "keep library scan tracking");

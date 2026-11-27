@@ -213,7 +213,8 @@ export default function AppShell(props: AppShellProps) {
         </div>
       ) : null}
 
-      {appToast ? <div className="appToast error" key={appToast.id} role="alert">{appToast.message}</div> : null}
+      {appToast ? <div className={`appToast ${appToast.kind}`} key={appToast.id}
+        role={appToast.kind === "error" ? "alert" : "status"}>{appToast.message}</div> : null}
 
       <ImportProgress state={importAnimation} />
 

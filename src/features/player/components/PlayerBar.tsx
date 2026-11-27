@@ -1,7 +1,7 @@
 import { TransportButton, TransportGroup } from "./TransportGroup";
 import { Slider } from "../../../shared/ui/Slider";
 import { VolumeSlider } from "./VolumeSlider";
-import { Fragment } from "react";
+import { Fragment, lazy, Suspense } from "react";
 import type { CSSProperties, Dispatch, DragEventHandler, MouseEvent as ReactMouseEvent, MutableRefObject, PointerEventHandler, SetStateAction } from "react";
 import { ListMusic, MicVocal, Repeat2, Shuffle, SkipBack, SkipForward, Volume2, VolumeX } from "lucide-react";
 import "../player.css";
@@ -15,8 +15,9 @@ import type { Song } from "../../library/song.types";
 import type { Settings } from "../../settings/settings.types";
 import type { CoverColorSyncMode } from "../../settings/theme.types";
 import type { RepeatMode } from "../player.types";
-import { DevicePicker } from "../../connect/DevicePicker";
 import type { ConnectControls } from "../../connect/usePlaybackConnect";
+
+const DevicePicker = lazy(() => import("../../connect/DevicePicker").then(module => ({ default: module.DevicePicker })));
 
 export type PlayerBarProps = {
   ambientStyle: CSSProperties;
@@ -279,7 +280,7 @@ export default function PlayerBar(props: PlayerBarProps) {
 
             <div className="playerRight">
               <div className="playerRightTools">
-                {connect ? <DevicePicker controls={connect} variant="bar" /> : null}
+                {connect ? <Suspense fallback={null}><DevicePicker controls={connect} variant="bar" /></Suspense> : null}
                 {lyricsOpen !== undefined ? (
                   <button
                     type="button"

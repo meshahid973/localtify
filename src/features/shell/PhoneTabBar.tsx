@@ -36,13 +36,6 @@ export default function PhoneTabBar({ view, changeView, sidebarNavOrder, sidebar
   const chooseTabs = () => {
     setMoreOpen(false);
     openSidebarSettings();
-    // scrollIntoView doesn't move the page's scroll area in Android's WebView, so scroll it by hand.
-    window.setTimeout(() => {
-      const section = document.querySelector<HTMLDetailsElement>(".settingsSidebarDisclosure");
-      const page = section?.closest(".content");
-      if (section) section.open = true;
-      if (section && page) page.scrollTo({ top: section.getBoundingClientRect().top - page.getBoundingClientRect().top + page.scrollTop - 12, behavior: "smooth" });
-    }, 350);
   };
 
   // Android back closes the sheet before it leaves the page.

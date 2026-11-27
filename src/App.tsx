@@ -42,7 +42,6 @@ import type { PlaybackSource, PlaybackSourceRef } from "./features/player/playba
 import { makeShuffledPlayableSongs } from "./features/player/shuffleSongs";
 import { resolveAutoTransitionTarget } from "./features/player/resolveAutoTransitionTarget";
 import { useNavigationHistory } from "./features/shell/useNavigationHistory";
-import { revealSidebarSettingsPanel } from "./features/shell/sidebarLayout";
 import CatBuddy from "./CatBuddy";
 import { prepareBootstrap } from "./app/runtime/prepareBootstrap";
 import { useLibraryActions } from "./features/library/useLibraryActions";
@@ -188,7 +187,7 @@ function MainModeApp() {
   const {songs, setSongs, getSong, moveSong} = useOrderedLibrary(ready);
   const flushPlaylistsRef = useRef<() => Promise<boolean>>(async () => true);
   const flushSongEditsRef = useRef<() => Promise<boolean>>(async () => true);
-  const { appToast, showAppToast } = useAppToast();
+  const { appToast, showAppToast, showFeedbackToast } = useAppToast();
   const {
     settings, setSettings, settingsRef, settingsSaveError, retrySettingsSave,
     settingsCategory, setSettingsCategory,
@@ -209,6 +208,8 @@ function MainModeApp() {
   const [heroMotion, setHeroMotion] = useState<"idle" | "expanding" | "compacting">("idle");
   const [homeEntranceSettled, setHomeEntranceSettled] = useState(false);
   const [view, setView] = useState<View>("home");
+  const [settingsReveal, setSettingsReveal] = useState<{ category: SettingsCategory; id: string } | null>(null);
+  const clearSettingsReveal = useCallback(() => setSettingsReveal(null), []);
   const [isAppBackgrounded, setIsAppBackgrounded] = useState(() => (typeof document === "undefined" ? false : document.hidden));
   const isAppBackgroundedRef = useRef(isAppBackgrounded);
   const [diagnosticsCopied, setDiagnosticsCopied] = useState(false);
@@ -392,7 +393,9 @@ function MainModeApp() {
     setSettingsSearch(value);
   }
 
-  function openSettingsPanel(category: SettingsCategory = "appearance") {
+  function openSettingsPanel(category: SettingsCategory = "appearance", target?: string) {
+    if (target) setSettingsSearch("");
+    setSettingsReveal(target ? { category, id: target } : null);
     setSettingsCategory(category);
     setEditorSong(null);
     setDeleteTarget(null);
@@ -400,12 +403,12 @@ function MainModeApp() {
   }
 
   function openSidebarSettings() {
-    openSettingsPanel("appearance");
-    revealSidebarSettingsPanel(settings.reducedMotion);
+    openSettingsPanel("appearance", "settings-appearance-tabs");
   }
 
   function changeView(nextView: View, _source: "nav" | "onboarding" | "settings" | "unknown" = "nav") {
     setLyricsOpen(false);
+    if (nextView !== "settings") clearSettingsReveal();
     if (nextView === "covers") nextView = "library";
 
     startTransition(() => {
@@ -4543,6 +4546,8 @@ function MainModeApp() {
   }), [settings.heroExpanded, settings.volume, settings.homeSectionOrder, settings.homeHiddenSections]);
   const homeOpenAnalysis = useStableCallback(() => { setSettingsSearch(""); setSettingsCategory("experimental"); changeView("settings"); });
   const homeOpenMixes = useStableCallback(() => nav.go("playlists"));
+  const homeOpenPhoneSync = useStableCallback(() => openSettingsPanel("library", "settings-library-sync"));
+  const homeResume = useStableCallback(() => { if (!(connect.remote?.playing ?? isPlaying)) togglePlay(); });
   const homePlaySongs = useStableCallback(playCollectionSongs);
   const homeSelectSong = useStableCallback(selectSong);
   const homeShuffle = useStableCallback(shuffleLibrarySongsAction);
@@ -4666,10 +4671,12 @@ function MainModeApp() {
       nowPlayingTransitionKey,
       openAnalysisSettings: homeOpenAnalysis,
       openDailyMixes: homeOpenMixes,
+      openPhoneSync: homeOpenPhoneSync,
       openSimilarSongs: setSimilarRequest,
       playableSongCount: playableSongs.length,
       playerError,
       playSongs: homePlaySongs,
+      resumePlayback: homeResume,
       selectSong: homeSelectSong,
       songs, songsById,
       settings: homeSettings,
@@ -4763,19 +4770,23 @@ function MainModeApp() {
     analytics: {
       importSongs,
       songs,
+      onRecapCopied: () => showFeedbackToast("Recap copied", "success"),
       onSelectSong: (id: string) => void selectSong(id, true)
     },
     settingsView: {
       renderSettingsCategoryContent,
       settingsSaveError, retrySettingsSave,
+      reveal: settingsReveal,
+      onRevealed: clearSettingsReveal,
       settingsRail: {
         tabs: visibleSettingsTabs,
         analysisSupported,
         activeCategory: settingsCategory,
         search: settingsSearch,
         resultLabel: settingsSearchResultLabel,
-        onSearchChange: handleSettingsSearchInput,
-        onCategoryChange: setSettingsCategory
+        onSearchChange: value => { clearSettingsReveal(); handleSettingsSearchInput(value); },
+        onCategoryChange: category => { clearSettingsReveal(); setSettingsCategory(category); },
+        onOpenControl: openSettingsPanel,
       },
       settingsCategory
     },
