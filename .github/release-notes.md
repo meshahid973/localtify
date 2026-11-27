@@ -2,9 +2,9 @@ Localtify 0.5.1 is a major interface and performance update.
 
 ## What's new
 
-- Redesigned app shell, navigation, library, player, queue, lyrics, Downloads, Discover, Analytics and Settings.
+- **Redesigned interface.** App shell, navigation, library, player, queue, lyrics, Downloads, Discover, Analytics and Settings.
 - New Liquid Glass appearance and refined light/dark themes, menus, dialogs and controls.
-- Restored Albums, smart playlists and prompt playlists.
+- **Smart playlists.** Restored Albums, smart playlists and prompt playlists.
 - Improved playlist editing, search, sorting and playback.
 - Faster library indexing, lower memory use and reduced background work.
 - Improved artwork and metadata caching, artist/album catalogs and recording matching.

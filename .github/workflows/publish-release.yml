@@ -1,6 +1,9 @@
 name: publish-release
 
 on:
+  push:
+    branches: [main]
+    paths: ['.github/release-requests/v0.5.1.json']
   workflow_dispatch:
     inputs:
       tag:
@@ -19,8 +22,8 @@ permissions:
 
 env:
   ONNXRUNTIME_NODE_INSTALL: skip
-  RELEASE_TAG: ${{ inputs.tag }}
-  UNSIGNED_WINDOWS: ${{ inputs.unsigned_windows }}
+  RELEASE_TAG: ${{ github.event_name == 'push' && 'v0.5.1' || inputs.tag }}
+  UNSIGNED_WINDOWS: ${{ github.event_name == 'push' || inputs.unsigned_windows }}
 
 concurrency:
   group: publish-release
@@ -43,7 +46,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: node -e "if (process.env.RELEASE_TAG !== 'v' + require('./package.json').version) process.exit(1)"
+      - name: Verify requested release version
+        run: node -e "if (process.env.RELEASE_TAG !== 'v' + require('./package.json').version) process.exit(1); if (process.env.GITHUB_EVENT_NAME === 'push') { const request = require('./.github/release-requests/v0.5.1.json'); if (request.tag !== process.env.RELEASE_TAG || request.unsignedWindows !== true || process.env.UNSIGNED_WINDOWS !== 'true') process.exit(1); }"
       - run: npm ci
       - name: Install Linux package tools
         if: runner.os == 'Linux'
