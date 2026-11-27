@@ -2,8 +2,8 @@
 
 // Minimal Last.fm client for Discover: similar artists, an artist's top tracks and biography. Only artist names
 // and song titles are sent. Responses are cached on disk for a week and requests are spaced to stay under 5 per second.
-const fs = require("node:fs");
-const path = require("node:path");
+const { createResourceCache } = require("../runtime/resource-cache.cjs");
+const { createHash } = require("node:crypto");
 const { retryAfterMs, providerCooldown } = require("./provider-health.cjs");
 
 const API_URL = "https://ws.audioscrobbler.com/2.0/";
@@ -67,34 +67,35 @@ function bioText(html) {
     .trim();
 }
 
-function createLastfmClient({ apiKey, cacheFile, fetch = globalThis.fetch, now = Date.now, artwork = false, wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) }) {
-  let cache = null;
-  let dirty = false;
+function createLastfmResponseCache({file="",now=Date.now}={}) {
+  const valid=value=>value&&typeof value==="object"&&!Array.isArray(value)&&!value.error;
+  return createResourceCache({file,now,maxEntries:CACHE_MAX_ENTRIES,maxBytes:8*1024*1024,validate:valid,
+    migrate:decoded=>decoded&&typeof decoded==="object"?Object.entries(decoded)
+      .filter(([,row])=>Number.isFinite(row?.at)&&valid(row.data)&&Object.keys(row.data).length)
+      .sort((a,b)=>a[1].at-b[1].at).map(([key,row])=>[key,{value:row.data,expiresAt:row.at+CACHE_TTL_MS}]):[]});
+}
+function createLastfmClient({ apiKey, cacheFile, fetch = globalThis.fetch, now = Date.now, responseCache=createLastfmResponseCache({file:cacheFile,now}), artwork = false, wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) }) {
+  const pending=new Map();
+  const scope=createHash("sha256").update(String(apiKey||"")).digest("hex");
   let nextSlot = 0, blockedUntil = 0, blockedError = null;
 
-  function loadCache() {
-    if (cache) return cache;
-    try { cache = JSON.parse(fs.readFileSync(cacheFile, "utf8")); } catch { cache = {}; }
-    if (!cache || typeof cache !== "object" || Array.isArray(cache)) cache = {};
-    return cache;
+  async function call(method,params) {
+    const key=method+"?"+new URLSearchParams(params);
+    const missing="miss:"+createHash("sha256").update(key+scope).digest("hex");
+    if(cacheFile)await responseCache.hydrate();
+    const cached=responseCache.get(key)??responseCache.get(missing);
+    if(cached!==undefined)return cached;
+    if(pending.has(key))return pending.get(key);
+    if(pending.size>=64)throw new LastfmError("Last.fm is temporarily busy.","rate-limited");
+    const task=request(method,params).then(body=>{
+      const found=Object.keys(body).length>0;
+      responseCache.set(found?key:missing,body,found?CACHE_TTL_MS:300000);
+      return body;
+    }).finally(()=>pending.delete(key));
+    pending.set(key,task);
+    return task;
   }
-
-  function saveCache() {
-    if (!dirty || !cacheFile) return;
-    const entries = Object.entries(loadCache()).filter(([, entry]) => now() - entry.at < CACHE_TTL_MS)
-      .sort((a, b) => b[1].at - a[1].at).slice(0, CACHE_MAX_ENTRIES);
-    try {
-      fs.mkdirSync(path.dirname(cacheFile), { recursive: true });
-      fs.writeFileSync(cacheFile, JSON.stringify(Object.fromEntries(entries)));
-      dirty = false;
-    } catch { /* A cache that can't be written only costs extra requests. */ }
-  }
-
-  async function call(method, params) {
-    // The key is left out of the cache key so changing it doesn't throw away good answers.
-    const key = `${method}?${new URLSearchParams(params)}`;
-    const cached = loadCache()[key];
-    if (cached && now() - cached.at < CACHE_TTL_MS) return cached.data;
+  async function request(method, params) {
     if (artwork && now() < blockedUntil) throw blockedError;
     const slot = Math.max(now(), nextSlot);
     nextSlot = slot + REQUEST_SPACING_MS;
@@ -149,8 +150,7 @@ function createLastfmClient({ apiKey, cacheFile, fetch = globalThis.fetch, now =
       }
       throw error;
     }
-    loadCache()[key] = { at: now(), data: body };
-    dirty = true;
+    if(!body || typeof body!=="object" || Array.isArray(body))throw new LastfmError("Invalid Last.fm response.","http");
     return body;
   }
 
@@ -187,8 +187,8 @@ function createLastfmClient({ apiKey, cacheFile, fetch = globalThis.fetch, now =
       if (!content) return null;
       return { name: String(info?.name || artist).trim(), url: String(info?.url || ""), summary: summary || content, content };
     },
-    flush: saveCache
+    flush: responseCache.flush
   };
 }
 
-module.exports = { createLastfmClient, LastfmError, API_URL, errorFor, bioText };
+module.exports = { createLastfmClient, createLastfmResponseCache, LastfmError, API_URL, errorFor, bioText };

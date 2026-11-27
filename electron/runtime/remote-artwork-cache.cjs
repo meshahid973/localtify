@@ -32,7 +32,7 @@ function createRemoteArtworkCache({ dir, maxBytes = 128 * 1024 * 1024, maxEntrie
   maxEntries = Math.max(1, Math.min(4096, Number(maxEntries) || 2048));
   const index = path.join(dir, "index.json"), rows = new Map(), pending = new Map(), verified = new Map(), retryAt = new Map();
   const shutdown = new AbortController();
-  let ready, serial = Promise.resolve(), closed = false;
+  let ready, serial = Promise.resolve(), closed = false, dirty=false, indexTimer=null;
   const withLock = work => {
     const result = serial.then(work);
     serial = result.catch(() => {});
@@ -43,7 +43,17 @@ function createRemoteArtworkCache({ dir, maxBytes = 128 * 1024 * 1024, maxEntrie
     try {
       await fs.writeFile(temporary, JSON.stringify([...rows]), { flag: "wx", mode: 0o600 });
       await fs.rename(temporary, index);
+      dirty=false;
     } finally { await fs.rm(temporary, { force: true }).catch(() => {}); }
+  }
+  function markDirty(){
+    dirty=true;
+    if(closed||indexTimer!==null)return;
+    indexTimer=setTimeout(()=>{
+      indexTimer=null;
+      void withLock(async()=>{if(dirty&&!closed)await save();}).catch(()=>{});
+    },250);
+    indexTimer.unref?.();
   }
   // Retain validators briefly after expiry without ever displaying stale bytes
   // outside the provider-authorized stale-while-revalidate window.
@@ -72,7 +82,7 @@ function createRemoteArtworkCache({ dir, maxBytes = 128 * 1024 * 1024, maxEntrie
       const [url,row] = rows.entries().next().value;
       drop(url,row);
     }
-    await save();
+    markDirty();
     if (startup) {
       for (const entry of await fs.readdir(dir,{withFileTypes:true})) {
         if (!entry.isFile()) continue;
@@ -121,16 +131,16 @@ function createRemoteArtworkCache({ dir, maxBytes = 128 * 1024 * 1024, maxEntrie
     const row = rows.get(url);
     if (!row) return null;
     const file = await validateFile(row);
-    if (!file) { rows.delete(url); verified.delete(row.file); return null; }
+    if (!file) { rows.delete(url); verified.delete(row.file); await prune([row.file]); return null; }
     rows.delete(url); rows.set(url,row);
     return { row, file };
   }
-  async function fetchImage(url, prior) {
+  async function fetchImage(url, prior, background=false) {
     const headers = {Accept:"image/png,image/jpeg,image/webp,image/gif"};
     if (prior?.etag) headers["If-None-Match"] = prior.etag;
     if (prior?.lastModified) headers["If-Modified-Since"] = prior.lastModified;
     const response = await fetchImpl(url,{
-      redirect:"error",credentials:"omit",signal:AbortSignal.any([shutdown.signal,AbortSignal.timeout(prior ? 4500 : 1600)]),headers
+      redirect:"error",credentials:"omit",signal:AbortSignal.any([shutdown.signal,AbortSignal.timeout(background ? 4500 : 900)]),headers
     });
     const {ttl,stale} = policy(response.headers, response.status === 304 ? prior : undefined);
     if (response.status === 304 && prior) {
@@ -181,11 +191,11 @@ function createRemoteArtworkCache({ dir, maxBytes = 128 * 1024 * 1024, maxEntrie
       } finally { await fs.rm(temporary,{force:true}).catch(()=>{}); }
     });
   }
-  function refresh(url,prior) {
+  function refresh(url,prior,background=false) {
     if (closed) return Promise.resolve("");
     if (pending.has(url)) return pending.get(url);
     if (pending.size >= 4 || (retryAt.get(url)||0) > now()) return Promise.resolve("");
-    const task = fetchImage(url,prior).catch(()=> "").then(file=>{
+    const task = fetchImage(url,prior,background).catch(()=> "").then(file=>{
       if (file) retryAt.delete(url);
       else {
         retryAt.set(url,now()+30_000);
@@ -203,7 +213,7 @@ function createRemoteArtworkCache({ dir, maxBytes = 128 * 1024 * 1024, maxEntrie
       const hit = await withLock(()=>cached(url));
       if (closed) return "";
       if (hit && hit.row.expiresAt > now()) return hit.file;
-      if (hit && hit.row.staleUntil > now()) { void refresh(url,hit.row); return hit.file; }
+      if (hit && hit.row.staleUntil > now()) { void refresh(url,hit.row,true); return hit.file; }
       return await refresh(url,hit?.row);
     } catch { return ""; }
   }
@@ -217,6 +227,11 @@ function createRemoteArtworkCache({ dir, maxBytes = 128 * 1024 * 1024, maxEntrie
     if (row.staleUntil <= timestamp) return 0;
     const nextRetry = Math.max(timestamp + 1000, retryAt.get(url) || 0);
     return Math.min(row.staleUntil - timestamp, nextRetry - timestamp);
-  }, close(){closed=true;shutdown.abort();},get pendingCount(){return pending.size;}};
+  }, async close(){
+    closed=true;shutdown.abort();
+    if(indexTimer!==null){clearTimeout(indexTimer);indexTimer=null;}
+    await ready?.catch(()=>{});
+    await withLock(async()=>{if(dirty)await save();}).catch(()=>{});
+  },get pendingCount(){return pending.size;}};
 }
 module.exports = {createRemoteArtworkCache,lifetime,eligible};

@@ -546,14 +546,17 @@ test("recommended artists request exact catalog portraits and cache them",async(
 });
 
 
-test("recommendation misses try video catalog and do not suppress subsequent successful requests",async()=>{
+test("recommendation misses try video catalog, cool down and resolve after expiry",async()=>{
  const handlers=new Map(),settings={discoverEnabled:true};const calls=[];
  const coverUrl="https://lh3.googleusercontent.com/abc=w256-h256-l90-rj";
- let available=false;
- registerDiscoverIpc({handle:(name,handler)=>handlers.set(name,handler)},{getSongs:()=>[],getSettings:()=>settings,searchYouTubeArtwork:async(kind,query,options)=>{calls.push(kind);assert.equal(options.artwork,true);return available&&kind==="video"?[{title:"Indie Song (slowed)",artist:"Artist",coverUrl}]:[];}});
+ let available=false, clock=1000;
+ registerDiscoverIpc({handle:(name,handler)=>handlers.set(name,handler)},{getSongs:()=>[],getSettings:()=>settings,now:()=>clock,searchYouTubeArtwork:async(kind,query,options)=>{calls.push(kind);assert.equal(options.artwork,true);return available&&kind==="video"?[{title:"Indie Song (slowed)",artist:"Artist",coverUrl}]:[];}});
  const request=()=>handlers.get("discover:get")({},{artwork:{title:"Indie Song (slowed)",artist:"Artist"}});
  assert.equal((await request()).coverUrl,undefined);
  available=true;
+ assert.equal((await request()).coverUrl,undefined);
+ assert.equal(calls.length,2,"confirmed miss suppresses repeat provider requests");
+ clock+=300001;
  assert.equal((await request()).coverUrl,coverUrl);
  assert.deepEqual(calls,["recording","video","recording","video"]);
  assert.equal((await request()).coverUrl,coverUrl);
@@ -625,3 +628,19 @@ test("identified artwork never substitutes another catalog recording with the sa
   assert.equal((await get(second.id)).coverUrl,second.coverUrl);
   assert.equal((await get("ytmusic:12345678901")).coverUrl,undefined);
 });
+
+ test("artwork cache separates transient failures from confirmed misses and invalidates failures on credential change",async()=>{
+  let clock=1000,calls=0,mode="offline";const settings={discoverEnabled:true,lastfmApiKey:""};
+  const handlers=new Map();const coverUrl="https://lh3.googleusercontent.com/abc=w256-h256-l90-rj";
+  registerDiscoverIpc({handle:(name,handler)=>handlers.set(name,handler)},{getSongs:()=>[],getSettings:()=>settings,now:()=>clock,
+    searchYouTubeArtwork:async()=>{calls++;if(mode==="offline")throw Error("offline");return mode==="ready"?[{title:"Track",artist:"Artist",coverUrl}]:[];}});
+  const get=()=>handlers.get("discover:get")({},{artwork:{title:"Track",artist:"Artist",primaryOnly:true}});
+  assert.equal((await get()).outcome,"unavailable");const failedCalls=calls;
+  await get();assert.equal(calls,failedCalls);
+  clock+=15001;mode="missing";assert.equal((await get()).outcome,undefined);const missedCalls=calls;
+  await get();assert.equal(calls,missedCalls);
+  mode="ready";settings.lastfmApiKey=KEY;
+  assert.equal((await get()).coverUrl,coverUrl);assert.ok(calls>missedCalls);
+  const warmCalls=calls,start=performance.now();await get();assert.equal(calls,warmCalls);
+  console.log("[artwork-cache] warm metadata ms="+(performance.now()-start).toFixed(3)+" providerRequests=0");
+ });

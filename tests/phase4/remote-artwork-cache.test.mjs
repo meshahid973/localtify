@@ -19,11 +19,13 @@ test("remote image bytes persist across restart, coalesce, deduplicate and repai
     assert.ok(one); assert.equal(one,two); assert.equal(calls,1);
     assert.equal(await cache.resolve(b),one); assert.equal(calls,2);
     assert.equal((await fs.readdir(dir)).filter(name => name.endsWith(".png")).length,1);
+    await cache.close();
     const restarted = createRemoteArtworkCache({ dir, fetchImpl });
     assert.equal(await restarted.resolve(a),one); assert.equal(calls,2);
     await fs.writeFile(one, Buffer.alloc(bytes.length));
     assert.equal(await restarted.resolve(a),one); assert.equal(calls,3);
     assert.deepEqual(await fs.readFile(one),bytes);
+    await restarted.close();
   } finally { await fs.rm(dir,{recursive:true,force:true}); }
 });
 test("remote cache respects cache headers, provider exclusions and entry budget", async () => {
@@ -39,6 +41,7 @@ test("remote cache respects cache headers, provider exclusions and entry budget"
     assert.ok(await cache.resolve(a)); assert.equal(calls,3);
     const noStore = createRemoteArtworkCache({dir:path.join(dir,"no-store"),fetchImpl:async () => new Response(bytes,{headers:{"content-type":"image/png","cache-control":"no-store,max-age=3600"}})});
     assert.equal(await noStore.resolve(a),"");
+    await Promise.all([cache.close(),noStore.close()]);
   } finally { await fs.rm(dir,{recursive:true,force:true}); }
 });
 
@@ -67,6 +70,6 @@ test("stale artwork is served only during an explicit revalidation window and va
     clock=7000;
     assert.equal(await cache.resolve(a),original);
     assert.equal(calls,2);
-    cache.close();
+    await cache.close();
   } finally {await fs.rm(dir,{recursive:true,force:true});}
 });

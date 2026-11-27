@@ -4,7 +4,7 @@ const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 
 // Only disposable lookup results belong here, never user artwork or library data.
-function createResourceCache({ maxEntries = 512, maxBytes = 2 * 1024 * 1024, file = "", now = Date.now, validate = () => true } = {}) {
+function createResourceCache({ maxEntries = 512, maxBytes = 2 * 1024 * 1024, file = "", now = Date.now, validate = () => true, migrate = () => [] } = {}) {
   const entries = new Map();
   let loaded = false, loading = null, bytes = 2, dirty = false, timer = null, writing = null, revision = 0, generation = 0, failedWrites = 0;
   function remove(key) {
@@ -27,7 +27,8 @@ function createResourceCache({ maxEntries = 512, maxBytes = 2 * 1024 * 1024, fil
     if (loaded) return;
     loaded = true;
     try {
-      const rows = JSON.parse(data);
+      const decoded = JSON.parse(data);
+      const rows = Array.isArray(decoded) ? decoded : migrate(decoded);
       if (!Array.isArray(rows)) return;
       for (const row of rows.slice(-maxEntries)) {
         if (!Array.isArray(row)) continue;
@@ -105,7 +106,10 @@ function createResourceCache({ maxEntries = 512, maxBytes = 2 * 1024 * 1024, fil
   function set(key, value, ttlMs) {
     load();
     if (typeof key !== "string" || key.length > 1024 || !validate(value) || !(ttlMs > 0) || !Number.isFinite(ttlMs)) return;
-    insert(key, { value, expiresAt: now() + ttlMs });
+    const expiresAt=now()+ttlMs;
+    const previous=entries.get(key);
+    if(previous && previous.expiresAt>=expiresAt && JSON.stringify(previous.value)===JSON.stringify(value))return;
+    insert(key, { value, expiresAt });
     if (file) { dirty = true; revision++; failedWrites = 0; schedule(); }
   }
   function get(key) {

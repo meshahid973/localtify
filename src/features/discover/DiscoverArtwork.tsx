@@ -105,16 +105,17 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
   const needsLookup = lookup && (!directUrls.length || failed.length > 0);
   // The cache returns a display URL only; the provider URL remains the lookup/download identity.
   const remembered = src ? getResolvedRemoteArtwork(src) : undefined;
-  const eligibleLocal = Boolean(src && !isDisplayOnlyCover(src) && window.localitfy?.resolveRemoteArtwork);
+  // Cover Art Archive is display-only for this cache, independently of download handling.
+  const eligibleLocal = Boolean(src && !isDisplayOnlyCover(src) && !src.startsWith("https://coverartarchive.org/") && window.localitfy?.resolveRemoteArtwork);
   const pendingLocal = Boolean(near && eligibleLocal && remembered === undefined && local?.source !== src);
   useEffect(() => {
-    if (!near || !src || isDisplayOnlyCover(src) || !window.localitfy?.resolveRemoteArtwork) return;
+    if (!near || !src || !eligibleLocal) return;
     let active = true;
     void resolveRemoteArtwork(src).then(url => {
       if (active) setLocal({source: src, url});
     });
     return () => { active = false; };
-  }, [src, near]);
+  }, [src, near, eligibleLocal]);
   const localCandidate = eligibleLocal ? (remembered ?? (local && local.source === src ? local.url : "")) : "";
   const localSrc = localCandidate !== badLocal ? localCandidate : "";
   const displaySrc = pendingLocal ? "" : localSrc || src;
@@ -163,7 +164,9 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
         request.release();
         if(!live)return;
         if(answer?.status!=="artwork"){
-          if(attempts<3&&answer?.status!=="off")retryTimer=window.setTimeout(start,attempts*900);
+          // A temporary provider failure is already subject to a shared backend cooldown.
+          // Only transport failures get a short local retry; re-entry/refresh can retry later.
+          if(!answer&&attempts<2)retryTimer=window.setTimeout(start,900);
           return;
         }
         if(hasCandidate(answer)){

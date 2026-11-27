@@ -40,7 +40,7 @@ jobs:
           if [[ -n "$BASE_SHA" ]]; then
             baseline="$RUNNER_TEMP/artwork-baseline"
             mkdir -p "$baseline"
-            git archive "$BASE_SHA" electron/discover electron/runtime/remote-cover.cjs | tar -x -C "$baseline"
+            git archive "$BASE_SHA" electron/discover electron/runtime/remote-cover.cjs electron/runtime/resource-cache.cjs | tar -x -C "$baseline"
             args+=(--baseline-root "$baseline")
           fi
           node scripts/live-artwork-check.cjs "${args[@]}" > qa-providers/live-provider-report.json

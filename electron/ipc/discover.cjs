@@ -3,12 +3,11 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { randomUUID, createHash } = require("node:crypto");
-const { createLastfmClient } = require("../discover/lastfm.cjs");
+const { createLastfmClient, createLastfmResponseCache } = require("../discover/lastfm.cjs");
 const { discover, withoutOwned } = require("../discover/recommend.cjs");
 const { catalogArtwork, createArtworkLookup, matchArtistArtwork, matchMusicArtwork, firstArtwork, withoutFailedArtwork } = require("../discover/artwork.cjs");
 const { rankCatalog, searchTerms } = require("../discover/catalog.cjs");
-const { createResourceCache } = require("../runtime/resource-cache.cjs");
-const { validArtworkResult, safeDisplayCover } = require("../runtime/remote-cover.cjs");
+const { safeDisplayCover } = require("../runtime/remote-cover.cjs");
 
 const RESULT_TTL_MS = 12 * 60 * 60 * 1000;
 // Biographies rarely change. Old ones are still shown while offline or when Last.fm fails.
@@ -50,12 +49,13 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
   let artworkClient = null, artworkKey = "", closed = false;
   const active = () => !closed && getSettings().discoverEnabled === true;
   const strict = (provider,...args) => active() ? (provider.resolve || provider)(...args) : Promise.resolve({});
-  // Persist only positive provider lookup results, separate from user artwork.
-  const artworkResults = createResourceCache({
-    file: cacheFile ? cacheFile + ".resolved-artwork-v1" : "", now,
-    validate: validArtworkResult
-  });
-  const artworkRequests = new Map();
+  // Shared response stores have one writer per file, including credential changes.
+  const artworkResponses=createLastfmResponseCache({file:cacheFile?cacheFile+".artwork":"",now});
+  const catalogResponses=createLastfmResponseCache({file:cacheFile||"",now});
+  const configuration=()=>createHash("sha256").update(JSON.stringify([
+    apiKeyFor(getSettings()),process.env.LOCALTIFY_AUDIODB_API_KEY||"",process.env.LOCALTIFY_FANART_API_KEY||"",
+    !!lookupAudioDb,!!lookupFanart,!!lookupDeezer,!!searchYouTubeArtwork,!!musicBrainzClient
+  ])).digest("hex");
   async function lookupMusicArtwork(title,artist,identity = {},signal,excluded=[]) {
     const cleanedArtist=artist.replace(/\s+[-–—]\s+Topic$/i,"").trim();
     const query=(title+" "+cleanedArtist).trim().slice(0,160);
@@ -72,13 +72,12 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
     if (!active() || !/^[0-9a-f]{32}$/i.test(apiKey)) return null;
     if (!artworkClient || artworkKey !== apiKey) {
       artworkKey = apiKey;
-      artworkClient = createLastfmClient({ apiKey, cacheFile: cacheFile ? cacheFile + ".artwork" : "", fetch, now, artwork:true });
+      artworkClient = createLastfmClient({ apiKey, responseCache:artworkResponses, cacheFile:cacheFile ? cacheFile + ".artwork" : "", fetch, now, artwork:true });
     }
-    const client = artworkClient;
-    try { return await client.trackInfo(title, artist); } finally { client.flush(); }
+    return artworkClient.trackInfo(title,artist);
   }, lookupAudioDb ? (...args) => strict(lookupAudioDb,...args) : undefined, searchYouTubeArtwork ? lookupMusicArtwork : undefined,
     lookupDeezer ? (...args) => strict(lookupDeezer,...args) : undefined,
-    lookupFanart ? (...args) => strict(lookupFanart,...args) : undefined);
+    lookupFanart ? (...args) => strict(lookupFanart,...args) : undefined,{file:cacheFile?cacheFile+".resolved-artwork-v1":""});
   // The outer resource cache owns retention and coalescing for both entity types.
   async function lookupArtistArtwork(name,fallback=false,primaryOnly=false,excluded=[],retryPrimary=false) {
     const cleaned=name.replace(/\s+[-–—]\s+Topic$/i,"").trim();
@@ -171,30 +170,15 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
         const normalizeKey = value => value.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase();
         const identity = { providerId, album: normalizeKey(album), durationMs };
         const key = JSON.stringify([kind, normalizeKey(title), normalizeKey(artist), providerId, identity.album, durationMs, fallback === true]);
-        const requestKey=key+":"+String(primaryOnly===true&&!providerId)+":"+String(retryPrimary===true)+":"+createHash("sha256").update(JSON.stringify(excluded)).digest("hex");
-        await artworkResults.hydrate();
-        if(!active())return {status:"off"};
-        let artwork = withoutFailedArtwork(artworkResults.get(key),excluded);
-        if (!artwork.coverUrl && !artwork.fallbackCoverUrl) {
-          let pending = artworkRequests.get(requestKey);
-          if (!pending) {
-            if (artworkRequests.size >= 8) throw Error("Artwork queue busy");
-            pending = Promise.resolve().then(() => providerId
-              ? lookupIdentifiedArtwork(kind, title.trim(), artist.trim(), identity, excluded)
-              : kind === "artist"
-                ? lookupArtistArtwork(title.trim(), fallback === true, primaryOnly === true, excluded, retryPrimary === true)
-                : lookupArtwork(title.trim(), artist.trim(), { fallback: fallback === true, primaryOnly: primaryOnly === true, active, excluded, retryPrimary:retryPrimary===true }))
-              .then(value => withoutFailedArtwork(value,excluded)).then(value => {
-                if (active() && validArtworkResult(value)) {
-                  artworkResults.set(key, value, 86400000);
-                }
-                return value;
-              }).finally(() => artworkRequests.delete(requestKey));
-            artworkRequests.set(requestKey, pending);
-          }
-          artwork = await pending;
-        }
-        return active() ? { status: "artwork", ...artwork } : { status: "off" };
+        const scope=configuration();
+        const requestActive=()=>active()&&configuration()===scope;
+        const options={cacheKey:key,fallback:fallback===true,primaryOnly:primaryOnly===true&&!providerId,active:requestActive,excluded,retryPrimary:retryPrimary===true,configuration:scope};
+        const artwork=providerId||kind==="artist"
+          ? await lookupArtwork.resolve(key,options,()=>providerId
+            ? lookupIdentifiedArtwork(kind,title.trim(),artist.trim(),identity,excluded)
+            : lookupArtistArtwork(title.trim(),options.fallback,options.primaryOnly,excluded,options.retryPrimary))
+          : await lookupArtwork(title.trim(),artist.trim(),options);
+        return requestActive() ? {status:"artwork",...artwork} : {status:"off"};
       } catch { return !active() ? {status:"off"} : primaryOnly === true && !providerId ? {status:"artwork",outcome:"unavailable"} : { status: "error", error: "Artwork unavailable." }; }
     }
     if (payload?.catalog !== undefined) {
@@ -234,8 +218,8 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
           const title = terms.at(-1);
           const settings = getSettings();
           const apiKey = apiKeyFor(settings);
-          const lastfm = /^[0-9a-f]{32}$/i.test(apiKey) ? createLastfmClient({ apiKey, cacheFile, fetch, now }) : null;
-          const jobs = [musicBrainzClient.searchCatalog(kind, title), searchStore(terms[0]), lastfm ? lastfm.searchTracks(title).finally(()=>lastfm.flush()) : Promise.resolve([])];
+          const lastfm = /^[0-9a-f]{32}$/i.test(apiKey) ? createLastfmClient({ apiKey, cacheFile, responseCache:catalogResponses, fetch, now }) : null;
+          const jobs = [musicBrainzClient.searchCatalog(kind, title), searchStore(terms[0]), lastfm ? lastfm.searchTracks(title) : Promise.resolve([])];
           if (terms.length > 1) jobs.push(searchStore(title));
           const settled = await Promise.allSettled(jobs);
           if (settled.slice(0,2).every(result=>result.status==="rejected") && settled.slice(2).every(result=>result.status==="rejected"||!result.value?.length)) throw Error("Catalog unavailable");
@@ -259,7 +243,7 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
     const current = { songs: getSongs(), hiddenArtists: Array.isArray(settings.notForMeArtists) ? settings.notForMeArtists : [] };
     if (payload?.refresh !== true && saved?.apiKey === apiKey && now() - saved.result.generatedAt < RESULT_TTL_MS) return withoutOwned(saved.result, current);
     if (running?.apiKey === apiKey) return running.promise.then((result) => withoutOwned(result, current));
-    const client = createLastfmClient({ apiKey, cacheFile, fetch });
+    const client = createLastfmClient({ apiKey, cacheFile, ...(cacheFile?{responseCache:catalogResponses}:{}), fetch, now });
     const promise = (async () => {
       try {
         const result = await discover({ ...current, client, now: now() });
@@ -269,7 +253,6 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
       } catch (error) {
         return { status: "error", error: error?.message || "Discover failed. Please try again." };
       } finally {
-        client.flush();
         if (running?.promise === promise) running = null;
       }
     })();
@@ -365,7 +348,8 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
       return stored ? bioAnswer(stored) : { status: "error", error: error?.message || "Couldn't load the biography." };
     }
   });
-  return { flush: artworkResults.flush, close(){closed=true; artworkResults.flush();} };
+  const flush=()=>{lookupArtwork.flush();artworkResponses.flush();catalogResponses.flush();};
+  return {flush,close(){closed=true;flush();}};
 }
 
 module.exports = { registerDiscoverIpc };
