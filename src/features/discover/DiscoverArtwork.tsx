@@ -102,7 +102,7 @@ export function DiscoverCover({ title, artist, artwork, lookup = false, person =
   const resolvedUrls = [safeCover(cover?.coverUrl), safeCover(cover?.fallbackCoverUrl), ...(cover?.coverAlternatives ?? []).slice(0,6).map(safeCover)];
   const candidates = failed.length ? [...resolvedUrls, ...directUrls] : [...directUrls, ...resolvedUrls];
   const src = candidates.find(url => url && !failed.includes(url));
-  const needsLookup = lookup && (!directUrls.length || failed.length > 0);
+  const needsLookup = lookup && !src;
   // The cache returns a display URL only; the provider URL remains the lookup/download identity.
   const remembered = src ? getResolvedRemoteArtwork(src) : undefined;
   // Cover Art Archive is display-only for this cache, independently of download handling.

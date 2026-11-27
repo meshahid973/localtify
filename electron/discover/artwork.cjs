@@ -79,14 +79,25 @@ function enrichCatalogTrack(track, items) {
   const matches=[...new Map(recordings.map(item=>[item.id,item])).values()];
   if(matches.length!==1)return track;
   const recording=matches[0];
-  // Attach only releases explicitly marked as having front art. Do not replace
-  // an unresolved thumbnail with an unverified CAA URL.
-  const releases=(Array.isArray(recording.releases)?recording.releases:[]).filter(release=>release?.["cover-art-archive"]?.front===true&&
-    (!identity.album||norm(release.title)===norm(identity.album)));
+  // Recording search omits the front-art flag. An exact recording may supply
+  // a release-based CAA candidate, just as ordinary catalog search does.
+  // Never treat the candidate as proof the image exists, or use explicitly
+  // unavailable releases or compilations in place of a known album.
+  const all=(Array.isArray(recording.releases)?recording.releases:[]).filter(release=>validId(release?.id)&&(!release.status||release.status==="Official")&&
+    release["cover-art-archive"]?.front!==false&&(!identity.album||norm(release.title)===norm(identity.album)));
+  const normal=all.filter(release=>!(release["release-group"]?.["secondary-types"]||[]).includes("Compilation"));
+  const releases=normal.length?normal:all;
   const art=catalogArtwork("recording",{...recording,releases});
   if(!art.coverUrl)return track;
   const albumNames=[...new Set(releases.map(r=>r.title).filter(Boolean))];
-  return {...track,...art,providerId:recording.id,recordingId:recording.id,artistIds:[...new Set((recording["artist-credit"]||[]).map(c=>c.artist?.id).filter(validId))],album:track.album||(albumNames.length===1?albumNames[0]:undefined),durationMs:track.durationMs||art.durationMs};
+  const confirmed=releases.some(release=>release["cover-art-archive"]?.front===true);
+  // Prefer the representative release-group image when availability is unknown.
+  // Leave the existing name-based fallback available if this provisional image fails.
+  const covers=[...new Set([...(confirmed?[art.coverUrl,art.fallbackCoverUrl]:[art.fallbackCoverUrl,art.coverUrl]),...(art.coverAlternatives||[])].filter(Boolean))].slice(0,6);
+  return {...track,...art,coverUrl:covers[0],fallbackCoverUrl:covers[1],coverAlternatives:covers,
+    ...(confirmed?{providerId:recording.id}:{}),recordingId:recording.id,
+    artistIds:[...new Set((recording["artist-credit"]||[]).map(c=>c.artist?.id).filter(validId))],
+    album:track.album||(albumNames.length===1?albumNames[0]:undefined),durationMs:track.durationMs||art.durationMs};
 }
 function matchArtistArtwork(items,name,providerId = "") {
   const {safeThumbnail}=require("./youtube-music.cjs");

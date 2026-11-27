@@ -193,11 +193,13 @@ function reuseRecommendationArtwork(result,previous){
     const before=old.get(identity(track));
     if(!before||!safeDisplayCover(before.coverUrl)||
       (track.providerId&&before.providerId!==track.providerId)||
+      (track.recordingId&&before.recordingId!==track.recordingId)||
       (track.album&&key(track.album)!==key(before.album))||
       (track.durationMs&&(!before.durationMs||Math.abs(track.durationMs-before.durationMs)>5000)))return track;
     const alternatives=(before.coverAlternatives||[]).filter(safeDisplayCover).slice(0,6);
     return {...track,coverUrl:before.coverUrl,providerId:track.providerId||before.providerId,
       album:track.album||before.album,durationMs:track.durationMs||before.durationMs,
+      recordingId:track.recordingId||before.recordingId,artistIds:track.artistIds||before.artistIds,catalogArtistIds:track.catalogArtistIds||before.catalogArtistIds,catalogAlbumId:track.catalogAlbumId||before.catalogAlbumId,
       ...(safeDisplayCover(before.fallbackCoverUrl)?{fallbackCoverUrl:before.fallbackCoverUrl}:{}),...(alternatives.length?{coverAlternatives:alternatives}:{})};
   };
   return {...result,artists:result.artists.map(artist=>({...artist,topTracks:artist.topTracks.map(reuse)})),tracks:result.tracks.map(reuse)};

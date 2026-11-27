@@ -194,7 +194,7 @@ async function controlledRecommendation(root,batch){
   const {matchMusicArtwork}=require(path.resolve(root,"electron/discover/artwork.cjs"));
   const artists=["Public Artist A","Public Artist B","Public Artist C"];
   const tracks=artist=>["First","Second","Third"].map((title,index)=>({title,artist,url:"https://last.fm/music/"+encodeURIComponent(artist)+"/"+title,index}));
-  const rows=artist=>tracks(artist).map(({index,...track})=>({...track,id:"ytmusic:abcdefghij"+index,coverUrl:"https://lh3.googleusercontent.com/fixture"+index+"=w256-h256-l90-rj"}));
+  const rows=artist=>tracks(artist).map(({index,...track})=>({...track,id:"ytmusic:abcdefghi"+artists.indexOf(artist)+index,coverUrl:"https://lh3.googleusercontent.com/fixture"+artists.indexOf(artist)+index+"=w256-h256-l90-rj"}));
   let requests=0,firstShelfMs=null;
   const start=performance.now();
   const client={similarArtists:async()=>artists.map((name,index)=>({name,match:1-index*.1,url:"https://last.fm/music/"+encodeURIComponent(name)})),
@@ -226,7 +226,7 @@ async function liveCatalogBatch(){
       const row=enrichCatalogTrack(track,records);
       const imageStart=performance.now();
       const image=row.coverUrl?await imageAvailable(row.coverUrl).catch(()=>false):false;
-      return {title:track.title,attached:Boolean(row.coverUrl),image,imageMs:row.coverUrl?Math.round(performance.now()-imageStart):null};
+      return {title:track.title,exactRecordingCount:records.filter(record=>norm(record.title)===norm(track.title)&&norm((record["artist-credit"]||[]).map(c=>(c.name||c.artist?.name||"")+(c.joinphrase||"")).join(""))===norm(artist)).length,attached:Boolean(row.coverUrl),image,imageMs:row.coverUrl?Math.round(performance.now()-imageStart):null};
     }));
     return {artist,requests,catalogMs,records:records.length,frontMarked:records.filter(row=>row.releases?.some(release=>release["cover-art-archive"]?.front===true)).length,results};
   }catch{return {artist,requests,catalogMs:Math.round(performance.now()-start),status:"unavailable"};}

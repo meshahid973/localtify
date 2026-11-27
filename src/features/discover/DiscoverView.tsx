@@ -37,8 +37,8 @@ function trackId(track: DiscoverTrack) {
 }
 const toDownload = (track: DiscoverTrack): SpotifyTrack => {
   const artwork = getCachedDiscoverArtwork(track.title, track.artist);
-  const coverUrl = [track.coverUrl, track.fallbackCoverUrl, ...(track.coverAlternatives || []), ...(!track.providerId?[artwork?.coverUrl, artwork?.fallbackCoverUrl, ...(artwork?.coverAlternatives || [])]:[])].find(url => url && !isDisplayOnlyCover(url));
-  return { id: trackId(track), title: track.title, artist: track.artist, providerUrl: track.url, albumName: track.album, coverUrl, durationMs: track.durationMs || artwork?.durationMs };
+  const coverUrl = [track.coverUrl, track.fallbackCoverUrl, ...(track.coverAlternatives || []), ...(!track.providerId&&!track.recordingId?[artwork?.coverUrl, artwork?.fallbackCoverUrl, ...(artwork?.coverAlternatives || [])]:[])].find(url => url && !isDisplayOnlyCover(url));
+  return { id: trackId(track), title: track.title, artist: track.artist, providerUrl: track.url, albumName: track.album, coverUrl, durationMs: track.durationMs || (!track.providerId && !track.recordingId ? artwork?.durationMs : undefined) };
 };
 const listNames = (names: string[]) => names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
 const openLink = (url: string) => { if (url) void window.localitfy.openExternal?.(url); };
