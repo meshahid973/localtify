@@ -2,7 +2,7 @@
 
 // Public catalog artwork, no playback, authentication cookies or third-party scraper.
 // Fanart.tv is optional and uses the operator's own API key.
-const { retryAfterMs, providerCooldown, unavailable } = require("./provider-health.cjs");
+const { retryAfterMs, providerCooldown, unavailable, capacity } = require("./provider-health.cjs");
 const MBID=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 const key=value=>String(value||"").normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}\p{M}]+/gu," ").trim();
 const artistKey=value=>key(String(value||"").replace(/\s+[-–—]\s+Topic$/i,""));
@@ -69,7 +69,8 @@ function cachedLookup(work,now=Date.now) {
     if(hit&&now()-hit.at<(hit.value.coverUrl?86400000:30000)){cached.delete(id);cached.set(id,hit);return hit.value;}
     cached.delete(id);
     if(pending.has(id))return pending.get(id);
-    if(pending.size>=4||now()<blockedUntil)throw unavailable();
+    if(now()<blockedUntil)throw unavailable();
+    if(pending.size>=4)throw capacity();
     const promise=Promise.resolve().then(()=>work(...args)).then(value=>{
       cached.set(id,{at:now(),value});while(cached.size>256)cached.delete(cached.keys().next().value);return value;
     }).catch(error=>{

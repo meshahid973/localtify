@@ -7,7 +7,7 @@ const url = (kind, id) => validId(id) ? "https://coverartarchive.org/" + kind + 
 function catalogArtwork(kind, item) {
   if (kind === "album") return {coverUrl:url("release-group",item.id)};
   if (kind !== "recording") return {};
-  const releases = (Array.isArray(item?.releases) ? item.releases : []).filter(r => validId(r?.id) && (!r.status || r.status === "Official"));
+  const releases = (Array.isArray(item?.releases) ? item.releases : []).filter(r => validId(r?.id) && (!r.status || r.status === "Official") && r["cover-art-archive"]?.front !== false);
   releases.sort((a,b) => Number(b["cover-art-archive"]?.front === true) - Number(a["cover-art-archive"]?.front === true) || String(a.date || "9999").localeCompare(String(b.date || "9999")));
   const release = releases[0];
   const alternatives = [...new Set(releases.flatMap(r => [url("release",r.id),url("release-group",r["release-group"]?.id)]).filter(Boolean))].slice(0,6);
@@ -26,18 +26,26 @@ function lastfmArtwork(track,title,artist) {
 }
 // Reuse the catalog's actual artwork, accounting for formatting differences
 // without stripping version markers (live, remix, slowed, etc.).
+const {sameVersion}=require("./version-tags.cjs");
 const musicKey = value => norm(value).replace(/[^\p{L}\p{N}\p{M}]+/gu," ").trim();
 const titleKey = value => musicKey(norm(value).replace(/\s*[([]\s*(?:official\s+(?:music\s+)?video|official\s+audio|lyric\s+video|official\s+lyric\s+video)\s*[)\]]\s*$/i,""));
 const artistKey = value => musicKey(norm(value).replace(/\s+[-–—]\s+topic$/i,""));
-const equivalentArtist=(a,b)=>artistKey(a)===artistKey(b) && Boolean(artistKey(b));
+// Keep every credited artist; normalize joiners without accepting substring matches.
+const creditKey=value=>musicKey(norm(value).replace(/\s+[-–—]\s+topic$/i,"").replace(/\s+(?:feat\.?|ft\.?|and)\s+|\s*[,＆&]\s*/gi," "));
+const equivalentArtist=(a,b)=>Boolean(artistKey(b))&&(artistKey(a)===artistKey(b)||creditKey(a)===creditKey(b));
+function equivalentTitle(a,b,artist){
+  if(!sameVersion(norm(a),norm(b)))return false;
+  const keys=value=>{
+    const full=norm(value),parts=full.split(/\s+[-–—]\s+/);
+    return [titleKey(full),...(parts.length>1&&equivalentArtist(parts[0],artist)?[titleKey(parts.slice(1).join(" - "))]:[])];
+  };
+  return keys(a).some(key=>key&&keys(b).includes(key));
+}
 function matchMusicArtwork(items,title,artist,identity = {}) {
   const {safeThumbnail}=require("./youtube-music.cjs");
   const wantedArtist=artistKey(artist);
   const wantedTitle=titleKey(title);
-  const artistPrefix=norm(title).split(/\s+-\s+/);
-  const titleKeys=new Set([wantedTitle]);
-  if(artistPrefix.length>1 && artistKey(artistPrefix[0])===wantedArtist) titleKeys.add(titleKey(artistPrefix.slice(1).join(" - ")));
-  const matches=(Array.isArray(items)?items:[]).filter(item=>titleKeys.has(titleKey(item?.title))&&equivalentArtist(item?.artist,artist) &&
+  const matches=(Array.isArray(items)?items:[]).filter(item=>equivalentTitle(item?.title,title,artist)&&equivalentArtist(item?.artist,artist) &&
     (!identity.providerId || item.id === identity.providerId) &&
     (!identity.album || !item.album || norm(item.album) === norm(identity.album)) &&
     (!identity.durationMs || !Number.isFinite(item.durationMs) || Math.abs(item.durationMs-identity.durationMs) <= 5000))
@@ -61,7 +69,7 @@ function enrichCatalogTrack(track, items) {
   // Do not substitute a different version or attach an arbitrary ID from an ambiguous result.
   const exact=(Array.isArray(items)?items:[]).filter(item=>
     /^ytmusic:[A-Za-z0-9_-]{11}$/.test(item?.id||"") &&
-    norm(item.title)===norm(track.title) && equivalentArtist(item.artist,track.artist) &&
+    equivalentTitle(item.title,track.title,track.artist) && equivalentArtist(item.artist,track.artist) &&
     (!identity.providerId||item.id===identity.providerId) &&
     (!identity.album||norm(item.album)===norm(identity.album)) &&
     (!identity.durationMs||(Number.isFinite(item.durationMs)&&Math.abs(item.durationMs-identity.durationMs)<=5000)) &&
@@ -93,7 +101,7 @@ function enrichCatalogTrack(track, items) {
   const confirmed=releases.some(release=>release["cover-art-archive"]?.front===true);
   // Prefer the representative release-group image when availability is unknown.
   // Leave the existing name-based fallback available if this provisional image fails.
-  const covers=[...new Set([...(confirmed?[art.coverUrl,art.fallbackCoverUrl]:[art.fallbackCoverUrl,art.coverUrl]),...(art.coverAlternatives||[])].filter(Boolean))].slice(0,6);
+  const covers=[...new Set([...(confirmed?[art.coverUrl,art.fallbackCoverUrl]:[art.fallbackCoverUrl,art.coverUrl]),...(art.coverAlternatives||[])].filter(Boolean))].slice(0,confirmed?6:2);
   return {...track,...art,coverUrl:covers[0],fallbackCoverUrl:covers[1],coverAlternatives:covers,
     ...(confirmed?{providerId:recording.id}:{}),recordingId:recording.id,
     artistIds:[...new Set((recording["artist-credit"]||[]).map(c=>c.artist?.id).filter(validId))],
@@ -108,7 +116,7 @@ function matchArtistArtwork(items,name,providerId = "") {
 // Race verified candidates, with a short head start for the preferred source.
 // Stop unstarted hedges and follow-up searches, not shared provider HTTP requests.
 const { validArtworkResult } = require("../runtime/remote-cover.cjs");
-const { unavailable } = require("./provider-health.cjs");
+const { unavailable, capacity } = require("./provider-health.cjs");
 const { createResourceCache } = require("../runtime/resource-cache.cjs");
 const { createHash } = require("node:crypto");
 const artworkDigest = value => createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -124,7 +132,7 @@ function firstArtwork(jobs, { active = () => true, staggerMs = 350, excluded = [
   const providers = jobs.filter(Boolean);
   if (!providers.length) return Promise.resolve({});
   return new Promise((resolve, reject) => {
-    let next = 0, running = 0, failed = false, settled = false, timer, deadline;
+    let next = 0, running = 0, failed = false, busy = false, settled = false, timer, deadline;
     const controller = new AbortController();
     const finish = (value, error) => {
       if (settled) return;
@@ -139,7 +147,7 @@ function firstArtwork(jobs, { active = () => true, staggerMs = 350, excluded = [
       if (settled) return;
       if (!active()) { finish({}); return; }
       if (next === providers.length) {
-        if (!running) finish({}, failed ? unavailable() : undefined);
+        if (!running) finish({}, busy ? capacity() : failed ? unavailable() : undefined);
         return;
       }
       const work = providers[next++];
@@ -149,7 +157,7 @@ function firstArtwork(jobs, { active = () => true, staggerMs = 350, excluded = [
         if (!active()) { finish({}); return; }
         const candidate=withoutFailedArtwork(value,excluded);
         if (candidate.coverUrl || candidate.fallbackCoverUrl) finish(candidate);
-      }, () => { failed = true; }).finally(() => {
+      }, error => { if(error?.code === "ARTWORK_CAPACITY") busy = true; else failed = true; }).finally(() => {
         running--;
         if (!settled) advance();
       });
@@ -165,12 +173,12 @@ function boundedProvider(work, limit) {
   if (!work) return undefined;
   let running = 0;
   return async (...args) => {
-    if (running >= limit) throw unavailable();
+    if (running >= limit) throw capacity();
     running++;
     try { return await work(...args); } finally { running--; }
   };
 }
-function createArtworkLookup(client,now=Date.now,trackInfo,lookupAudioDb,lookupMusic,lookupDeezer,lookupFanart,{file=""}={}) {
+function createArtworkLookup(client,now=Date.now,trackInfo,lookupAudioDb,lookupMusic,lookupDeezer,lookupFanart,{file="",trace=()=>{}}={}) {
   const cache=createResourceCache({file,now,validate:validCacheEntry}), pending=new Map();
   const music = boundedProvider(lookupMusic, 4);
   const lastfm = boundedProvider(trackInfo, 4);
@@ -183,25 +191,34 @@ function createArtworkLookup(client,now=Date.now,trackInfo,lookupAudioDb,lookupM
   async function resolve(key,{fallback=false,primaryOnly=false,active=()=>true,excluded=[],retryPrimary=false,configuration=""}={},work) {
     if(!active())return {};
     if(key.length>1024)key="identity:"+artworkDigest(key);
-    const requestKey="failure:"+artworkDigest([key,primaryOnly,retryPrimary,excluded,configuration]);
+    // Version negative entries independently: old false negatives must not suppress a repaired resolver.
+    const requestKey="failure:v2:"+artworkDigest([key,primaryOnly,retryPrimary,excluded,configuration]);
     await cache.hydrate();
     if(!active())return {};
-    const candidate=withoutFailedArtwork(cache.get(key),excluded);
-    if(candidate.coverUrl)return candidate;
+    let candidate=withoutFailedArtwork(cache.get(key),excluded);
+    // A successfully resolved alternate is reusable on the next primary lookup.
+    // Explicit fallback requests still select independent candidates.
+    if(!candidate.coverUrl&&!fallback&&!excluded.length&&key.endsWith(",false]")){
+      const alternateKey=key.slice(0,-6)+"true]";
+      candidate=withoutFailedArtwork(cache.get(alternateKey),excluded);
+    }
+    if(candidate.coverUrl){trace("artwork-cache",{state:"hit"});return candidate;}
+    if(pending.has(requestKey)){trace("artwork-cache",{state:"shared"});return pending.get(requestKey);}
     const negative=cache.get(requestKey);
-    if(negative?.outcome==="missing")return {};
-    if(negative?.outcome==="unavailable")throw unavailable();
-    if(pending.has(requestKey))return pending.get(requestKey);
-    if(fallback ? fallbackRunning>=2 : primaryRunning>=4) throw unavailable();
+    if(negative?.outcome==="missing"){trace("artwork-cache",{state:"negative-missing"});return {};}
+    if(negative?.outcome==="unavailable"){trace("artwork-cache",{state:"negative-unavailable"});throw unavailable();}
+    trace("artwork-cache",{state:"miss"});
+    if(fallback ? fallbackRunning>=2 : primaryRunning>=4) throw capacity();
     if(fallback)fallbackRunning++;else primaryRunning++;
     const task=Promise.resolve().then(()=>active()?work():{}).then(value=>{
       if(!active())return {};
       const result=withoutFailedArtwork(value,excluded);
-      if(result.coverUrl)cache.set(key,result,86400000);
-      else cache.set(requestKey,{outcome:"missing"},300000);
+      if(result.coverUrl){cache.set(key,result,86400000);trace("artwork-resolved",{state:result.coverUrl.includes("coverartarchive.org")?"musicbrainz":result.coverUrl.includes("dzcdn.net")?"deezer":result.coverUrl.includes("lastfm")?"lastfm":"other"});}
+      else {cache.set(requestKey,{outcome:"missing"},30000);trace("artwork-resolution",{state:"missing"});}
       return result;
     },error=>{
-      if(active())cache.set(requestKey,{outcome:"unavailable"},15000);
+      if(active() && error?.code !== "ARTWORK_CAPACITY")cache.set(requestKey,{outcome:"unavailable"},15000);
+      trace("artwork-resolution",{state:error?.code==="ARTWORK_CAPACITY"?"busy":"unavailable"});
       throw error;
     }).finally(()=>{pending.delete(requestKey);if(fallback)fallbackRunning--;else primaryRunning--;});
     pending.set(requestKey,task);
@@ -211,10 +228,10 @@ function createArtworkLookup(client,now=Date.now,trackInfo,lookupAudioDb,lookupM
     const {fallback=false,primaryOnly=false,active=()=>true,excluded=[],retryPrimary=false}=options;
     const key=options.cacheKey||JSON.stringify(["recording",norm(title),norm(artist),"","",0,fallback]);
     return resolve(key,options,async()=>{
-      let track, knownRelease, failed=false;
+      let track, knownRelease, failed=false, busy=false;
       const run = async jobs => {
-        try { return await firstArtwork(jobs,{active,excluded,timeoutMs:primaryOnly?5000:0}); }
-        catch { failed=true; return {}; }
+        try { return await firstArtwork(jobs,{active,excluded,timeoutMs:primaryOnly?5000:9000}); }
+        catch(error) { if(error?.code === "ARTWORK_CAPACITY") busy=true; else failed=true; return {}; }
       };
       const lastfmJob = lastfm && (async () => {
         track = await lastfm(title,artist);
@@ -237,6 +254,7 @@ function createArtworkLookup(client,now=Date.now,trackInfo,lookupAudioDb,lookupM
         if (primaryOnly) {
           const known=withoutFailedArtwork(knownRelease?{coverUrl:knownRelease}:{},excluded);
           if(known.coverUrl)return known;
+          if (busy) throw capacity();
           if (failed) throw unavailable();
           return {};
         }
@@ -268,6 +286,7 @@ function createArtworkLookup(client,now=Date.now,trackInfo,lookupAudioDb,lookupM
       if(alternate.coverUrl)return alternate;
       const known=withoutFailedArtwork(knownRelease?{coverUrl:knownRelease}:{},excluded);
       if(known.coverUrl)return known;
+      if (busy && active()) throw capacity();
       if (failed && active()) throw unavailable();
       return {};
     });

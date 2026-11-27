@@ -132,17 +132,17 @@ test("failed providers release capacity and unsafe candidates cannot win",async(
   assert.deepEqual(await firstArtwork([async()=>{throw Error("must not run");}],{active:()=>false}),{});
 });
 
-test("background artwork cooldown honors Retry-After without blocking explicit catalog queries", async()=>{
+test("shared catalog rate limit honors Retry-After across foreground and artwork requests", async()=>{
   const {createYouTubeMusicSearch}=require("../../electron/discover/youtube-music.cjs");
   let now=1000,calls=0;
   const search=createYouTubeMusicSearch(async()=>{calls++;return calls===1?new Response("",{status:429,headers:{"Retry-After":"90"}}):new Response("{}");},()=>now);
   await assert.rejects(search("recording","Song",{artwork:true}));
   await assert.rejects(search("recording","Another",{artwork:true}));
   assert.equal(calls,1);
-  assert.deepEqual(await search("recording","Manual search"),[]);
-  assert.equal(calls,2);
-  now+=89999;await assert.rejects(search("recording","Another",{artwork:true}));assert.equal(calls,2);
-  now++;assert.deepEqual(await search("recording","Another",{artwork:true}),[]);assert.equal(calls,3);
+  await assert.rejects(search("recording","Manual search"));
+  assert.equal(calls,1);
+  now+=89999;await assert.rejects(search("recording","Another",{artwork:true}));assert.equal(calls,1);
+  now++;assert.deepEqual(await search("recording","Another",{artwork:true}),[]);assert.equal(calls,2);
 });
 test("a cancelled AudioDB consumer never starts its follow-up album request",async()=>{
   const {createAudioDbArtwork}=require("../../electron/discover/audiodb.cjs");
@@ -171,4 +171,15 @@ test("primary stage deadlines cancel unstarted hedges and distinguish timeouts f
   await assert.rejects(firstArtwork([s=>{signal=s;return new Promise(resolve=>{release=resolve;});},async()=>{hedges++;return {coverUrl:cover};}],{staggerMs:100,timeoutMs:10}),/temporarily unavailable/);
   assert.equal(signal.aborted,true);assert.equal(hedges,0);
   release({});
+});
+
+test("capacity exhaustion is not negatively cached as provider outage",async()=>{
+  const {createArtworkLookup}=require("../../electron/discover/artwork.cjs");
+  const {capacity}=require("../../electron/discover/provider-health.cjs");
+  let busy=true,calls=0;
+  const lookup=createArtworkLookup(null,Date.now,undefined,undefined,async()=>{calls++;if(busy)throw capacity();return [{title:"Song",artist:"Artist",coverUrl:"https://lh3.googleusercontent.com/abc=w256-h256-l90-rj"}];});
+  await assert.rejects(lookup("Song","Artist",{primaryOnly:true}),{code:"ARTWORK_CAPACITY"});
+  busy=false;
+  assert.ok((await lookup("Song","Artist",{primaryOnly:true})).coverUrl);
+  assert.equal(calls,2);
 });

@@ -213,9 +213,9 @@ async function controlledRecommendation(root,batch){
   }
   return {firstShelfMs,totalMs:Math.round(performance.now()-start),artworkRequests:requests,tracks:all.length,attached:all.filter(track=>track.coverUrl).length};
 }
-async function liveCatalogBatch(){
+async function liveCatalogBatch(withIds=true){
   const {enrichCatalogTrack}=require("../electron/discover/artwork.cjs");
-  const artist="Daft Punk",tracks=[["One More Time","60fa767a-d85d-4991-82bc-4294e0b11ae7"],["Digital Love","15f16efc-8762-4151-95ab-c12d06268640"],["Harder, Better, Faster, Stronger","f1a6a40f-78f5-4918-968d-f64363bae94c"]].map(([title,recordingId])=>({title,artist,recordingId,album:"Discovery"}));
+  const artist="Daft Punk",tracks=[["One More Time","60fa767a-d85d-4991-82bc-4294e0b11ae7"],["Digital Love","15f16efc-8762-4151-95ab-c12d06268640"],["Harder, Better, Faster, Stronger","f1a6a40f-78f5-4918-968d-f64363bae94c"]].map(([title,recordingId])=>({title,artist,...(withIds?{recordingId}:{}),album:"Discovery"}));
   let requests=0;
   const client=createMusicBrainzClient({userAgent:"Localtify/0.5.1 (https://github.com/meshahid973/localtify)",timeoutMs:9000,
     fetchImpl:async(url,options)=>{requests++;return fetch(url,options);}});
@@ -251,6 +251,36 @@ async function probeExpansion(){
     await delay(1100);
   }
   return outcomes;
+}
+async function liveArtistCatalogs(){
+  const {enrichCatalogTrack}=require("../electron/discover/artwork.cjs");
+  const groups=[
+    ["masarada",["Liar Dancer","ライアーダンサー"]],
+    ["gulu gulu",["Oyasumi.","おやすみ。"]],
+    ["Shü",["Mosu. (feat. KASANE TETO)"]],
+    ["Euphxria",["SUICIDAL-IDOL - ecstacy (slowed)"]],
+    ["Lumi Athena",["LET ME SEE YA MOVE!","ICEWHORE!"]],
+    ["Malice Mizer",["Ma Chérie","ILLUMINATI"]],
+    ["Hot N Cold",["Agartha Remix"]],
+    ["Slowed",["Reverb","Frank Ocean - Seigfried (Slowed Perfectly)"]],
+    ["Daft Punk",["One More Time","Digital Love","Harder, Better, Faster, Stronger"]]
+  ];
+  let requests=0;const events=[];
+  const search=createYouTubeMusicSearch(async(url,options)=>{requests++;return fetch(url,options);},Date.now,4);
+  search.setTrace((stage,detail)=>{if(events.length<1000)events.push({stage,...detail});});
+  const results=[];
+  for(const [artist,titles] of groups){
+    const start=performance.now(),before=requests,wanted=titles.map(title=>({title,artist}));
+    try{
+      const rows=await search.artistCatalog(artist,wanted);
+      const matches=wanted.map(track=>{const match=enrichCatalogTrack(track,rows);return {title:track.title,attached:!!match.coverUrl,identified:!!match.providerId};});
+      const warmStart=performance.now(),warmBefore=requests;
+      await search.artistCatalog(artist,wanted);
+      results.push({artist,records:rows.length,requests:requests-before,coldMs:Math.round(warmStart-start),warmMs:Math.round(performance.now()-warmStart),warmRequests:requests-warmBefore,matches});
+    }catch(error){results.push({artist,requests:requests-before,ms:Math.round(performance.now()-start),status:error?.status?"http-"+error.status:error?.code||"unavailable"});}
+  }
+  search.close();
+  return {requests,results,events:events.filter(e=>e.stage==="catalog-response"||e.stage==="artist-catalog-match"||e.stage==="catalog-queue")};
 }
 async function main() {
   const jobs=[];
@@ -377,7 +407,9 @@ async function main() {
   const catalogBatch=process.argv.includes("--resolution")||baselineRoot?await liveCatalogBatch():undefined;
   const recommendationComparison=baselineRoot?{baseline:await controlledRecommendation(baselineRoot,false),candidate:await controlledRecommendation(path.resolve(__dirname,".."),true)}:undefined;
   const expansion=process.argv.includes("--provider-expansion")?await probeExpansion():undefined;
-  console.log(JSON.stringify({expansion,checkedAt:new Date().toISOString(),sample:{title:expectedTitle,artist:expectedArtist},
+  const nameOnlyBatch=process.argv.includes("--pipeline6")?await liveCatalogBatch(false):undefined;
+  const artistCatalogs=process.argv.includes("--pipeline6")?await liveArtistCatalogs():undefined;
+  console.log(JSON.stringify({expansion,nameOnlyBatch,artistCatalogs,checkedAt:new Date().toISOString(),sample:{title:expectedTitle,artist:expectedArtist},
     checks:sorted,resolution,comparison,cacheComparison,catalogBatch,recommendationComparison,note:"Advisory network observation, not a guarantee of future provider availability"},null,2));
   // Manual release acceptance must not silently pass without configured keys
   // or when either keyed integration is unable to retrieve usable artwork.

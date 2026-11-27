@@ -8,6 +8,7 @@ import type { SpotifyTrack } from "../downloads/download.types";
 import type { Settings } from "../settings/settings.types";
 import type { CatalogKind, DiscoverResult, DiscoverTrack } from "./discover.types";
 import { DiscoverCover, getCachedDiscoverArtwork, isDisplayOnlyCover } from "./DiscoverArtwork";
+import { discoverTrace } from "./discoverDiagnostics";
 import type { Song } from "../library/song.types";
 import { Cover } from "../covers/Cover";
 import { buildDiscoverShelves } from "./discoverShelves";
@@ -73,19 +74,18 @@ export default function DiscoverView({ settings, updateSetting, sendToDownloads,
 
   const load = useCallback(async (refresh = false) => {
     const requestVersion = ++requestVersionRef.current;
+    const started=performance.now();
     setLoading(true);
     try {
       const next = await window.localitfy.getDiscoveries({ refresh, progress: !phone });
       if (requestVersion !== requestVersionRef.current) return;
+      discoverTrace("recommendation-response",{ms:Math.round(performance.now()-started),state:next.status});
       if(next.status==="ready"&&next.partial){
         // Keep an existing complete shelf visible during refresh; cold opening publishes early.
         setResult(current=>{
           if(current?.status!=="ready"||current.partial)return next;
-          const newArtists=new Map(next.artists.map(artist=>[artist.name,artist]));
-          const incoming=new Set(next.tracks.map(trackId));
-          return {...next,
-            artists:[...current.artists.map(artist=>newArtists.get(artist.name)||artist),...next.artists.filter(artist=>!current.artists.some(old=>old.name===artist.name))],
-            tracks:[...current.tracks.filter(track=>!incoming.has(trackId(track))),...next.tracks]};
+          // A partial refresh must not reorder the existing shelves twice.
+          return current;
         });
         const complete=await window.localitfy.getDiscoveries();
         if(requestVersion===requestVersionRef.current)setResult(current=>complete.status==="error"&&current?.status==="ready"?current:complete);
@@ -93,7 +93,7 @@ export default function DiscoverView({ settings, updateSetting, sendToDownloads,
     } catch {
       if (requestVersion === requestVersionRef.current) setResult(current=>current?.status==="ready"?current:{ status: "error", error: "Discover failed. Please try again." });
     } finally {
-      if (requestVersion === requestVersionRef.current) setLoading(false);
+      if (requestVersion === requestVersionRef.current) {setLoading(false);discoverTrace("recommendation-complete",{ms:Math.round(performance.now()-started)});}
     }
   }, [phone]);
   useEffect(() => {
@@ -127,6 +127,17 @@ export default function DiscoverView({ settings, updateSetting, sendToDownloads,
     }
   }
 
+  async function searchCollectionSongs(id:string,title:string) {
+    const isArtist=/^ytmusic:UC[A-Za-z0-9_-]{22}$/.test(id),isAlbum=/^ytmusic:MPREb_[A-Za-z0-9_-]{1,80}$/.test(id);
+    if((!isArtist&&!isAlbum)||catalogLoading||!settings.discoverEnabled)return;
+    const request=++catalogRequestRef.current;
+    setRelatedTitle(title);setCatalogLoading(true);setCatalog(null);
+    try{
+      const answer=await window.localitfy.getDiscoveries({catalog:{kind:"recording",term:id,...(isArtist?{artistId:id}:{albumId:id})}});
+      if(request===catalogRequestRef.current)setCatalog(answer.status==="catalog"||answer.status==="error"?answer:{status:"error",error:"Artist catalog unavailable."});
+    }catch{if(request===catalogRequestRef.current)setCatalog({status:"error",error:"Artist catalog unavailable."});}
+    finally{if(request===catalogRequestRef.current)setCatalogLoading(false);}
+  }
   async function searchRelated(track: DiscoverTrack) {
     const seed = /^https:\/\/www\.youtube\.com\/watch\?v=([A-Za-z0-9_-]{11})$/.exec(track.url)?.[1];
     if (!seed || !settings.discoverEnabled || catalogLoading) return;
@@ -235,14 +246,14 @@ export default function DiscoverView({ settings, updateSetting, sendToDownloads,
         {catalog.items.slice(0,1).map(item => <div key={item.id} className="discoverTopResult">
           <DiscoverCover priority title={item.title} artist={item.artist} artwork={item} providerId={/^(?:ytmusic:(?:UC[A-Za-z0-9_-]{22}|[A-Za-z0-9_-]{11})|[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12})$/i.test(item.id) ? item.id : ""} lookup={!item.id.startsWith("vocadb:")} person={catalog.kind === "artist"} />
           <span className="discoverSongText"><button type="button" className="discoverName" onClick={() => openLink(item.url)} title={item.title}>{item.title}</button><small>{item.subtitle}</small></span>
-          {catalog.kind === "recording" ? <><span className="discoverDuration">{duration(item.durationMs)}</span>{!item.id.startsWith("vocadb:") ? pickButton(item) : null}</> : null}
+          {catalog.kind === "recording" ? <>{item.albumId&&/^ytmusic:MPREb_[A-Za-z0-9_-]{1,80}$/.test(item.albumId)?<OpticalButton type="button" className="softButton" disabled={catalogLoading} onClick={()=>void searchCollectionSongs(item.albumId!,item.album||item.title)}>Album</OpticalButton>:null}<span className="discoverDuration">{duration(item.durationMs)}</span>{!item.id.startsWith("vocadb:") ? pickButton(item) : null}</> : /^ytmusic:UC[A-Za-z0-9_-]{22}$/.test(item.id) ? <OpticalButton type="button" className="softButton" disabled={catalogLoading} onClick={()=>void searchCollectionSongs(item.id,item.title)}>Top songs</OpticalButton> : null}
         </div>)}
         {catalog.items.length > 1 ? <h3 className="discoverHeading">{relatedTitle ? "More related songs" : "More matches"}</h3> : null}
         <ul className="discoverSongList" aria-label="Search results">
         {catalog.items.slice(1).map(item => <li key={item.id}>
           <DiscoverCover title={item.title} artist={item.artist} artwork={item} providerId={/^(?:ytmusic:(?:UC[A-Za-z0-9_-]{22}|[A-Za-z0-9_-]{11})|[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12})$/i.test(item.id) ? item.id : ""} lookup={!item.id.startsWith("vocadb:")} person={catalog.kind === "artist"} />
           <span className="discoverSongText"><button type="button" className="discoverName" onClick={() => openLink(item.url)} title={item.title}>{item.title}</button><small title={item.subtitle}>{item.subtitle}</small></span>
-          {catalog.kind === "recording" ? <><span className="discoverDuration">{duration(item.durationMs)}</span>{!item.id.startsWith("vocadb:") ? pickButton(item) : null}</> : null}
+          {catalog.kind === "recording" ? <>{item.albumId&&/^ytmusic:MPREb_[A-Za-z0-9_-]{1,80}$/.test(item.albumId)?<OpticalButton type="button" className="softButton" disabled={catalogLoading} onClick={()=>void searchCollectionSongs(item.albumId!,item.album||item.title)}>Album</OpticalButton>:null}<span className="discoverDuration">{duration(item.durationMs)}</span>{!item.id.startsWith("vocadb:") ? pickButton(item) : null}</> : /^ytmusic:UC[A-Za-z0-9_-]{22}$/.test(item.id) ? <OpticalButton type="button" className="softButton" disabled={catalogLoading} onClick={()=>void searchCollectionSongs(item.id,item.title)}>Top songs</OpticalButton> : null}
         </li>)}
       </ul></> : <p className="discoverCatalogMessage" role="status">No matching catalog results. Try another song title or artist.</p> : null}
     </section> : null}
@@ -255,7 +266,7 @@ export default function DiscoverView({ settings, updateSetting, sendToDownloads,
       <div className="discoverSectionHead"><h2 id="discover-recommended" className="discoverHeading">Recommended songs</h2>{recommendedTracks.length > 10 ? <button type="button" className="discoverName discoverMore" aria-expanded={showAllRecommended} onClick={() => setShowAllRecommended(value => !value)}>{showAllRecommended ? "Show less" : "See all"}</button> : null}</div>
       <ul className="discoverSongList">
         {(showAllRecommended ? recommendedTracks : recommendedTracks.slice(0, 10)).map((track,index) => <li key={trackId(track)}>
-          <DiscoverCover priority={index<4} title={track.title} artist={track.artist} artwork={track} providerId={track.providerId} lookup />
+          <DiscoverCover priority={index<4} lookupPriority={0} retryEpoch={ready?.generatedAt ?? 0} title={track.title} artist={track.artist} artwork={track} providerId={track.providerId} lookup />
           <span className="discoverSongText"><button type="button" className="discoverName" onClick={() => openLink(track.url)} title={track.title}>{track.title}</button><small>{track.artist}</small></span>
           {pickButton(track)}
         </li>)}
@@ -268,7 +279,7 @@ export default function DiscoverView({ settings, updateSetting, sendToDownloads,
         {popularTracks.map(track => <li key={trackId(track)}>
           <div className="discoverShelfArt">
             <button type="button" className="discoverArtLink" onClick={() => openLink(track.url)} aria-label={`Open ${track.title}`}>
-              <DiscoverCover title={track.title} artist={track.artist} artwork={track} providerId={track.providerId} lookup />
+              <DiscoverCover lookupPriority={1} retryEpoch={ready?.generatedAt ?? 0} title={track.title} artist={track.artist} artwork={track} providerId={track.providerId} lookup />
             </button>
             <div className="discoverShelfActions">{pickButton(track)}</div>
           </div>
@@ -281,7 +292,7 @@ export default function DiscoverView({ settings, updateSetting, sendToDownloads,
       <h2 id="discover-artists" className="discoverHeading">Artists you might like</h2>
       <ul className="discoverSongList">
         {ready.artists.map(artist => <li key={artist.name}>
-          <DiscoverCover title={artist.name} artist="" person lookup />
+          <DiscoverCover title={artist.name} artist="" retryEpoch={ready?.generatedAt ?? 0} person lookup />
           <span className="discoverSongText"><button type="button" className="discoverName" onClick={() => openLink(artist.url)} title={artist.name}>{artist.name}</button>
             <small title={listNames(artist.because)}>Because you play {listNames(artist.because)}{artist.seedCount > artist.because.length ? ` and ${artist.seedCount - artist.because.length} more` : ""}</small>
           </span>

@@ -84,12 +84,14 @@ function diversify(entries, limit) {
   return picked;
 }
 
-async function discover({ songs, hiddenArtists = [], client, now = Date.now(), catalog, cachedArtwork, active = () => true, onProgress = () => {} }) {
+async function discover({ songs, hiddenArtists = [], client, now = Date.now(), catalog, cachedArtwork, active = () => true, onProgress = () => {}, trace = () => {} }) {
   const hidden = notForMeTest([], hiddenArtists);
   const taste = libraryTaste(songs, hidden, now);
   if (!taste.seeds.length) return { status: "no-taste", generatedAt: now, seeds: [], artists: [], tracks: [] };
 
+  const similarStart=performance.now();
   const similar = await settleAll(taste.seeds, (seed) => client.similarArtists(seed.name));
+  trace("similar-artists",{ms:Math.round(performance.now()-similarStart),count:taste.seeds.length});
   const artists = new Map();
   taste.seeds.forEach((seed, index) => {
     for (const candidate of similar[index]) {
@@ -104,11 +106,11 @@ async function discover({ songs, hiddenArtists = [], client, now = Date.now(), c
   const favourites=taste.seeds.slice(0,MISSING_SONG_ARTISTS);
   const topTracks=new Array(Math.min(rankedArtists.length,TOP_TRACK_ARTISTS));
   const favouriteTracks=new Array(favourites.length);
-  const completedArtists=new Set();
+  const completedArtists=new Set(),enrichedArtists=new Set();
   const filter=(list,name)=>list.filter(track=>!hidden({artist:track.artist||name})&&!taste.ownedTracks.has(trackKey(track.artist||name,track.title))).map(track=>({...track,artist:track.artist||name}));
-  const snapshot=(partial=false)=>({
+  const snapshot=(partial=false,raw=false)=>({
     status:"ready",generatedAt:now,seeds:taste.seeds.map(seed=>seed.name),
-    artists:rankedArtists.flatMap((artist,index)=>partial&&!completedArtists.has(index)?[]:[{
+    artists:rankedArtists.flatMap((artist,index)=>partial&&!(raw?completedArtists:enrichedArtists).has(index)?[]:[{
       name:artist.name,url:artist.url,because:because(artist),seedCount:artist.reasons.length,topTracks:topTracks[index]||[]
     }]),
     tracks:favouriteTracks.flatMap(list=>list||[]),...(partial?{partial:true}:{})
@@ -119,14 +121,15 @@ async function discover({ songs, hiddenArtists = [], client, now = Date.now(), c
   let catalogRunning=0;
   function pump(){
     while(catalogRunning<2&&waiting.length){
-      const {name,tracks,finish}=waiting.shift();
+      const priority=waiting.findIndex(job=>job.source==="recommended");
+      const {name,tracks,source,finish}=waiting.splice(priority<0?0:priority,1)[0];
       if(!active()){finish([]);continue;}
       catalogRunning++;
-      Promise.resolve().then(()=>catalog(name,tracks)).then(items=>finish(Array.isArray(items)?items:[]),()=>finish([]))
+      Promise.resolve().then(()=>catalog(name,tracks,source)).then(items=>finish(Array.isArray(items)?items:[]),()=>finish([]))
         .finally(()=>{catalogRunning--;pump();});
     }
   }
-  async function enrich(name,tracks){
+  async function enrich(name,tracks,source){
     if(cachedArtwork&&active())tracks=await Promise.all(tracks.map(async track=>{
       if(safeDisplayCover(track.coverUrl)||!active())return track;
       try{const art=await cachedArtwork(track);return {...track,...art,durationMs:track.durationMs||art.durationMs};}catch{return track;}
@@ -135,39 +138,45 @@ async function discover({ songs, hiddenArtists = [], client, now = Date.now(), c
     const id=key(name);
     let batch=batches.get(id);
     if(!batch){
-      batch=new Promise(finish=>waiting.push({name,tracks,finish}));
+      batch=new Promise(finish=>waiting.push({name,tracks,source,finish}));
       batches.set(id,batch);pump();
     }
     const items=await batch;
     if(!active())return tracks;
-    return tracks.map(track=>enrichCatalogTrack(track,items));
+    const began=performance.now();
+    const enriched=tracks.map(track=>enrichCatalogTrack(track,items));
+    trace("identity-match",{ms:Math.round(performance.now()-began),total:tracks.length,attached:enriched.filter(t=>t.coverUrl).length});
+    return enriched;
   }
-  let published=false;
-  function publish(){
+  let published=false,firstDeadline;
+  function publish(force=false){
     if(published||!active())return;
-    const count=topTracks.reduce((n,list)=>n+(list?.length||0),0);
+    const count=topTracks.reduce((n,list,index)=>n+((force||enrichedArtists.has(index))?list?.length||0:0),0);
     const fallbackCount=favouriteTracks.reduce((n,list)=>n+(list?.length||0),0);
-    if(count>=3||(completedArtists.size===topTracks.length&&(count||fallbackCount))){
-      published=true;onProgress(snapshot(true));
+    if((force&&count+fallbackCount>0)||count>=3||(completedArtists.size===topTracks.length&&(count||fallbackCount))){
+      published=true;clearTimeout(firstDeadline);onProgress(snapshot(true,force));
     }
   }
+  function armFirstDeadline(){if(!published&&firstDeadline===undefined)firstDeadline=setTimeout(()=>{firstDeadline=undefined;publish(true);},450);}
   const rankedJobs=settleAll(rankedArtists.slice(0,TOP_TRACK_ARTISTS),async(artist)=>{
     if(!active())return [];
     const index=rankedArtists.indexOf(artist);
     const tracks=filter(await client.topTracks(artist.name),artist.name);
-    topTracks[index]=await enrich(artist.name,tracks);
-    completedArtists.add(index);publish();
+    topTracks[index]=tracks;
+    completedArtists.add(index);armFirstDeadline();
+    topTracks[index]=await enrich(artist.name,tracks,"recommended");
+    enrichedArtists.add(index);publish();
     return topTracks[index];
   });
   const favouriteJobs=settleAll(favourites,async seed=>{
     if(!active())return [];
     const index=favourites.indexOf(seed);
     const tracks=filter(await client.topTracks(seed.name,15),seed.name).slice(0,MISSING_SONGS_PER_ARTIST);
-    favouriteTracks[index]=await enrich(seed.name,tracks);
+    favouriteTracks[index]=tracks;armFirstDeadline();
+    favouriteTracks[index]=await enrich(seed.name,tracks,"popular");
     publish();return favouriteTracks[index];
   });
-  await Promise.all([rankedJobs,favouriteJobs]);
-  return snapshot();
+  try{await Promise.all([rankedJobs,favouriteJobs]);return snapshot();}finally{clearTimeout(firstDeadline);}
 }
 
 /** A saved result without anything you've since added to your library or marked "not for me". */

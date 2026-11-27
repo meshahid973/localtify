@@ -358,19 +358,19 @@ test("public catalog search requires opt-in but never a Last.fm key", async () =
 test("catalog searches share an in-flight request and drop responses after opt-out", async () => {
   const handlers = new Map();
   const settings = { discoverEnabled: true };
-  let release;
+  const releases = [];
   let calls = 0;
-  const musicBrainzClient = { searchCatalog: () => { calls++; return new Promise(resolve => { release = resolve; }); } };
+  const musicBrainzClient = { searchCatalog: () => { calls++; return new Promise(resolve => { releases.push(resolve); }); } };
   registerDiscoverIpc({ handle: (channel, handler) => handlers.set(channel, handler) }, { getSongs: () => [], getSettings: () => settings, musicBrainzClient });
   const search = term => handlers.get("discover:get")({}, { catalog: { kind: "recording", term } });
   const first = search("Track");
   const second = search("track");
-  assert.equal((await search("Other")).status, "error");
-  assert.equal(calls, 1);
+  const independent = ["Other","Third","Fourth"].map(search);
+  assert.equal((await search("Fifth")).status, "error");
+  assert.equal(calls, 4);
   settings.discoverEnabled = false;
-  release([]);
-  assert.equal((await first).status, "off");
-  assert.equal((await second).status, "off");
+  releases.forEach(release => release([]));
+  for(const result of await Promise.all([first,second,...independent]))assert.equal(result.status,"off");
 });
 
 test("Discover permits opt-in with a blank key and sends explicit catalog searches", () => {
@@ -581,7 +581,7 @@ test("persistent artwork cache separates entity types and preserves display-only
     let calls = 0;
     const setup = () => {
       const handlers = new Map();
-      registerDiscoverIpc({ handle: (name, handler) => handlers.set(name, handler) }, {
+      const lifecycle=registerDiscoverIpc({ handle: (name, handler) => handlers.set(name, handler) }, {
         cacheFile, getSongs: () => [], getSettings: () => ({ discoverEnabled: true }),
         searchYouTubeArtwork: async (kind) => {
           calls++;
@@ -590,16 +590,18 @@ test("persistent artwork cache separates entity types and preserves display-only
             : [{ title: "Same", artist: "Same", coverUrl: trackCover }];
         }
       });
-      return (kind, artist) => handlers.get("discover:get")({}, { artwork: { kind, title: "Same", artist } });
+      const get=(kind, artist) => handlers.get("discover:get")({}, { artwork: { kind, title: "Same", artist } });
+      return {get,close:lifecycle.close};
     };
-    const get = setup();
+    const {get,close} = setup();
     assert.equal((await get("artist", "Same")).coverUrl, artistCover);
     assert.equal((await get("recording", "Same")).coverUrl, trackCover);
-    await new Promise(resolve => setTimeout(resolve, 350));
-    const restart = setup();
+    close();
+    const {get:restart,close:closeRestart} = setup();
     assert.equal((await restart("artist", "Same")).coverUrl, artistCover);
     assert.equal((await restart("recording", "Same")).coverUrl, trackCover);
     assert.equal(calls, 2);
+    closeRestart();
     const { validArtworkResult, safeProviderCover } = require("../../electron/runtime/remote-cover.cjs");
     const displayOnly = "https://e-cdns-images.dzcdn.net/images/cover/123456789abcdef0123456789abcdef0/250x250-000000-80-0-0.jpg";
     assert.equal(validArtworkResult({ coverUrl: displayOnly }), true);
@@ -785,4 +787,45 @@ test("specialist fallback does not displace existing catalog results or query un
   ordinary=[{id:"12345678-1234-1234-1234-123456789abc",name:"重音テト"}];
   assert.equal((await search("重音テト")).items[0].id,ordinary[0].id);assert.equal(calls,0);
   ordinary=[];assert.equal((await search("重音テト")).items[0].id,"vocadb:1");assert.equal(calls,1);
+});
+
+test("Discover IPC enriches selected title-and-artist recommendations without recording IDs",async()=>{
+  const handlers=new Map(),settings={discoverEnabled:true,lastfmApiKey:"1234567890abcdef1234567890abcdef"};
+  const calls=[];const mbid="12345678-1234-1234-1234-123456789abc",release="22345678-1234-1234-1234-123456789abc";
+  const fetch=async address=>{
+    const u=new URL(address),method=u.searchParams.get("method"),artist=u.searchParams.get("artist");
+    const result=method==="artist.getsimilar"?{similarartists:{artist:[{name:"Related Artist",match:"1",url:"https://www.last.fm/music/Related+Artist"}]}}:{toptracks:{track:artist==="Related Artist"?[{name:"Example",artist:{name:artist},url:"https://www.last.fm/music/Related+Artist/_/Example"}]:[]}};
+    return new Response(JSON.stringify(result));
+  };
+  registerDiscoverIpc({handle:(name,fn)=>handlers.set(name,fn)},{getSongs:()=>[{title:"Owned",artist:"Seed Artist",playCount:10}],getSettings:()=>settings,fetch,musicBrainzClient:{searchRecordingBatch:async(name,tracks)=>{
+    calls.push({name,tracks});return [{id:mbid,title:"Example","artist-credit":[{name:"Related Artist"}],releases:[{id:release,title:"Album","cover-art-archive":{front:true}}]}];
+  }}});
+  const result=await handlers.get("discover:get")({},{});
+  assert.equal(result.status,"ready");assert.equal(calls.length,1);
+  assert.equal(calls[0].tracks[0].recordingId,undefined);
+  assert.equal(result.artists[0].topTracks[0].providerId,mbid);
+  assert.equal(result.artists[0].topTracks[0].coverUrl,"https://coverartarchive.org/release/"+release+"/front-250");
+});
+
+test("resolved fallback artwork is reused on primary lookup and old misses expire",async()=>{
+  const {createArtworkLookup}=require("../../electron/discover/artwork.cjs");
+  let clock=1000,calls=0,ready=false;
+  const coverUrl="https://lh3.googleusercontent.com/abc=w256-h256-l90-rj";
+  const lookup=createArtworkLookup(null,()=>clock,undefined,undefined,async()=>{calls++;return ready?[{title:"Track",artist:"Artist",coverUrl}]:[];});
+  assert.deepEqual(await lookup("Track","Artist",{primaryOnly:true}),{});
+  const before=calls; await lookup("Track","Artist",{primaryOnly:true});assert.equal(calls,before);
+  clock+=30001;ready=true;
+  assert.equal((await lookup("Track","Artist",{fallback:true,retryPrimary:true})).coverUrl,coverUrl);
+  const after=calls; assert.equal((await lookup("Track","Artist",{primaryOnly:true})).coverUrl,coverUrl);assert.equal(calls,after);
+});
+
+test("artwork title formatting tolerates verified artist prefixes and credit joiners, not different versions",()=>{
+  const {matchMusicArtwork,enrichCatalogTrack}=require("../../electron/discover/artwork.cjs");
+  const candidate={id:"ytmusic:abcdefghijk",title:"Artist — Song (Official Music Video)",artist:"Artist, Guest",coverUrl:"https://lh3.googleusercontent.com/abc=w256-h256-l90-rj"};
+  const plain={...candidate,artist:"Artist"};
+  assert.equal(matchMusicArtwork([plain],"Song","Artist").coverUrl,plain.coverUrl);
+  assert.equal(enrichCatalogTrack({title:"Song",artist:"Artist"},[plain]).providerId,plain.id);
+  assert.equal(matchMusicArtwork([{...candidate,title:"Song"}],"Song","Artist feat. Guest").coverUrl,candidate.coverUrl);
+  assert.deepEqual(matchMusicArtwork([{...plain,title:"Song (slowed remix)"}],"Song (slowed)","Artist"),{});
+  assert.deepEqual(matchMusicArtwork([plain],"Song","Artist, Guest"),{});
 });

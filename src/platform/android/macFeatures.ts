@@ -111,7 +111,7 @@ export async function cachedArtworkFromMac(artwork: ArtworkQuery): Promise<Disco
   if (row && hasCandidate(row.result) && Date.now()-row.at<86400000) { artworkRows.delete(key); artworkRows.set(key,row); return row.result; }
   const pending=artworkPending.get(requestKey);
   if(pending) return pending;
-  if(artworkPending.size>=8) return row?.result ?? {status:"artwork"};
+  if(artworkPending.size>=8) return row && hasCandidate(row.result) && Date.now()-row.at<7*86400000 ? row.result : {status:"artwork",outcome:"busy"};
   const job=callMac<DiscoverResult>("discover:get",{artwork},15000).then(async answer=>{
     if(phoneLibrary.effectiveSettings().discoverEnabled!==true) return {status:"off"} as const;
     const result=answer.result;
