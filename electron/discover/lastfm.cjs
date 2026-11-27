@@ -4,6 +4,7 @@
 // and song titles are sent. Responses are cached on disk for a week and requests are spaced to stay under 5 per second.
 const fs = require("node:fs");
 const path = require("node:path");
+const { retryAfterMs, providerCooldown } = require("./provider-health.cjs");
 
 const API_URL = "https://ws.audioscrobbler.com/2.0/";
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -69,7 +70,7 @@ function bioText(html) {
 function createLastfmClient({ apiKey, cacheFile, fetch = globalThis.fetch, now = Date.now, wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) }) {
   let cache = null;
   let dirty = false;
-  let nextSlot = 0;
+  let nextSlot = 0, blockedUntil = 0, blockedError = null;
 
   function loadCache() {
     if (cache) return cache;
@@ -94,21 +95,41 @@ function createLastfmClient({ apiKey, cacheFile, fetch = globalThis.fetch, now =
     const key = `${method}?${new URLSearchParams(params)}`;
     const cached = loadCache()[key];
     if (cached && now() - cached.at < CACHE_TTL_MS) return cached.data;
+    if (now() < blockedUntil) throw blockedError;
     const slot = Math.max(now(), nextSlot);
     nextSlot = slot + REQUEST_SPACING_MS;
     if (slot > now()) await wait(slot - now());
+    if (now() < blockedUntil) throw blockedError;
     const url = `${API_URL}?${new URLSearchParams({ method, ...params, api_key: apiKey, format: "json", autocorrect: params.autocorrect ?? "1" })}`;
     let response;
     try {
       response = await fetch(url, { headers: { "User-Agent": "localtify" }, signal: AbortSignal.timeout(TIMEOUT_MS) });
-    } catch { throw new LastfmError("Couldn't reach Last.fm. Check your connection and try again.", "network"); }
+    } catch {
+      blockedError = new LastfmError("Couldn't reach Last.fm. Check your connection and try again.", "network");
+      blockedUntil = Math.max(blockedUntil, now()+15000);
+      throw blockedError;
+    }
     let body = null;
     try { body = await response.json(); } catch { /* handled below */ }
     if (body?.error) {
       // "Not found" is a normal answer for obscure artists and songs, so it's cached as empty.
-      if (body.error !== 6) throw errorFor(body.error, body.message);
+      if (body.error !== 6) {
+        const error=errorFor(body.error, body.message);
+        if (["bad-key","rate-limited"].includes(error.code) || [11,16].includes(body.error)) {
+          blockedError=error;
+          blockedUntil=Math.max(blockedUntil,now()+providerCooldown({code:error.code,retryAfterMs:retryAfterMs(response.headers,now())}));
+        }
+        throw error;
+      }
       body = {};
-    } else if (!response.ok || !body) throw new LastfmError(`Last.fm answered with HTTP ${response.status}.`, "http");
+    } else if (!response.ok || !body) {
+      const error = new LastfmError(`Last.fm answered with HTTP ${response.status}.`, "http");
+      if (response.status === 429 || response.status >= 500 || response.status === 403) {
+        blockedError=error;
+        blockedUntil=Math.max(blockedUntil,now()+providerCooldown({status:response.status,retryAfterMs:retryAfterMs(response.headers,now())}));
+      }
+      throw error;
+    }
     loadCache()[key] = { at: now(), data: body };
     dirty = true;
     return body;

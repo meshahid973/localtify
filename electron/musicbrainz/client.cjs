@@ -1,5 +1,6 @@
 "use strict";
 
+const { retryAfterMs } = require("../discover/provider-health.cjs");
 const API = "https://musicbrainz.org/ws/2/";
 const COVER_ART = "https://coverartarchive.org/";
 
@@ -68,7 +69,7 @@ function createMusicBrainzClient({ userAgent, fetchImpl = fetch, minIntervalMs =
         lastAt = Date.now();
         const response = await fetchImpl(key, { headers: { "User-Agent": userAgent, Accept: "application/json" }, signal: AbortSignal.timeout(timeoutMs) }).catch((error) => { throw unreachable(error); });
         // 503 means the rate limit was hit; back off and retry a couple of times.
-        if (response.status === 503 && attempt < 2) { await sleep(2000 * (attempt + 1)); continue; }
+        if (response.status === 503 && attempt < 2 && !background) { await sleep(Math.max(2000 * (attempt + 1), retryAfterMs(response.headers))); continue; }
         if (!response.ok) throw response.status >= 500 ? unreachable(new Error(String(response.status))) : new Error(`MusicBrainz request failed (${response.status})`);
         return response.json();
       }
@@ -86,13 +87,13 @@ function createMusicBrainzClient({ userAgent, fetchImpl = fetch, minIntervalMs =
   }
 
   return {
-    searchCatalog: (kind, text) => {
+    searchCatalog: (kind, text, options) => {
       const fields = { recording: "recording", artist: "artist", album: "releasegroup" };
       const field = Object.hasOwn(fields, kind) ? fields[kind] : null;
       if (!field) throw new Error("Unsupported catalog search.");
       const endpoint = kind === "album" ? "release-group" : kind;
       const query = kind === "artist" ? "artist:" + phrase(text) : field + ":" + phrase(text);
-      return request(endpoint, { query, limit: kind === "recording" ? "100" : "25" }).then(body => {
+      return request(endpoint, { query, limit: kind === "recording" ? "100" : "25" }, options).then(body => {
         const items = body[endpoint + "s"];
         return Array.isArray(items) ? items : [];
       });

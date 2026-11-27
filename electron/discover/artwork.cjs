@@ -64,11 +64,7 @@ function matchArtistArtwork(items,name,providerId = "") {
 // Race verified candidates, with a short head start for the preferred source.
 // Stop unstarted hedges and follow-up searches, not shared provider HTTP requests.
 const { validArtworkResult } = require("../runtime/remote-cover.cjs");
-function unavailable() {
-  const error = new Error("Artwork provider temporarily unavailable");
-  error.code = "ARTWORK_UNAVAILABLE";
-  return error;
-}
+const { unavailable } = require("./provider-health.cjs");
 function firstArtwork(jobs, { active = () => true, staggerMs = 350 } = {}) {
   const providers = jobs.filter(Boolean);
   if (!providers.length) return Promise.resolve({});

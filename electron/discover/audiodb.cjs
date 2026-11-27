@@ -1,30 +1,30 @@
 "use strict";
 const { boundedJson } = require("./extra-artwork.cjs");
+const { providerCooldown, unavailable } = require("./provider-health.cjs");
 const norm = value => String(value||"").normalize("NFKC").trim().replace(/\s+/g," ").toLowerCase();
 const albumImage = value => typeof value==="string" && /^https:\/\/(?:www\.|r2\.)?theaudiodb\.com\/images\/media\/album\/thumb\/[a-z0-9_-]+\.(?:jpg|jpeg|png)(?:\/(?:small|medium))?$/i.test(value) ? value : "";
 function createAudioDbArtwork({apiKey, fetchImpl=globalThis.fetch, now=Date.now}) {
   if(typeof apiKey!=="string"||!/^[a-z0-9_-]{1,128}$/i.test(apiKey))return undefined;
   let nextSlot=0, blockedUntil=0;
   const request=async(endpoint,params)=>{
-    if(now()<blockedUntil)return null;
+    if(now()<blockedUntil)throw unavailable();
     const slot=Math.max(now(),nextSlot);
-    if(slot-now()>7000)return null; // avoid accumulating unbounded delayed work
+    if(slot-now()>7000)throw unavailable(); // avoid accumulating unbounded delayed work
     nextSlot=slot+2100;
     if(slot>now())await new Promise(resolve=>setTimeout(resolve,slot-now()));
-    if(now()<blockedUntil)return null;
+    if(now()<blockedUntil)throw unavailable();
     const url=new URL("https://www.theaudiodb.com/api/v1/json/"+apiKey+"/"+endpoint);
     url.search=new URLSearchParams(params).toString();
     // Reuse the bounded, redirect-free JSON reader used by other artwork
     // providers. Do not forward the operator's API key to a redirect target.
     try {
-      return await boundedJson(async (address, options) => {
-        const response = await fetchImpl(address, options);
-        if (response.status === 429) blockedUntil = now() + 60000;
-        return response;
-      }, url.href);
-    } catch { return null; }
+      return await boundedJson(fetchImpl, url.href);
+    } catch (error) {
+      if(error.status || ["TypeError","TimeoutError","AbortError"].includes(error.name)) blockedUntil=Math.max(blockedUntil,now()+providerCooldown(error));
+      throw error;
+    }
   };
-  return async(title,artist)=>{
+  const resolve=async(title,artist)=>{
     const tracks=await request("searchtrack.php",{s:artist,t:title});
     const exact=(Array.isArray(tracks?.track)?tracks.track:[]).filter(track=>track && norm(track.strTrack)===norm(title)&&(norm(track.strArtist)===norm(artist)||norm(track.strArtistAlternate)===norm(artist)));
     if(!exact.length)return {};
@@ -35,5 +35,8 @@ function createAudioDbArtwork({apiKey, fetchImpl=globalThis.fetch, now=Date.now}
     const coverUrl=albumImage(match?.strAlbumThumb);
     return coverUrl?{coverUrl}:{};
   };
+  const lookup=(...args)=>resolve(...args).catch(()=>({}));
+  lookup.resolve=resolve;
+  return lookup;
 }
 module.exports={createAudioDbArtwork,albumImage};
