@@ -67,9 +67,26 @@ function enrichCatalogTrack(track, items) {
     (!identity.durationMs||(Number.isFinite(item.durationMs)&&Math.abs(item.durationMs-identity.durationMs)<=5000)) &&
     matchMusicArtwork([item],track.title,track.artist,identity).coverUrl);
   const unique=[...new Map(exact.map(item=>[item.id,item])).values()];
-  if(unique.length!==1)return track;
-  const item=unique[0],art=matchMusicArtwork([item],track.title,track.artist,identity);
-  return {...track,...art,providerId:item.id,album:track.album||item.album||undefined,durationMs:track.durationMs||art.durationMs};
+  if(unique.length===1){
+    const item=unique[0],art=matchMusicArtwork([item],track.title,track.artist,identity);
+    return {...track,...art,providerId:item.id,album:track.album||item.album||undefined,durationMs:track.durationMs||art.durationMs};
+  }
+  if(unique.length>1 || identity.providerId&&!validId(identity.providerId))return track;
+  const recordings=(Array.isArray(items)?items:[]).filter(item=>validId(item?.id)&&
+    norm(item.title)===norm(track.title)&&norm(credit(item))===norm(track.artist)&&
+    (!identity.providerId||item.id===identity.providerId)&&
+    (!identity.durationMs||(Number.isFinite(item.length)&&Math.abs(item.length-identity.durationMs)<=5000)));
+  const matches=[...new Map(recordings.map(item=>[item.id,item])).values()];
+  if(matches.length!==1)return track;
+  const recording=matches[0];
+  // Attach only releases explicitly marked as having front art. Do not replace
+  // an unresolved thumbnail with an unverified CAA URL.
+  const releases=(recording.releases||[]).filter(release=>release?.["cover-art-archive"]?.front===true&&
+    (!identity.album||norm(release.title)===norm(identity.album)));
+  const art=catalogArtwork("recording",{...recording,releases});
+  if(!art.coverUrl)return track;
+  const albumNames=[...new Set(releases.map(r=>r.title).filter(Boolean))];
+  return {...track,...art,providerId:recording.id,album:track.album||(albumNames.length===1?albumNames[0]:undefined),durationMs:track.durationMs||art.durationMs};
 }
 function matchArtistArtwork(items,name,providerId = "") {
   const {safeThumbnail}=require("./youtube-music.cjs");

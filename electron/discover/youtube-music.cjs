@@ -113,7 +113,7 @@ async function requestCatalog(fetchImpl,endpoint,payload) {
 function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPending=2) {
   const cache=new Map(),pending=new Map();
   let blockedUntil=0;
-  return async (kind,query,options={})=>{
+  const search=async (kind,query,options={})=>{
     if(!Object.hasOwn(filters,kind)||typeof query!=="string"||query.trim().length<2||query.length>160)return [];
     const key=JSON.stringify([kind,query.normalize("NFKC").trim().toLowerCase(),options.artwork===true]);
     const hit=cache.get(key);
@@ -128,6 +128,17 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
     }).catch(error=>{if(options.artwork===true)blockedUntil=Math.max(blockedUntil,now()+providerCooldown(error));throw error;}).finally(()=>pending.delete(key));
     pending.set(key,task);return task;
   };
+  search.cachedArtist=name=>{
+    const artistKey=value=>clean(value).normalize("NFKC").trim().replace(/\s+[-–—]\s+Topic$/i,"").replace(/\s+/g," ").toLowerCase();
+    const wanted=artistKey(name),items=new Map();
+    if(!wanted)return [];
+    for(const entry of cache.values()){
+      if(now()-entry.at>=300000)continue;
+      for(const item of entry.items)if(artistKey(item.artist)===wanted&&videoId.test(item.id?.slice(8)||""))items.set(item.id,item);
+    }
+    return [...items.values()].slice(0,100);
+  };
+  return search;
 }
 // Queue mapping adapted from Liner's innertubeQueueMapper/innertubeCatalog.
 // Send only the explicitly selected video ID, not Localtify history or library paths.

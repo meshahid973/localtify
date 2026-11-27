@@ -119,10 +119,10 @@ async function discover({ songs, hiddenArtists = [], client, now = Date.now(), c
   let catalogRunning=0;
   function pump(){
     while(catalogRunning<2&&waiting.length){
-      const {name,finish}=waiting.shift();
+      const {name,tracks,finish}=waiting.shift();
       if(!active()){finish([]);continue;}
       catalogRunning++;
-      Promise.resolve().then(()=>catalog(name)).then(items=>finish(Array.isArray(items)?items:[]),()=>finish([]))
+      Promise.resolve().then(()=>catalog(name,tracks)).then(items=>finish(Array.isArray(items)?items:[]),()=>finish([]))
         .finally(()=>{catalogRunning--;pump();});
     }
   }
@@ -131,7 +131,7 @@ async function discover({ songs, hiddenArtists = [], client, now = Date.now(), c
     const id=key(name);
     let batch=batches.get(id);
     if(!batch){
-      batch=new Promise(finish=>waiting.push({name,finish}));
+      batch=new Promise(finish=>waiting.push({name,tracks,finish}));
       batches.set(id,batch);pump();
     }
     const items=await batch;
@@ -147,7 +147,7 @@ async function discover({ songs, hiddenArtists = [], client, now = Date.now(), c
       published=true;onProgress(snapshot(true));
     }
   }
-  await settleAll(rankedArtists.slice(0,TOP_TRACK_ARTISTS),async(artist)=>{
+  const rankedJobs=settleAll(rankedArtists.slice(0,TOP_TRACK_ARTISTS),async(artist)=>{
     if(!active())return [];
     const index=rankedArtists.indexOf(artist);
     const tracks=filter(await client.topTracks(artist.name),artist.name);
@@ -155,13 +155,14 @@ async function discover({ songs, hiddenArtists = [], client, now = Date.now(), c
     completedArtists.add(index);publish();
     return topTracks[index];
   });
-  await settleAll(favourites,async seed=>{
+  const favouriteJobs=settleAll(favourites,async seed=>{
     if(!active())return [];
     const index=favourites.indexOf(seed);
     const tracks=filter(await client.topTracks(seed.name,15),seed.name).slice(0,MISSING_SONGS_PER_ARTIST);
     favouriteTracks[index]=await enrich(seed.name,tracks);
     publish();return favouriteTracks[index];
   });
+  await Promise.all([rankedJobs,favouriteJobs]);
   return snapshot();
 }
 

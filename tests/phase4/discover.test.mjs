@@ -705,3 +705,18 @@ test("catalog enrichment rejects conflicting versions, artists and ambiguous cat
   assert.equal(enrichCatalogTrack(track,[candidate]).coverUrl,candidate.coverUrl);
   for(const rows of [[{...candidate,title:"Song (Remix)"}],[{...candidate,artist:"Other"}],[{...candidate,durationMs:220000}],[candidate,{...candidate,id:"ytmusic:abcdefghijl"}]])assert.deepEqual(enrichCatalogTrack(track,rows),track);
 });
+
+test("artist catalog batch reuses existing catalog results and only queries the documented grouped endpoint for missing tracks",async()=>{
+  const {createMusicBrainzClient}=require("../../electron/musicbrainz/client.cjs");
+  const calls=[];
+  const client=createMusicBrainzClient({userAgent:"Localtify tests",minIntervalMs:0,fetchImpl:async url=>{calls.push(new URL(url));return {ok:true,headers:new Headers(),json:async()=>({recordings:[]})};}});
+  await client.searchRecordingBatch("Artist",["Song","Song","Live (2019)"],{background:true});
+  assert.equal(calls.length,1);
+  assert.equal(calls[0].searchParams.get("query"),'artist:"Artist" AND (recording:"Live (2019)" OR recording:"Song")');
+  const {enrichCatalogTrack}=require("../../electron/discover/artwork.cjs");
+  const track={title:"Song",artist:"Artist"},id="12345678-1234-1234-1234-123456789abc",release="22345678-1234-1234-1234-123456789abc";
+  const candidate={id,title:"Song","artist-credit":[{name:"Artist"}],releases:[{id:release,title:"Album","cover-art-archive":{front:true}}]};
+  assert.equal(enrichCatalogTrack(track,[candidate]).providerId,id);
+  assert.equal(enrichCatalogTrack(track,[candidate]).coverUrl,"https://coverartarchive.org/release/"+release+"/front-250");
+  assert.deepEqual(enrichCatalogTrack(track,[{...candidate,releases:[{id:release,title:"Album"}]}]),track);
+});

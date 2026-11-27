@@ -5,7 +5,7 @@ const path = require("node:path");
 const { randomUUID, createHash } = require("node:crypto");
 const { createLastfmClient, createLastfmResponseCache } = require("../discover/lastfm.cjs");
 const { discover, withoutOwned } = require("../discover/recommend.cjs");
-const { catalogArtwork, createArtworkLookup, matchArtistArtwork, matchMusicArtwork, firstArtwork, withoutFailedArtwork } = require("../discover/artwork.cjs");
+const { catalogArtwork, createArtworkLookup, matchArtistArtwork, matchMusicArtwork, firstArtwork, withoutFailedArtwork, enrichCatalogTrack } = require("../discover/artwork.cjs");
 const { rankCatalog, searchTerms } = require("../discover/catalog.cjs");
 const { safeDisplayCover } = require("../runtime/remote-cover.cjs");
 
@@ -254,8 +254,18 @@ function registerDiscoverIpc(router, { getSongs, getSettings, cacheFile, bioFile
       let result;
       try {
         result=await discover({...current,client,now:now(),active:requestActive,
-          // Use the same bounded artwork catalog as the individual resolver.
-          catalog:searchYouTubeArtwork?name=>requestActive()?searchYouTubeArtwork("recording",name.slice(0,160),{artwork:true}):[]:undefined,
+          // Reuse existing catalog data without widening unofficial endpoint usage.
+          // Additional batch requests use the documented MusicBrainz search API.
+          catalog:async(name,tracks)=>{
+            if(!requestActive())return [];
+            const cached=[...(searchYouTubeMusic?.cachedArtist?.(name)||[]),...(searchYouTubeArtwork?.cachedArtist?.(name)||[])];
+            const missing=tracks.filter(track=>!enrichCatalogTrack(track,cached).coverUrl);
+            if(missing.length<2||!musicBrainzClient?.searchRecordingBatch||!requestActive())return cached;
+            try{
+              const records=await musicBrainzClient.searchRecordingBatch(name,missing.map(track=>track.title),{background:true});
+              return requestActive()?[...cached,...records]:[];
+            }catch{return cached;}
+          },
           onProgress:partial=>publish(partial)});
         if(!requestActive())result={status:"off"};
         else if(running?.promise===promise)saved={apiKey,result};

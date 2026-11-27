@@ -103,6 +103,11 @@ function createMusicBrainzClient({ userAgent, fetchImpl = fetch, minIntervalMs =
         return Array.isArray(items) ? items : [];
       });
     },
+    searchRecordingBatch: (artist,titles,options) => {
+      const unique=[...new Set((Array.isArray(titles)?titles:[]).filter(t=>typeof t==="string"&&t.trim()&&t.length<=300))].slice(0,4).sort();
+      if(typeof artist!=="string"||!artist.trim()||artist.length>300||!unique.length)return Promise.resolve([]);
+      return request("recording",{query:`artist:${phrase(artist)} AND (${unique.map(title=>`recording:${phrase(title)}`).join(" OR ")})`,limit:"100"},options).then(body=>Array.isArray(body.recordings)?body.recordings:[]);
+    },
     searchRecordings: (title, artist, options) => request("recording", { query: `recording:${phrase(title)}${artist ? ` AND artist:${phrase(artist)}` : ""}`, limit: "25" }, options).then((body) => body.recordings || []),
     getRecording: (id, options) => request(`recording/${encodeURIComponent(id)}`, { inc: "artist-credits+releases+release-groups" }, options),
     searchReleases: (album, artist) => request("release", { query: `release:${phrase(album)}${artist ? ` AND artist:${phrase(artist)}` : ""}`, limit: "15" }).then((body) => body.releases || []),
