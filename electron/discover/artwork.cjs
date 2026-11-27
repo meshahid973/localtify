@@ -139,7 +139,7 @@ function firstArtwork(jobs, { active = () => true, staggerMs = 350, excluded = [
       if (settled) return;
       if (!active()) { finish({}); return; }
       if (next === providers.length) {
-        if (!running) finish({}, failed ? unavailable() : busy ? capacity() : undefined);
+        if (!running) finish({}, busy ? capacity() : failed ? unavailable() : undefined);
         return;
       }
       const work = providers[next++];
@@ -214,7 +214,7 @@ function createArtworkLookup(client,now=Date.now,trackInfo,lookupAudioDb,lookupM
     return resolve(key,options,async()=>{
       let track, knownRelease, failed=false, busy=false;
       const run = async jobs => {
-        try { return await firstArtwork(jobs,{active,excluded,timeoutMs:primaryOnly?5000:0}); }
+        try { return await firstArtwork(jobs,{active,excluded,timeoutMs:primaryOnly?5000:9000}); }
         catch(error) { if(error?.code === "ARTWORK_CAPACITY") busy=true; else failed=true; return {}; }
       };
       const lastfmJob = lastfm && (async () => {
@@ -238,8 +238,8 @@ function createArtworkLookup(client,now=Date.now,trackInfo,lookupAudioDb,lookupM
         if (primaryOnly) {
           const known=withoutFailedArtwork(knownRelease?{coverUrl:knownRelease}:{},excluded);
           if(known.coverUrl)return known;
-          if (failed) throw unavailable();
           if (busy) throw capacity();
+          if (failed) throw unavailable();
           return {};
         }
       }
@@ -270,8 +270,8 @@ function createArtworkLookup(client,now=Date.now,trackInfo,lookupAudioDb,lookupM
       if(alternate.coverUrl)return alternate;
       const known=withoutFailedArtwork(knownRelease?{coverUrl:knownRelease}:{},excluded);
       if(known.coverUrl)return known;
-      if (failed && active()) throw unavailable();
       if (busy && active()) throw capacity();
+      if (failed && active()) throw unavailable();
       return {};
     });
   };

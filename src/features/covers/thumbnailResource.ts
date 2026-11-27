@@ -104,6 +104,17 @@ export function observeArtwork(element: Element, callback: (near: boolean, size:
   };
 }
 
+const visibleListeners = new Map<Element,(visible:boolean)=>void>();
+let visibleObserver: IntersectionObserver | null = null;
+export function observeVisibleArtwork(element: Element, callback: (visible:boolean)=>void) {
+  if(typeof IntersectionObserver === "undefined"){callback(true);return ()=>{};}
+  visibleObserver ??= new IntersectionObserver(entries=>{
+    for(const entry of entries)visibleListeners.get(entry.target)?.(entry.isIntersecting);
+  });
+  visibleListeners.set(element,callback);visibleObserver.observe(element);
+  return ()=>{visibleListeners.delete(element);visibleObserver?.unobserve(element);if(!visibleListeners.size){visibleObserver?.disconnect();visibleObserver=null;}};
+}
+
 // Remote resolution returns a local display URL, never the provider/download identity.
 // A short-lived renderer registry avoids IPC storms on remount; disk policy stays
 // authoritative in the platform backend.

@@ -1,6 +1,6 @@
 "use strict";
 
-const { retryAfterMs, providerCooldown, unavailable } = require("../discover/provider-health.cjs");
+const { retryAfterMs, providerCooldown, unavailable, capacity } = require("../discover/provider-health.cjs");
 const API = "https://musicbrainz.org/ws/2/";
 const COVER_ART = "https://coverartarchive.org/";
 
@@ -57,19 +57,22 @@ function createMusicBrainzClient({ userAgent, fetchImpl = fetch, minIntervalMs =
       if (!background) existing.background = false;
       return existing.promise;
     }
-    if ((deadlineAt&&Date.now()>=deadlineAt)||(background && Date.now() < backgroundBlockedUntil)) return Promise.reject(unavailable());
+    if (deadlineAt&&Date.now()>=deadlineAt) return Promise.reject(capacity());
+    if (background && Date.now() < backgroundBlockedUntil) return Promise.reject(unavailable());
     if (waiting.length >= 128 || (background && waiting.filter(job => job.background).length >= 16)) {
-      return Promise.reject(new Error("MusicBrainz request queue is busy. Try again shortly."));
+      return Promise.reject(capacity());
     }
     let resolve, reject;
     const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
     const run = async () => {
       for (let attempt = 0; ; attempt += 1) {
-        if ((deadlineAt&&Date.now()>=deadlineAt)||(background && Date.now() < backgroundBlockedUntil)) throw unavailable();
+        if (deadlineAt&&Date.now()>=deadlineAt) throw capacity();
+        if (background && Date.now() < backgroundBlockedUntil) throw unavailable();
         const wait = lastAt + minIntervalMs - Date.now();
-        if(deadlineAt&&Date.now()+Math.max(0,wait)>=deadlineAt)throw unavailable();
+        if(deadlineAt&&Date.now()+Math.max(0,wait)>=deadlineAt)throw capacity();
         if (wait > 0) await sleep(wait);
-        if ((deadlineAt&&Date.now()>=deadlineAt)||(background && Date.now() < backgroundBlockedUntil)) throw unavailable();
+        if (deadlineAt&&Date.now()>=deadlineAt) throw capacity();
+        if (background && Date.now() < backgroundBlockedUntil) throw unavailable();
         lastAt = Date.now();
         const response = await fetchImpl(key, { headers: { "User-Agent": userAgent, Accept: "application/json" }, signal: AbortSignal.timeout(deadlineAt?Math.max(1,Math.min(timeoutMs,deadlineAt-Date.now())):timeoutMs) }).catch((error) => { if(background&&!deadlineAt)backgroundBlockedUntil=Date.now()+15000; throw unreachable(error); });
         if(response.status===429||response.status>=500)backgroundBlockedUntil=Math.max(backgroundBlockedUntil,Date.now()+providerCooldown({status:response.status,retryAfterMs:retryAfterMs(response.headers)}));
@@ -85,7 +88,7 @@ function createMusicBrainzClient({ userAgent, fetchImpl = fetch, minIntervalMs =
     // unrelated request is still running. A started request has its own timeout.
     const deadlineTimer=deadlineAt?setTimeout(()=>{
       const index=waiting.indexOf(entry);
-      if(index>=0){waiting.splice(index,1);reject(unavailable());}
+      if(index>=0){waiting.splice(index,1);reject(capacity());}
     },Math.max(1,deadlineAt-Date.now())):null;
     inFlight.set(key, entry);
     promise.then(() => {

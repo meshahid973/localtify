@@ -213,9 +213,9 @@ async function controlledRecommendation(root,batch){
   }
   return {firstShelfMs,totalMs:Math.round(performance.now()-start),artworkRequests:requests,tracks:all.length,attached:all.filter(track=>track.coverUrl).length};
 }
-async function liveCatalogBatch(){
+async function liveCatalogBatch(withIds=true){
   const {enrichCatalogTrack}=require("../electron/discover/artwork.cjs");
-  const artist="Daft Punk",tracks=[["One More Time","60fa767a-d85d-4991-82bc-4294e0b11ae7"],["Digital Love","15f16efc-8762-4151-95ab-c12d06268640"],["Harder, Better, Faster, Stronger","f1a6a40f-78f5-4918-968d-f64363bae94c"]].map(([title,recordingId])=>({title,artist,recordingId,album:"Discovery"}));
+  const artist="Daft Punk",tracks=[["One More Time","60fa767a-d85d-4991-82bc-4294e0b11ae7"],["Digital Love","15f16efc-8762-4151-95ab-c12d06268640"],["Harder, Better, Faster, Stronger","f1a6a40f-78f5-4918-968d-f64363bae94c"]].map(([title,recordingId])=>({title,artist,...(withIds?{recordingId}:{}),album:"Discovery"}));
   let requests=0;
   const client=createMusicBrainzClient({userAgent:"Localtify/0.5.1 (https://github.com/meshahid973/localtify)",timeoutMs:9000,
     fetchImpl:async(url,options)=>{requests++;return fetch(url,options);}});
@@ -377,7 +377,8 @@ async function main() {
   const catalogBatch=process.argv.includes("--resolution")||baselineRoot?await liveCatalogBatch():undefined;
   const recommendationComparison=baselineRoot?{baseline:await controlledRecommendation(baselineRoot,false),candidate:await controlledRecommendation(path.resolve(__dirname,".."),true)}:undefined;
   const expansion=process.argv.includes("--provider-expansion")?await probeExpansion():undefined;
-  console.log(JSON.stringify({expansion,checkedAt:new Date().toISOString(),sample:{title:expectedTitle,artist:expectedArtist},
+  const nameOnlyBatch=process.argv.includes("--pipeline6")?await liveCatalogBatch(false):undefined;
+  console.log(JSON.stringify({expansion,nameOnlyBatch,checkedAt:new Date().toISOString(),sample:{title:expectedTitle,artist:expectedArtist},
     checks:sorted,resolution,comparison,cacheComparison,catalogBatch,recommendationComparison,note:"Advisory network observation, not a guarantee of future provider availability"},null,2));
   // Manual release acceptance must not silently pass without configured keys
   // or when either keyed integration is unable to retrieve usable artwork.

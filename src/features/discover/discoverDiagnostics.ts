@@ -33,8 +33,8 @@ async function discoverDebug(action: "start"|"report"|"stop"|"reset" = "report")
   if(action==="start"||action==="reset"){
     if(timer!==undefined)window.clearInterval(timer);
     events=[];start=performance.now();enabled=true;
-    await window.localitfy.getDiscoveries({diagnostics:"start"}).catch(()=>null);
     sample();timer=window.setInterval(sample,1000);
+    await window.localitfy.getDiscoveries({diagnostics:"start"}).catch(()=>null);
   }else if(action==="stop"){
     sample();enabled=false;if(timer!==undefined)window.clearInterval(timer);timer=undefined;
   }

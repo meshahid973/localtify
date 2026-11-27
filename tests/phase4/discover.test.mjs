@@ -786,3 +786,21 @@ test("specialist fallback does not displace existing catalog results or query un
   assert.equal((await search("重音テト")).items[0].id,ordinary[0].id);assert.equal(calls,0);
   ordinary=[];assert.equal((await search("重音テト")).items[0].id,"vocadb:1");assert.equal(calls,1);
 });
+
+test("Discover IPC enriches selected title-and-artist recommendations without recording IDs",async()=>{
+  const handlers=new Map(),settings={discoverEnabled:true,lastfmApiKey:"1234567890abcdef1234567890abcdef"};
+  const calls=[];const mbid="12345678-1234-1234-1234-123456789abc",release="22345678-1234-1234-1234-123456789abc";
+  const fetch=async address=>{
+    const u=new URL(address),method=u.searchParams.get("method"),artist=u.searchParams.get("artist");
+    const result=method==="artist.getsimilar"?{similarartists:{artist:[{name:"Related Artist",match:"1",url:"https://www.last.fm/music/Related+Artist"}]}}:{toptracks:{track:artist==="Related Artist"?[{name:"Example",artist:{name:artist},url:"https://www.last.fm/music/Related+Artist/_/Example"}]:[]}};
+    return new Response(JSON.stringify(result));
+  };
+  registerDiscoverIpc({handle:(name,fn)=>handlers.set(name,fn)},{getSongs:()=>[{title:"Owned",artist:"Seed Artist",playCount:10}],getSettings:()=>settings,fetch,musicBrainzClient:{searchRecordingBatch:async(name,tracks)=>{
+    calls.push({name,tracks});return [{id:mbid,title:"Example","artist-credit":[{name:"Related Artist"}],releases:[{id:release,title:"Album","cover-art-archive":{front:true}}]}];
+  }}});
+  const result=await handlers.get("discover:get")({},{});
+  assert.equal(result.status,"ready");assert.equal(calls.length,1);
+  assert.equal(calls[0].tracks[0].recordingId,undefined);
+  assert.equal(result.artists[0].topTracks[0].providerId,mbid);
+  assert.equal(result.artists[0].topTracks[0].coverUrl,"https://coverartarchive.org/release/"+release+"/front-250");
+});

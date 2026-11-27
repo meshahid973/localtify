@@ -255,7 +255,7 @@ export default function DiscoverView({ settings, updateSetting, sendToDownloads,
       <div className="discoverSectionHead"><h2 id="discover-recommended" className="discoverHeading">Recommended songs</h2>{recommendedTracks.length > 10 ? <button type="button" className="discoverName discoverMore" aria-expanded={showAllRecommended} onClick={() => setShowAllRecommended(value => !value)}>{showAllRecommended ? "Show less" : "See all"}</button> : null}</div>
       <ul className="discoverSongList">
         {(showAllRecommended ? recommendedTracks : recommendedTracks.slice(0, 10)).map((track,index) => <li key={trackId(track)}>
-          <DiscoverCover priority={index<4} lookupPriority={0} title={track.title} artist={track.artist} artwork={track} providerId={track.providerId} lookup />
+          <DiscoverCover priority={index<4} lookupPriority={0} retryEpoch={ready.generatedAt} title={track.title} artist={track.artist} artwork={track} providerId={track.providerId} lookup />
           <span className="discoverSongText"><button type="button" className="discoverName" onClick={() => openLink(track.url)} title={track.title}>{track.title}</button><small>{track.artist}</small></span>
           {pickButton(track)}
         </li>)}
@@ -268,7 +268,7 @@ export default function DiscoverView({ settings, updateSetting, sendToDownloads,
         {popularTracks.map(track => <li key={trackId(track)}>
           <div className="discoverShelfArt">
             <button type="button" className="discoverArtLink" onClick={() => openLink(track.url)} aria-label={`Open ${track.title}`}>
-              <DiscoverCover lookupPriority={1} title={track.title} artist={track.artist} artwork={track} providerId={track.providerId} lookup />
+              <DiscoverCover lookupPriority={1} retryEpoch={ready.generatedAt} title={track.title} artist={track.artist} artwork={track} providerId={track.providerId} lookup />
             </button>
             <div className="discoverShelfActions">{pickButton(track)}</div>
           </div>
@@ -281,7 +281,7 @@ export default function DiscoverView({ settings, updateSetting, sendToDownloads,
       <h2 id="discover-artists" className="discoverHeading">Artists you might like</h2>
       <ul className="discoverSongList">
         {ready.artists.map(artist => <li key={artist.name}>
-          <DiscoverCover title={artist.name} artist="" person lookup />
+          <DiscoverCover title={artist.name} artist="" retryEpoch={ready.generatedAt} person lookup />
           <span className="discoverSongText"><button type="button" className="discoverName" onClick={() => openLink(artist.url)} title={artist.name}>{artist.name}</button>
             <small title={listNames(artist.because)}>Because you play {listNames(artist.because)}{artist.seedCount > artist.because.length ? ` and ${artist.seedCount - artist.because.length} more` : ""}</small>
           </span>

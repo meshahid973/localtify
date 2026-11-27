@@ -124,7 +124,7 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
       const index=foreground>=0?foreground:backgroundRunning<backgroundLimit?0:-1;
       if(index<0)return;
       const [job]=waiting.splice(index,1);
-      clearTimeout(job.timer);
+      clearTimeout(job.timer);job.detach?.();
       if(job.background&&job.signal?.aborted){job.reject(capacity());continue;}
       if(now()<hardBlockedUntil||(job.background&&now()<blockedUntil)){job.reject(unavailable());continue;}
       running++;const wasBackground=job.background;if(wasBackground)backgroundRunning++;
@@ -143,12 +143,12 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
     if(hit&&now()-hit.at<300000){cache.delete(key);cache.set(key,hit);return select(hit.items);}
     const prior=pending.get(key);
     if(prior){
-      if(!background){prior.background=false;prior.signal=undefined;pump();}
-      else if(prior.signal!==options.signal)prior.signal=undefined;
+      if(!background){prior.background=false;prior.detach?.();prior.signal=undefined;pump();}
+      else if(prior.signal!==options.signal){prior.detach?.();prior.signal=undefined;}
       return prior.promise.then(select);
     }
     if(now()<hardBlockedUntil||(background&&now()<blockedUntil))throw unavailable();
-    if(waiting.length>=32&&background||waiting.length>=48)throw capacity();
+    if((waiting.length>=32&&background)||waiting.length>=48)throw capacity();
     let resolve,reject;
     const result=new Promise((yes,no)=>{resolve=yes;reject=no;});
     const job={background,signal:options.signal,resolve,reject,timer:null,promise:null,run:async()=>{
@@ -164,12 +164,16 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
         throw error;
       }
     }};
-    job.promise=result.finally(()=>{pending.delete(key);clearTimeout(job.timer);});
-    job.timer=setTimeout(()=>{
+    const cancelQueued=()=>{
       const index=waiting.indexOf(job);
-      if(index>=0){waiting.splice(index,1);reject(capacity());pump();}
-    },background?3500:8000);
-    pending.set(key,job);waiting.push(job);pump();
+      if(index>=0){waiting.splice(index,1);clearTimeout(job.timer);job.detach?.();reject(capacity());pump();}
+    };
+    job.detach=()=>options.signal?.removeEventListener("abort",cancelQueued);
+    job.promise=result.finally(()=>{pending.delete(key);clearTimeout(job.timer);job.detach();});
+    job.timer=setTimeout(cancelQueued,background?3500:8000);
+    pending.set(key,job);waiting.push(job);
+    if(background&&options.signal){options.signal.addEventListener("abort",cancelQueued,{once:true});if(options.signal.aborted)cancelQueued();}
+    pump();
     return job.promise.then(select);
   };
   search.cachedArtist=name=>{
