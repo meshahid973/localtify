@@ -9,6 +9,13 @@ Localtify 0.5.1 brings faster libraries, smarter playlists and a more consistent
 - **Simpler playlist editing.** One searchable picker for songs and albums, confirmed saves and consistent sorted playback.
 - **Artwork.** Cover Studio was retired; saved artwork, normal artwork editing and bulk artwork reroll remain available.
 
+## Discover and music metadata
+
+- **Background Discover preparation.** Recommended songs and initial cover candidates can load while you use other desktop pages.
+- **Catalog reuse.** Share recording metadata, verified artist and album identities, and cached artwork between supported catalog and library workflows.
+- **Recording matching.** Preserve distinct versions, artist credits and provider identities; avoid attaching ambiguous artwork.
+- **Known limitation.** Some recommendations, particularly niche recordings and remixes, may still show missing covers. External provider restrictions or outages can slow or prevent metadata resolution.
+
 ## Reliability
 
 - **Safer recovery.** Preserve malformed recovery data and retry unacknowledged listening events.

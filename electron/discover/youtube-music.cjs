@@ -248,7 +248,7 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
   }
   function storeRecord(item){
     if(!validRecord(item))return null;
-    const key=recordingKey(item.id),old=persistent.get(recordKey(key))?.record;
+    const key=recordKey(item.id),old=persistent.get(key)?.record;
     const row={...item};
     if(old){
       // Same provider ID only. A sparse response must not erase verified metadata.
@@ -263,11 +263,12 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
       if(Object.keys(incomingFields).length===Object.keys(oldFields).length&&Object.keys(incomingFields).every(field=>JSON.stringify(incomingFields[field])===JSON.stringify(oldFields[field])))return old;
     }
     row.identity=canonicalIdentity(row,{now:now()});
-    persistent.set(recordKey(key),{record:row},14*86400000);
+    persistent.set(key,{record:row},14*86400000);
     return row;
   }
   function storePage(key,items,metadata,ttl=7*86400000){
-    const ids=items.map(item=>storeRecord(item)).filter(Boolean).map(item=>recordingKey(item.id));
+    // The caller has already normalized and stored these recordings via remember().
+    const ids=items.filter(validRecord).map(item=>recordingKey(item.id));
     persistent.set(key,{ids:[...new Set(ids)].slice(0,100),...metadata},ttl);
   }
   let trace=()=>{};
@@ -444,7 +445,7 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
     if(verified.length===1){
       const entry=verified[0];
       const {tracks:_,topSongs:__,discography:___,...metadata}=entry.page;
-      if(entry.items.length){remember(entry.items);storePage(entry.key,entry.items,{page:metadata});}
+      if(entry.items.length){entry.items=remember(entry.items);storePage(entry.key,entry.items,{page:metadata});}
       const page=entry;
       for(const item of page.items)collected.set(item.id,item);
       trace("artist-catalog-match",{count:matches(page.items).length,total:wanted.length});
@@ -459,7 +460,8 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
       for(const rows of more)for(const row of rows)collected.set(row.id,row);
     }
     // Video catalog is a bounded second route for recordings absent from music shelves.
-    const unresolved=wanted.find(track=>!matches([...collected.values()]).includes(track));
+    const matched=new Set(matches([...collected.values()]));
+    const unresolved=wanted.find(track=>!matched.has(track));
     if(unresolved&&!options.signal?.aborted){
       const query=(unresolved.title+" "+unresolved.artist).slice(0,160);
       const videos=await search("video",query,{...options,artwork:true}).catch(()=>[]);
@@ -476,7 +478,8 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
     const id=String(providerId||"").replace(/^ytmusic:/,"");if(!artistId.test(id))return null;
     await persistent.hydrate();
     const cached=persistent.get(diskKey("artist-details","ytmusic:"+id));
-    if(cached?.page&&readRows(cached).length){trace("artist-catalog-cache",{state:"hit"});return {...cached.page,tracks:readRows(cached)};}
+    const cachedTracks=readRows(cached);
+    if(cached?.page&&cachedTracks.length){trace("artist-catalog-cache",{state:"hit"});return {...cached.page,tracks:cachedTracks};}
     const page=await scheduled("browse:"+id,options,async()=>mapArtistPage(await requestCatalog(fetchImpl,"browse",{browseId:id}),id));
     if(!page)return null;
     const tracks=new Map(page.tracks.map(track=>[track.id,track])),releases=new Map(page.releases.map(release=>[release.id,release]));
@@ -484,9 +487,9 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
     if(page.topSongs)jobs.push(scheduled("songs:"+JSON.stringify(page.topSongs),options,async()=>mapArtistSongs(await requestCatalog(fetchImpl,"browse",page.topSongs),id,page.name)).then(rows=>{for(const row of rows)tracks.set(row.id,row);}));
     for(const {kind,...endpoint} of page.discography)jobs.push(scheduled("discography:"+JSON.stringify(endpoint),options,async()=>mapDiscography(await requestCatalog(fetchImpl,"browse",endpoint),kind)).then(rows=>{for(const row of rows)releases.set(row.id,row);}));
     const settled=await Promise.allSettled(jobs);
-    const items=[...tracks.values()].slice(0,100),{tracks:_,topSongs:__,discography:___,...metadata}=page;
+    const items=remember([...tracks.values()].slice(0,100)),{tracks:_,topSongs:__,discography:___,...metadata}=page;
     metadata.releases=[...releases.values()].slice(0,100);
-    remember(items);storePage(diskKey("artist-page","ytmusic:"+id),items,{page:metadata});
+    storePage(diskKey("artist-page","ytmusic:"+id),items,{page:metadata});
     if(settled.every(job=>job.status==="fulfilled"))storePage(diskKey("artist-details","ytmusic:"+id),items,{page:metadata});
     return {...metadata,tracks:items};
   };
@@ -494,17 +497,19 @@ function createYouTubeMusicSearch(fetchImpl=globalThis.fetch,now=Date.now,maxPen
     const id=String(providerId||"").replace(/^ytmusic:/,"");if(!albumIdPattern.test(id))return null;
     await persistent.hydrate();
     const key=diskKey("album","ytmusic:"+id),cached=persistent.get(key);
-    if(cached?.album&&readRows(cached).length){trace("release-cache",{state:"hit"});return {...cached.album,tracks:readRows(cached)};}
+    const cachedTracks=readRows(cached);
+    if(cached?.album&&cachedTracks.length){trace("release-cache",{state:"hit"});return {...cached.album,tracks:cachedTracks};}
     const page=await scheduled("album:"+id,options,async()=>mapAlbumPage(await requestCatalog(fetchImpl,"browse",{browseId:id}),id));
     if(!page)return null;
-    const {tracks:items,...album}=page;remember(items);
+    const {tracks,...album}=page;
+    const items=remember(tracks);
     if(items.length)storePage(key,items,{album});
-    return page;
+    return {...album,tracks:items};
   };
   search.radio=async seed=>{
     if(!videoId.test(seed||""))return [];
     await persistent.hydrate();
-    return scheduled("radio:"+seed,{},async()=>{const rows=mapRadioResponse(await requestCatalog(fetchImpl,"next",{videoId:seed,playlistId:"RDAMVM"+seed}),seed);remember(rows);return rows;});
+    return scheduled("radio:"+seed,{},async()=>{const rows=mapRadioResponse(await requestCatalog(fetchImpl,"next",{videoId:seed,playlistId:"RDAMVM"+seed}),seed);return remember(rows);});
   };
   return search;
 }
