@@ -44,8 +44,7 @@
 .settingsPage.settingsPageV027 .settingsPanelHeader strong { color: var(--settings-text);  }
 .settingsPage.settingsPageV027 .settingsPanelHeader span,
 .settingsPage.settingsPageV027 .settingsPanelHeader p { color: var(--settings-muted); font-size: 12px; line-height: 1.5; }
-.settingsPage.settingsPageV027 .settingsTwoColumn,
-.settingsPage.settingsPageV027 .settingsGrid.twoCols { gap: 17px; }
+.settingsPage.settingsPageV027 .settingsTwoColumn { gap: 17px; }
 .settingsPage.settingsPageV027 .settingsMiniGrid { gap: 13px; }
 .settingsPage.settingsPageV027 .settingsAudioEffectsPanel { grid-column: 1 / -1; }
 .settingsPage.settingsPageV027 .settingsAudioEffectsPanel .settingsSelectField { max-width: 540px; }
@@ -367,8 +366,7 @@
 }
 @media (max-width: 600px) {
  .settingsPage.settingsPageV027 { width: 100%; padding-bottom: 80px; }
- .settingsPage.settingsPageV027 .settingsTwoColumn,
- .settingsPage.settingsPageV027 .settingsGrid.twoCols { grid-template-columns: minmax(0,1fr); }
+ .settingsPage.settingsPageV027 .settingsTwoColumn { grid-template-columns: minmax(0,1fr); }
  .settingsPage.settingsPageV027 .settingsCategoryRail nav { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 6px; overflow: visible; }
  .settingsPage.settingsPageV027 .settingsNavGroup { display: contents; }
  .settingsPage.settingsPageV027 .settingsCategoryButton { width: 100%; min-width: 0; }
@@ -415,7 +413,7 @@
   border-radius: 999px;
 }
 .settingsPage.settingsPageV027 .settingsControlResult { scroll-margin-block: 12px; }
-.settingsPage.settingsPageV027 .settingsCategoryPage :is(.settingsTwoColumn,.settingsGrid.twoCols) { min-width: 0; }
+.settingsPage.settingsPageV027 .settingsCategoryPage .settingsTwoColumn { min-width: 0; }
 @media (max-width: 600px) {
   .settingsPage.settingsPageV027 .settingsChoiceRowV491 { gap: 6px; }
   .settingsPage.settingsPageV027 :is(.settingsChoice,.settingsChoicePillV491) { min-width: 0; }
